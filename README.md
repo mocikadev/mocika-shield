@@ -27,11 +27,15 @@ Android APK 离线加固工具，桌面 GUI，三平台支持。
 
 | 平台 | 安装包 | 说明 |
 |------|--------|------|
-| Linux | `.AppImage` | 单文件免安装，点击即用 |
-| Linux | `.deb` | Debian / Ubuntu 安装包 |
+| Linux（GNOME 原生） | `_linux_gnome_amd64.AppImage` | GTK4 + libadwaita，GNOME 原生风格，推荐 |
+| Linux（GNOME 原生） | `_linux_gnome_amd64.deb` | Debian / Ubuntu deb 包，安装后在启动器中可见 |
+| Linux（Tauri） | `_linux_amd64.AppImage` | Tauri + WebView，单文件免安装 |
+| Linux（Tauri） | `_linux_amd64.deb` | Tauri deb 包 |
 | macOS | `_arm64.dmg` | Apple Silicon（M 系列芯片） |
 | macOS | `_universal.dmg` | Intel + Apple Silicon 通用 |
 | Windows | `_setup.exe` | NSIS 安装程序 |
+
+> **Linux 用户**：推荐优先下载 GNOME 原生版（`_linux_gnome_amd64`），需要系统已安装 GTK4 和 libadwaita（Ubuntu 22.04+ / Fedora 36+ 默认已包含）。
 
 ---
 
