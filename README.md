@@ -31,11 +31,14 @@ Android APK 离线加固工具，桌面 GUI，三平台支持。
 | Linux（GNOME 原生） | `_linux_gnome_amd64.deb` | Debian / Ubuntu deb 包，安装后在启动器中可见 |
 | Linux（Tauri） | `_linux_amd64.AppImage` | Tauri + WebView，单文件免安装 |
 | Linux（Tauri） | `_linux_amd64.deb` | Tauri deb 包 |
-| macOS | `_arm64.dmg` | Apple Silicon（M 系列芯片） |
-| macOS | `_universal.dmg` | Intel + Apple Silicon 通用 |
+| macOS（Swift 原生） | `_macos_swift_arm64.dmg` | SwiftUI 原生，Apple Silicon，推荐，需 macOS 13.0+ |
+| macOS（Swift 原生） | `_macos_swift_universal.dmg` | SwiftUI 原生，Intel + Apple Silicon 通用，推荐，需 macOS 13.0+ |
+| macOS（Tauri） | `_macos_arm64.dmg` | Apple Silicon（M 系列芯片） |
+| macOS（Tauri） | `_macos_universal.dmg` | Intel + Apple Silicon 通用 |
 | Windows | `_setup.exe` | NSIS 安装程序 |
 
-> **Linux 用户**：推荐优先下载 GNOME 原生版（`_linux_gnome_amd64`），需要系统已安装 GTK4 和 libadwaita（Ubuntu 22.04+ / Fedora 36+ 默认已包含）。
+> **Linux 用户**：推荐优先下载 GNOME 原生版（`_linux_gnome_amd64`），需要系统已安装 GTK4 和 libadwaita（Ubuntu 22.04+ / Fedora 36+ 默认已包含）。  
+> **macOS 用户**：推荐优先下载 Swift 原生版（`_macos_swift_*`），需 macOS 13.0+。
 
 ---
 
