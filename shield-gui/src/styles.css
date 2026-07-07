@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 17% 97%;
+    --foreground: 220 20% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 13%;
+    --primary: 190 84% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 12% 92%;
+    --secondary-foreground: 220 16% 22%;
+    --muted: 220 12% 93%;
+    --muted-foreground: 220 8% 43%;
+    --accent: 190 74% 43%;
+    --accent-foreground: 220 20% 13%;
+    --destructive: 0 76% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 145 63% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 34 92% 48%;
+    --warning-foreground: 28 74% 16%;
+    --border: 220 10% 84%;
+    --input: 220 10% 84%;
+    --ring: 190 84% 34%;
+    --radius: 10px;
+    color-scheme: light;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  [data-theme="dark"] {
+    --background: 0 0% 8%;
+    --foreground: 210 20% 92%;
+    --card: 0 0% 16%;
+    --card-foreground: 210 20% 92%;
+    --primary: 185 84% 46%;
+    --primary-foreground: 0 0% 8%;
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 210 16% 86%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 220 7% 62%;
+    --accent: 185 84% 46%;
+    --accent-foreground: 0 0% 8%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 146 58% 44%;
+    --success-foreground: 222 24% 9%;
+    --warning: 36 92% 55%;
+    --warning-foreground: 32 72% 12%;
+    --border: 0 0% 24%;
+    --input: 0 0% 24%;
+    --ring: 185 84% 46%;
+    color-scheme: dark;
+    --sidebar-background: 0 0% 12%;
+    --sidebar-foreground: 210 20% 88%;
+    --sidebar-primary: 185 84% 46%;
+    --sidebar-primary-foreground: 0 0% 8%;
+    --sidebar-accent: 0 0% 18%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 0 0% 24%;
+    --sidebar-ring: 185 84% 46%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply m-0 overflow-hidden bg-background text-foreground antialiased;
+    font-family: Inter, "Noto Sans SC", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer components {
+  .app-panel {
+    @apply rounded-lg border bg-card text-card-foreground;
+  }
+
+  .field-label {
+    @apply text-[13px] font-medium text-foreground;
+  }
+
+  .field-hint {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .path-text {
+    @apply min-w-0 break-all font-mono text-xs leading-5 text-muted-foreground;
+  }
+
+  .icon-button {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-md border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

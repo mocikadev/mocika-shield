@@ -1,0 +1,146 @@
+# AGENTS.md — Mocika Shield
+
+Android APK 加固工具。`shield-cli`（Rust 命令行）加固 APK，`shield-stub`（Android 壳模块）在运行时解密加载 DEX，`shield-gui`（Tauri v2 桌面 GUI）提供跨平台图形化加固与签名界面。
+
+## 语言约定
+
+**所有交流、代码注释、提交信息、文档均使用中文。**
+
+> ⚠️ AI 强制检查点：每次回复前必须确认以下两项，违反则本次回复无效：
+> 1. 回复语言 = 简体中文（不得出现韩文、日文或其他非中文内容）
+> 2. 提交信息格式 = `<英文类型>: <中文描述>`，类型限于 `feat/fix/docs/style/refactor/perf/test/build/ci/revert/chore`
+
+---
+
+## 技术栈
+
+- `shield-cli`：Rust + clap，单一二进制 `shield`，同时作为 lib 被 GUI 直接链接
+- `shield-stub`：Android（Java 壳 + Rust Native JNI，`libmocikashield.so`）
+- `shield-gui`：Tauri v2，唯一正式桌面 GUI，目标三平台（Linux/macOS/Windows）
+- GUI 前端：React + TypeScript + Vite + Tailwind CSS + shadcn/ui + lucide-react
+- 构建：Makefile + Gradle（AGP 8.x / Kotlin 2.x）+ cargo-ndk + npm + tauri-cli
+
+---
+
+## 常用命令
+
+```bash
+make build-stub             # 构建 Android 壳（必须最先执行，输出 resources.zip）
+make build-cli              # 编译 shield 二进制
+make build-gui              # 构建桌面 GUI Tauri 版（需先 build-stub）
+make build-all              # build-stub + build-cli + build-gui
+make release VERSION=x.y.z  # 旧版 CLI-only 发布包（向后兼容）
+VERSION=x.y.z make release-linux        # Linux Tauri 发布包
+VERSION=x.y.z make release-macos        # macOS Tauri 发布包
+make test                   # 运行 shield-cli 单元测试
+make clean                  # 清理所有构建产物
+```
+
+Windows 发布需在 Windows 原生环境执行：
+
+```powershell
+.\scripts\release-windows.ps1 -Version x.y.z
+```
+
+---
+
+## 关键约束
+
+### 构建顺序
+`shield`（CLI）和 GUI 运行时均依赖 `resources.zip`，**必须先 `make build-stub`**。
+
+### NDK 版本
+`shield-stub/build.gradle.kts` 硬编码 NDK `29.0.14206865`；版本不同需修改或设置 `ANDROID_NDK_ROOT`。
+
+### Rust targets
+首次编译 `shield-stub` 前需：
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+```
+
+### 版本号同步
+升级时需同时修改 `shield-cli/Cargo.toml` 和 `shield-stub/src/main/rust/Cargo.toml`（以及可选的 `shield-gui/src-tauri/Cargo.toml`）。
+
+### DEXB v5 格式
+加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。
+DEXB 头部明文区布局：`magic(4) + version(4) + dex_count(4) + sig_len(1) + signature[sig_len] + ikm_len(1) + ikm[ikm_len] + nonce(12)`，之后为 ChaCha20-Poly1305 密文。
+当前 stub 仅支持 v5；v5 与 v4 不兼容，旧加固 APK 需重新加固。
+
+### 签名校验
+`extractAndDecryptFromDex(ctx, dex, key)` **必须传 `Context ctx`**（`attachBaseContext` 阶段 `ActivityThread.currentApplication()` 返回 null）。
+
+### ProGuard JNI 规则
+所有被 JNI Native 回调的 Java 类必须用 `{ *; }` 全保留（R8 无法感知 JNI 调用，逐条列举会漏掉方法）。
+
+### Windows 路径规范化
+Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口可能返回 `\\?\C:\...` 或 `\\?\UNC\...` 格式的扩展 UNC 路径，Java 不支持此格式。
+统一使用 **`dunce::simplified()`** 规范化，不要手写字符串替换。
+
+### Windows 子进程无控制台窗口
+调用 `java`、`keytool`、`apksigner` 等子进程时，必须通过 `no_window_command(prog)` 辅助函数创建 `Command`，该函数在 `#[cfg(target_os = "windows")]` 下设置 `CREATE_NO_WINDOW` flag（其他平台零开销）。
+
+### shield-gui 纯 binary crate
+`shield-gui/src-tauri` 是纯 binary crate（`main.rs` only），**没有 `lib.rs`**。Tauri commands 和所有后端逻辑均在 `main.rs` 中。
+
+### GUI 维护策略
+正式开源版本只维护一份桌面 GUI：`shield-gui`（Tauri + React）。
+
+### 配置文件命名
+GUI 自动维护的用户配置固定使用 `tool_config.json`，不要改成 `config.toml`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
+
+### 前端路径拼接
+前端构造输出路径时必须通过 `src/lib/path.ts` 的路径辅助函数处理 Windows 反斜杠，不要用裸 `format!("{}/{}", parent, stem)` 或字符串拼接散落在页面里。
+
+### 提交前合并同类提交
+每次提交前，先查看最近几条 `git log`，若末尾存在与本次**同类型（type 相同）且主题相近**的提交，优先用 `git rebase -i` 将其合并（squash）为一条，再追加当前变更一并提交。避免积累大量碎片化提交。
+
+### 提交信息禁止内部追踪编号
+提交信息（commit message）和文档中**不得出现内部路线图编号**。描述功能时直接说清楚做了什么，不引用编号。
+
+---
+
+## 仓库配置规范
+
+### 仓库关系
+
+本项目为开源仓库，远程地址统一为 `git@github.com:mocikadev/mocika-shield.git`。
+
+发布时通过 GitHub Actions 或本地发布脚本生成构建产物，并上传到同一仓库的 GitHub Releases。
+
+### About Description
+
+格式：`中文描述 · English description`（用 ` · ` 分隔，单行）
+
+| 仓库 | description |
+|------|-------------|
+| `mocikadev/mocika-shield`（GitHub） | `Android APK 加固工具（DEX 加密 + 壳保护 + 反调试） · Android APK hardening — DEX encryption, stub loader & anti-debug` |
+
+### Homepage URL
+
+| 仓库 | homepage |
+|------|----------|
+| `mocikadev/mocika-shield` | `https://github.com/mocikadev/mocika-shield/releases/latest` |
+
+### Topics
+
+| 仓库 | topics |
+|------|--------|
+| `mocikadev/mocika-shield` | `android` `apk` `security` `rust` `tauri` `react` `apk-protection` `dex-encryption` `android-security` |
+
+---
+
+## 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [README.md](README.md) | 用户快速开始、工作原理概览 |
+| [docs/README.md](docs/README.md) | 文档总览、模块概览、阅读路线 |
+| [docs/ops/build.md](docs/ops/build.md) | 从源码编译的详细步骤（含 GUI、Windows） |
+| [docs/ops/environment.md](docs/ops/environment.md) | 环境要求与 NDK 配置（含 Windows Scoop 一键配置） |
+| [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
+| [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
+| [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |
+| [docs/design/gui.md](docs/design/gui.md) | GUI 设计：唯一正式桌面 GUI、页面结构、签名配置与维护约束 |
+| [docs/process/commit-convention.md](docs/process/commit-convention.md) | Commit Message 规范 |
+| [docs/process/release.md](docs/process/release.md) | 发布流程、版本号管理、三平台发布检查清单 |
+| [docs/process/roadmap.md](docs/process/roadmap.md) | 功能路线图：待实现功能、进度与优先级 |

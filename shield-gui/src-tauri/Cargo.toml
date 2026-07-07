@@ -1,0 +1,35 @@
+[workspace]
+
+[package]
+name = "mocika-shield"
+version = "1.2.0-rc.1"
+edition = "2021"
+publish = false
+description = "Mocika Shield APK 加固工具 GUI 骨架"
+default-run = "mocika-shield"
+build = "build.rs"
+
+[build-dependencies]
+serde_json = "1.0"
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-store = "2.4.3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+semver = "1"
+shield-cli = { path = "../../shield-cli" }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+which = "8"
+dunce = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = "symbols"
+panic = "abort"
+codegen-units = 1

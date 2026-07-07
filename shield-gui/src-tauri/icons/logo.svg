@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="180" y1="120" x2="860" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10141d"/>
+      <stop offset="1" stop-color="#0b6b66"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="300" y1="180" x2="760" y2="830" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2ee6f2"/>
+      <stop offset="1" stop-color="#0d8cf0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <path
+    d="M512 176c106 70 201 90 286 109v212c0 176-109 300-286 381-177-81-286-205-286-381V285c85-19 180-39 286-109z"
+    fill="url(#shield)"
+  />
+  <path
+    d="M512 252c70 42 136 60 198 75v164c0 121-72 209-198 272V252z"
+    fill="#ffffff"
+    opacity=".9"
+  />
+  <path
+    d="M512 252c70 42 136 60 198 75v164c0 121-72 209-198 272V252z"
+    fill="#dffaff"
+    opacity=".35"
+  />
+</svg>

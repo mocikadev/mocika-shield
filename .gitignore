@@ -1,0 +1,61 @@
+# Build outputs
+build/
+*.apk
+*.aab
+*-output/
+*-output.apk
+test-output.apk
+.cxx/
+
+# Release artifacts
+release/
+dist/
+*.tar.gz
+*.tar.gz.sha256
+mocika-shield-*/
+
+# Gradle
+.gradle/
+local.properties
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+
+# Temporary files
+*.tmp
+*.log
+/tmp/
+
+# macOS
+.DS_Store
+
+# Tauri 生成的平台相关 JSON Schema（构建产物，IDE 类型提示用）
+shield-gui/src-tauri/gen/schemas/*-schema.json
+# Tauri ACL 清单（构建产物，自动生成）
+shield-gui/src-tauri/gen/schemas/acl-manifests.json
+
+# Native build
+test-input.apk
+*.bak
+
+# Rust
+target/
+# 库 crate 的 Cargo.lock 不提交（shield-stub/src/main/rust）
+shield-stub/src/main/rust/Cargo.lock
+# 可执行 crate 的 Cargo.lock 必须提交以保证可复现构建（shield-cli 不在此处忽略）
+**/*.rs.bk
+
+# Node / React 前端
+node_modules/
+*.tsbuildinfo
+
+# Swift / SPM
+shield-gui-swift/.build/
+shield-gui-swift/build/
+
+# 下载的构建工具（appimagetool 等），不进版本库
+scripts/tools/

@@ -1,0 +1,15 @@
+[package]
+name = "mocikashield"
+version = "1.2.0-rc.1"
+edition = "2021"
+
+[lib]
+name = "mocikashield"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+zstd = { workspace = true }
+chacha20poly1305 = { workspace = true }
+hkdf = { workspace = true }
+sha2 = { workspace = true }

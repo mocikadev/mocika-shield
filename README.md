@@ -1,0 +1,209 @@
+# Mocika Shield — Android APK 加固工具
+
+[![最新版本](https://img.shields.io/github/v/release/mocikadev/mocika-shield?style=flat-square&label=最新版本&color=6366f1)](https://github.com/mocikadev/mocika-shield/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/mocikadev/mocika-shield/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mocikadev/mocika-shield/actions/workflows/ci.yml)
+[![许可证](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+
+对 Android APK 的 DEX 文件进行压缩加密，并在运行时通过壳程序动态解密加载，防止静态反编译与重打包攻击。
+
+提供两种使用方式：**桌面 GUI**（推荐）和 **命令行**。
+
+> 本项目仅用于保护你拥有合法权利的 Android 应用。请勿用于绕过第三方应用保护、规避平台安全机制或其他未授权场景。
+
+---
+
+## 功能特性
+
+- **DEX 加密保护**：Zstd 压缩 + ChaCha20-Poly1305 认证加密（AEAD），密钥通过 HKDF-SHA256 派生，签名指纹绑定密钥派生，防逆向重用
+- **签名校验**：证书指纹写入 DEXB v5 头部并参与密钥派生，运行时 timing-safe 比对，重打包后解密必然失败
+- **运行时反调试**：Rust native 层检测 ptrace 附加（TracerPid）、Frida maps 特征、Frida GLib 线程名，检测到立即中止
+- **低特征**：加密数据追加到 `classes.dex` 末尾（DEX `file_size` 边界外），apktool / jadx 完全不可见，无 `assets/app.bin`；壳类名、JNI 符号、日志字符串均经过混淆，静态分析难以定位入口
+- **GUI 签名工具**：内置 APK 签名标签页，支持拖拽、自动清理 `.idsig`，无需额外工具
+- **完全离线**：加固、签名和校验均在本地完成，不上传 APK 或密钥库
+- **版本更新提示**：启动时自动检查 GitHub Releases，有新版本时分级提示（patch/minor 横幅、major 弹窗）
+- **多架构支持**：arm64-v8a / armeabi-v7a / x86 / x86_64
+- **中英双语界面**：GUI 跟随系统语言，可手动切换
+
+---
+
+## 快速开始
+
+### 方式一：桌面 GUI（推荐）
+
+从 [Releases](../../releases) 下载对应平台的安装包：
+
+| 平台 | 安装包 | 实现 |
+|------|--------|------|
+| Linux | `MocikaShield_x.y.z_linux_amd64.AppImage` / `.deb` | Tauri v2 |
+| macOS | `MocikaShield_x.y.z_macos_universal.dmg` | Tauri v2 |
+| Windows | `MocikaShield_x.y.z_windows_x64_setup.exe` | Tauri v2 |
+
+> 桌面 GUI 基于 Tauri v2 + React + TypeScript 构建，Linux / macOS / Windows 共用同一套界面与配置。
+
+> **macOS 首次打开（未签名版本）**
+>
+> macOS 会提示「无法验证开发者」，在终端执行以下命令去除隔离标记，执行后正常双击打开即可，只需操作一次：
+> ```bash
+> xattr -rd com.apple.quarantine /Applications/MocikaShield.app
+> ```
+
+界面包含四个页面：
+- **加固**：拖入或选择 APK → 预检验证（非 APK 文件立即提示）→ 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
+- **签名**：拖入或选择 APK → 使用设置页保存的签名配置 → 点击签名 → 生成 `{name}_signed.apk`
+- **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）、维护唯一正式签名配置
+- **关于**：显示当前版本号、构建 git hash、构建日期及工具链版本
+
+界面预览：
+
+![Mocika Shield 加固页](docs/assets/screenshots/readme-protect-main.png)
+
+更多界面：
+
+| 签名页 | 关于页 |
+|--------|--------|
+| ![Mocika Shield 签名页](docs/assets/screenshots/readme-sign-main.png) | ![Mocika Shield 关于页](docs/assets/screenshots/readme-about.png) |
+
+### 方式二：命令行（CLI）
+
+```bash
+tar -xzf mocika-shield-x.y.z.tar.gz
+cd mocika-shield-x.y.z
+
+# 加固
+./bin/shield protect -i input.apk -o protected.apk
+
+# 签名（加固后必须重新签名）
+apksigner sign --ks keystore.jks protected.apk
+
+# 安装
+adb install -r protected.apk
+```
+
+命令行参数：
+
+```
+用法：shield protect [OPTIONS] --input <APK> --output <APK>
+
+  -i, --input <APK>   输入 APK 路径
+  -o, --output <APK>  输出 APK 路径
+      --json-progress 输出 JSON 进度事件
+  -v, --verbose       输出详细日志
+  -h, --help          显示帮助
+  -V, --version       显示版本
+```
+
+---
+
+## 工作原理
+
+### 加固流程（CLI）
+
+```
+原始 APK
+    ↓
+[1. 解包] → apktool 解包（不反编译 Smali）
+    ↓
+[2. 修改 Manifest] → Application 替换为 StubApp，注入 ORIGINAL_APPLICATION meta-data
+    ↓
+[3. 提取签名] → 读取原始 APK 证书 SHA-256 指纹（`keytool` → `apksigner` 两级降级）
+    ↓
+[4. 打包加密 DEX] → Zstd 压缩 → ChaCha20-Poly1305 加密 → DEXB v5（含签名指纹与随机 IKM）→ 追加到 classes.dex 末尾
+    ↓
+[5. 注入壳资源] → stub-classes.dex + libmocikashield.so（四架构）
+    ↓
+[6. 重新打包] → 加固后 APK（未签名，需手动签名）
+```
+
+### 运行时流程（Android 设备）
+
+```
+应用启动
+    ↓
+[1. StubApp.attachBaseContext] → 壳 Application 启动
+    ↓
+[2. 反调试检测] → Rust native 层检测 ptrace / Frida，命中立即抛异常中止
+    ↓
+[3. 读取 classes.dex] → 扫描末尾 MSHD magic，提取加密 payload
+    ↓
+[4. JNI → Rust] → HKDF 派生密钥 → ChaCha20-Poly1305 解密 → Zstd 解压
+    ↓
+[5. 签名校验] → 读取设备实际签名参与密钥派生，并与 payload 头部指纹 timing-safe 比对，不匹配则 SecurityException
+    ↓
+[6. DEX 注入] → native 层注入 PathClassLoader，app 类优先
+    ↓
+[7. 启动真实 Application] → 原始应用正常运行
+```
+
+---
+
+## 安全特性
+
+| 特性 | 说明 |
+|------|------|
+| AEAD 加密 | ChaCha20-Poly1305，密文篡改立即检测，不返回明文 |
+| 每次加固随机 nonce | HKDF-SHA256(ikm, nonce) 派生密钥，相同 APK 每次加固产生不同密文 |
+| 签名指纹绑定密钥派生 | IKM 随机生成并与证书指纹联合派生，逆向 CLI/stub 无法重建其他 APK 的解密密钥 |
+| 签名指纹绑定加密密钥 | 指纹写入 DEXB v5 头部并参与 HKDF info，重签后派生密钥不同，AEAD 解密失败 |
+| Timing-safe 签名比对 | 常数时间比对，防时序攻击 |
+| 低特征 | 无 `assets/app.bin`，加密数据对静态工具不可见；壳类名、JNI 符号经混淆处理 |
+| 运行时反调试 | Rust native 层检测 ptrace、Frida maps 特征与 Frida GLib 线程名，检测到立即中止 |
+
+---
+
+## 项目结构
+
+```
+mocika-shield/
+├── shield-cli/              # Rust 命令行工具（单一二进制 shield）
+│   └── src/dex_packer/      # DEX 打包、加密、DEXB v5 格式
+├── shield-stub/             # Android 壳模块
+│   └── src/main/
+│       ├── java/            # Java 壳层（StubApp、Ld）
+│       └── rust/            # Rust Native 层（libmocikashield.so，含反调试）
+├── shield-gui/              # 桌面 GUI（Tauri v2，Linux/macOS/Windows）
+│   ├── src-tauri/           # Tauri 后端（调用 shield-cli 逻辑）
+│   └── src/                 # React + TypeScript 前端
+├── tools/                   # 外部工具（apktool、apksigner）
+├── scripts/                 # 构建与发布脚本
+└── Makefile                 # 统一构建入口
+```
+
+---
+
+## 从源码编译
+
+```bash
+# 1. 构建 Android 壳模块（必须先执行）
+make build-stub
+
+# 2. 编译 CLI
+make build-cli
+
+# 3. 编译 Tauri GUI（需先 build-stub）
+make build-gui
+
+# 一键全部构建
+make build-all
+```
+
+详见 [docs/ops/build.md](docs/ops/build.md)。
+
+---
+
+## 环境要求
+
+| 场景 | 要求 |
+|------|------|
+| 使用发布包（CLI） | Linux / macOS，Java 8+ |
+| 使用发布包（GUI） | Linux / macOS / Windows |
+| 从源码编译 | Rust 1.70+，Node.js 22+，Java 8+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
+
+---
+
+## 许可证
+
+[MIT](LICENSE)
+
+## 安全问题
+
+请阅读 [SECURITY.md](SECURITY.md)。不要在公开 issue 中披露可直接复现的攻击细节。

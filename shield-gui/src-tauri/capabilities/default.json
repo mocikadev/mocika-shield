@@ -1,0 +1,16 @@
+{
+  "identifier": "default",
+  "description": "shield-gui 默认桌面能力集合",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "store:allow-load",
+    "store:allow-get-store",
+    "store:allow-set",
+    "store:allow-get",
+    "store:allow-save"
+  ]
+}

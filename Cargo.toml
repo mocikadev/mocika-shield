@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "shield-cli",
+    "shield-stub/src/main/rust",
+]
+resolver = "2"
+
+[workspace.dependencies]
+zstd = { version = "0.13", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+hkdf = "0.12"
+sha2 = "0.10"
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng", "thread_rng"] }
+directories = "6"
+
+[profile.release]
+opt-level = "z"      # 优化体积
+lto = true           # 链接时优化
+strip = "symbols"    # 移除符号表（比 strip = true 更明确、更激进）
+panic = "abort"      # 减少 unwind 代码体积
+codegen-units = 1    # 更激进的跨单元优化

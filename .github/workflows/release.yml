@@ -1,0 +1,292 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "发布版本号，例如 1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  ANDROID_NDK_VERSION: 29.0.14206865
+
+jobs:
+  linux-tauri:
+    name: Linux Tauri 发布包
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 解析版本号
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: 配置 Android 命令行工具
+        uses: android-actions/setup-android@v3
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: shield-gui/package-lock.json
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            musl-tools \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            pkg-config \
+            patchelf \
+            libfuse2
+
+      - name: 配置 Android SDK / NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: 配置 Rust target 与构建工具
+        run: |
+          rustup target add \
+            x86_64-unknown-linux-musl \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            i686-linux-android \
+            x86_64-linux-android
+          cargo install cargo-ndk --locked
+          cargo install tauri-cli --locked
+          cargo install cargo-deb --locked
+
+      - name: 安装 GUI 前端依赖
+        working-directory: shield-gui
+        run: npm ci
+
+      - name: 构建 Linux Tauri 发布包
+        run: VERSION="$VERSION" ./scripts/release-linux.sh "$VERSION"
+
+      - name: 上传 Linux Tauri 产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-tauri
+          path: |
+            dist/linux/**/*.tar.gz
+            dist/linux/**/*.AppImage
+            dist/linux/**/*.deb
+            dist/linux/checksums-sha256.txt
+          if-no-files-found: error
+
+  macos-tauri:
+    name: macOS Tauri 发布包
+    runs-on: macos-15
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 解析版本号
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: 配置 Android 命令行工具
+        uses: android-actions/setup-android@v3
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: shield-gui/package-lock.json
+
+      - name: 配置 Android SDK / NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: 配置 Rust target 与构建工具
+        run: |
+          rustup target add \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            i686-linux-android \
+            x86_64-linux-android
+          cargo install cargo-ndk --locked
+          cargo install tauri-cli --locked
+
+      - name: 安装 GUI 前端依赖
+        working-directory: shield-gui
+        run: npm ci
+
+      - name: 构建 macOS Tauri Universal 发布包
+        run: VERSION="$VERSION" ./scripts/release-macos.sh "$VERSION" universal
+
+      - name: 上传 macOS Tauri 产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-tauri
+          path: |
+            dist/macos/**/*.tar.gz
+            dist/macos/**/*.dmg
+            dist/macos/**/*.dmg.sha256
+            dist/macos/checksums-sha256.txt
+          if-no-files-found: error
+
+  windows:
+    name: Windows 发布包
+    runs-on: windows-2025
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 解析版本号
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "VERSION=${{ inputs.version }}" >> $env:GITHUB_ENV
+          } else {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+            "VERSION=$version" >> $env:GITHUB_ENV
+          }
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: 配置 Android 命令行工具
+        uses: android-actions/setup-android@v3
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: shield-gui/package-lock.json
+
+      - name: 安装 NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: 配置 Android SDK / NDK
+        shell: pwsh
+        run: |
+          1..20 | ForEach-Object { "y" } | sdkmanager --licenses | Out-Null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;$env:ANDROID_NDK_VERSION"
+          "ANDROID_NDK_ROOT=$env:ANDROID_HOME\ndk\$env:ANDROID_NDK_VERSION" >> $env:GITHUB_ENV
+
+      - name: 安装 GUI 前端依赖
+        working-directory: shield-gui
+        run: npm ci
+
+      - name: 构建 Windows 发布包
+        shell: pwsh
+        run: .\scripts\release-windows.ps1 -Version $env:VERSION
+
+      - name: 上传 Windows 产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: |
+            dist/windows/**/*.zip
+            dist/windows/**/*.exe
+            dist/windows/checksums-sha256.txt
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 GitHub Releases
+    runs-on: ubuntu-24.04
+    needs:
+      - linux-tauri
+      - macos-tauri
+      - windows
+
+    steps:
+      - name: 解析版本号
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "TAG=v${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          fi
+
+      - name: 下载所有产物
+        uses: actions/download-artifact@v7
+        with:
+          path: release-assets
+
+      - name: 创建或更新 GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          find release-assets -mindepth 2 -maxdepth 2 -name checksums-sha256.txt | while read -r checksum; do
+            artifact="$(basename "$(dirname "$checksum")")"
+            mv "$checksum" "$(dirname "$checksum")/${artifact}-checksums-sha256.txt"
+          done
+          mapfile -t files < <(find release-assets -type f | sort)
+          printf '%s\n' "${files[@]}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "$TAG" \
+              --generate-notes
+          fi
