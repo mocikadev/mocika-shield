@@ -135,7 +135,7 @@ echo ""
 # ==========================================
 echo -e "${BLUE}步骤2: 构建 shield-stub AAR（含 R8 混淆）...${NC}"
 
-./shield-stub/gradlew -p shield-stub assembleRelease
+./shield-stub/gradlew --no-daemon -p shield-stub assembleRelease
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}错误: shield-stub AAR构建失败${NC}"

@@ -13,6 +13,33 @@
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
 
+## Linux 构建依赖
+
+Linux 下构建 Tauri 桌面包时，除 Rust / Node.js / Java / Android SDK 外，还需要系统包：
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libwebkit2gtk-4.1-dev \
+  libgtk-3-dev \
+  libxdo-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  libssl-dev \
+  pkg-config \
+  patchelf \
+  libfuse2
+```
+
+- `file`、`wget`：Tauri / linuxdeploy 在 AppImage 打包流程中会用到
+- `libxdo-dev`、`librsvg2-dev`：属于 Tauri 官方 Linux 前置依赖
+- `libfuse2`：用于 AppImage 运行时兼容，CI 也保持安装
+- 发布构建建议使用 Ubuntu 22.04 或 Debian 12 作为基线，避免把 glibc 要求抬高
+
 ## Windows 构建环境
 
 > Windows 发布包（GUI NSIS 安装包 + CLI exe）必须在 Windows 原生环境构建，不支持交叉编译。

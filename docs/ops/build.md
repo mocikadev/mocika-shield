@@ -69,6 +69,8 @@ make build-gui
 # 等价于：cd shield-gui && cargo tauri build
 ```
 
+Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
+
 输出（Linux）：`shield-gui/src-tauri/target/release/bundle/` 下的 AppImage / deb
 输出（macOS）：`.dmg` / `.app`
 输出（Windows）：NSIS `.exe` / `.msi`
@@ -138,6 +140,20 @@ npm --version
 ```
 
 Windows 发布脚本会自动检测并安装缺失的 cargo 工具。
+
+### Linux：`failed to run linuxdeploy`
+
+这通常不是代码问题，而是 Linux Tauri / AppImage 打包依赖不完整。
+
+优先检查是否已安装 [environment.md](environment.md#linux-构建依赖) 中列出的系统包，尤其是：
+
+- `file`
+- `wget`
+- `libxdo-dev`
+- `librsvg2-dev`
+- `libfuse2`
+
+仓库的普通 `CI` 已新增 Linux Tauri bundle 冒烟检查；如果这里失败，通常不需要等到打 tag 再排查。
 
 ### NDK 未找到
 
