@@ -143,7 +143,15 @@ make build-stub  →  make build-cli / make build-gui / make release / make rele
 | 工作流 | 文件 | 触发 | 内容 |
 |--------|------|------|------|
 | CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、CLI 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
-| Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows 产物，汇总上传到 GitHub Release 草稿 |
+| Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows 产物，汇总上传到 GitHub Release |
+
+Release Notes 相关文件：
+
+| 文件 | 作用 |
+|------|------|
+| `.github/release.yml` | GitHub 自动生成变更列表的分类配置 |
+| `.github/release-notes/stable.md` | 稳定版本固定前言模板 |
+| `.github/release-notes/prerelease.md` | 预发布版本固定前言模板 |
 
 ### 自动发布流程
 
@@ -163,14 +171,27 @@ git push origin main vx.y.z
 1. 从 tag 提取版本号
 2. 构建各平台产物
 3. 上传 workflow artifacts
-4. 创建或更新 `vX.Y.Z` GitHub Release 草稿
+4. 根据版本号创建或更新对应的 GitHub Release
 5. 上传所有构建产物和校验和文件
 
-Release 默认创建为草稿，检查产物和 Release Notes 后再手动发布。
+发布可见性规则：
+
+- **稳定版本**（如 `v1.2.0`）：自动创建为 **Draft**
+- **预发布版本**（如 `v1.2.0-rc.1`、`v1.2.0-beta.1`、`v1.2.0-alpha.1`）：自动创建为 **Pre-release**
+
+稳定版本继续保留人工验收窗口；预发布版本直接公开为候选版本，避免每次手动从 Draft 改为 Pre-release。
+
+Release Notes 生成规则：
+
+- workflow 先读取稳定版或预发布版前言模板
+- 再调用 GitHub Release Notes API 生成本次版本的自动变更列表
+- 最终将两部分合并后写入 Release
+- 如果重新运行同一个 tag 的发布任务，产物与 Release Notes 会一并更新
 
 ### 手动触发发布
 
 在 GitHub Actions 页面选择 `Release` workflow，输入版本号 `x.y.z` 后运行。手动触发会创建或更新 `vx.y.z` Release 草稿，但不会自动创建 git tag；正式发布仍建议使用 tag 触发。
+如果输入的是带预发布后缀的版本号（如 `1.2.0-rc.1`），会直接创建或更新为 Pre-release。
 
 ---
 

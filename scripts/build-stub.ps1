@@ -147,7 +147,7 @@ $gradlew = if (Test-Path (Join-Path $ProjectRoot "shield-stub\gradlew.bat")) {
 } else {
     Join-Path $ProjectRoot "shield-stub\gradlew"
 }
-Run $gradlew @("-p", "shield-stub", "assembleRelease")
+Run $gradlew @("--no-daemon", "-p", "shield-stub", "assembleRelease")
 
 $aarFile = Join-Path $ProjectRoot "shield-stub\build\outputs\aar\shield-stub-release.aar"
 if (-not (Test-Path $aarFile)) { Err "未找到 AAR 文件: $aarFile" }
