@@ -1,0 +1,229 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { isApk, protectedOutputPath, signedOutputPath } from "@/lib/path";
+import { t, type Locale } from "@/lib/i18n";
+import {
+  api,
+  onTauriEvent,
+  openFileDialog,
+  type ApkCheckResult,
+  type DragDropPayload,
+  type ProtectProgress,
+  type SignConfig,
+} from "@/lib/tauri";
+
+export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
+
+function precheckMessage(locale: Locale, result: ApkCheckResult) {
+  if (result.error) {
+    return `${t(locale, "readApkFailed")}: ${result.error}`;
+  }
+  if (result.already_protected) {
+    return t(locale, "alreadyProtected");
+  }
+  if (!result.is_signed) {
+    return t(locale, "notSigned");
+  }
+  return "";
+}
+
+export function useProtectWorkflow({
+  locale,
+  signConfig,
+  keystorePassword,
+  signConfigLoaded,
+}: {
+  locale: Locale;
+  signConfig: SignConfig;
+  keystorePassword: string;
+  signConfigLoaded: boolean;
+}) {
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const [state, setState] = useState<ProtectState>("idle");
+  const [dragActive, setDragActive] = useState(false);
+  const [warning, setWarning] = useState("");
+  const [error, setError] = useState("");
+  const [precheck, setPrecheck] = useState("");
+  const [currentStep, setCurrentStep] = useState("");
+  const [messages, setMessages] = useState<string[]>([]);
+
+  const autoSignReady = Boolean(
+    signConfigLoaded &&
+      signConfig.auto_sign_enabled &&
+      signConfig.keystore_path &&
+      signConfig.key_alias,
+  );
+
+  const computedOutput = useMemo(() => {
+    const protectedPath = protectedOutputPath(input);
+    return autoSignReady ? signedOutputPath(protectedPath) : protectedPath;
+  }, [autoSignReady, input]);
+
+  useEffect(() => {
+    setOutput(computedOutput);
+  }, [computedOutput]);
+
+  const appendMessage = useCallback((message: string) => {
+    setMessages((items) => [...items.slice(-7), message]);
+  }, []);
+
+  const resetSelection = useCallback(() => {
+    setInput("");
+    setOutput("");
+    setState("idle");
+    setError("");
+    setPrecheck("");
+    setWarning("");
+    setMessages([]);
+    setCurrentStep("");
+  }, []);
+
+  const handleSelected = useCallback(
+    async (path: string) => {
+      setWarning("");
+      setError("");
+      setPrecheck("");
+      setMessages([]);
+      setCurrentStep("");
+      if (!isApk(path)) {
+        setWarning(t(locale, "onlyApk"));
+        return;
+      }
+      setInput(path);
+      setOutput(protectedOutputPath(path));
+      setState("prechecking");
+      try {
+        const result = await api.checkApk(path);
+        const message = precheckMessage(locale, result);
+        if (message) {
+          setPrecheck(message);
+        }
+        setState("idle");
+      } catch {
+        setPrecheck(t(locale, "apkCheckFailed"));
+        setState("idle");
+      }
+    },
+    [locale],
+  );
+
+  useEffect(() => {
+    const unlisten = Promise.all([
+      onTauriEvent<ProtectProgress>("protect-progress", (payload) => {
+        setCurrentStep(payload.step);
+        setMessages((items) => [...items.slice(-7), payload.message]);
+      }),
+      onTauriEvent<string>("protect-error", (payload) => {
+        setError(payload);
+        setState("failed");
+      }),
+      onTauriEvent<void>("protect-done", () => setState("done")),
+      onTauriEvent<DragDropPayload>("tauri://drag-drop", (payload) => {
+        const first = payload.paths?.[0];
+        setDragActive(false);
+        if (first) {
+          void handleSelected(first);
+        }
+      }),
+      onTauriEvent<void>("tauri://drag-enter", () => setDragActive(true)),
+      onTauriEvent<void>("tauri://drag-leave", () => setDragActive(false)),
+    ]);
+    return () => {
+      void unlisten.then((items) => items.forEach((fn) => fn()));
+    };
+  }, [handleSelected]);
+
+  const browse = useCallback(async () => {
+    const path = await openFileDialog("APK", ["apk"]);
+    if (path) {
+      await handleSelected(path);
+    }
+  }, [handleSelected]);
+
+  const start = useCallback(async () => {
+    if (!input || !output || precheck) {
+      return;
+    }
+    setState("running");
+    setError("");
+    setMessages([]);
+    setCurrentStep("CheckTools");
+    try {
+      const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
+      await api.protectApk(input, unsignedOutput);
+      if (autoSignReady && signConfig.keystore_path && signConfig.key_alias) {
+        setCurrentStep("Sign");
+        appendMessage(t(locale, "autoSignStarted"));
+        const compare = await api.compareCertFingerprints({
+          apkPath: input,
+          keystorePath: signConfig.keystore_path,
+          ksPass: keystorePassword,
+          ksType: signConfig.ks_type ?? "JKS",
+          keyAlias: signConfig.key_alias,
+        });
+        if (!compare.matches && !compare.error) {
+          setWarning(t(locale, "signMismatch"));
+        }
+        await api.signApk({
+          apkPath: unsignedOutput,
+          outputPath: output,
+          apksignerPath: null,
+          keystorePath: signConfig.keystore_path,
+          keyAlias: signConfig.key_alias,
+          ksType: signConfig.ks_type ?? "JKS",
+          signV1: signConfig.sign_v1,
+          signV2: signConfig.sign_v2,
+          signV3: signConfig.sign_v3,
+          signV4: signConfig.sign_v4,
+        });
+        await api.deleteFile(`${output}.idsig`).catch(() => undefined);
+        appendMessage(t(locale, "autoSignCompleted"));
+        await api.deleteFile(unsignedOutput)
+          .then(() => appendMessage(t(locale, "cleanedIntermediate")))
+          .catch(() => appendMessage(t(locale, "cleanupIntermediateFailed")));
+      }
+      appendMessage(t(locale, "protectCompleted"));
+      setState("done");
+    } catch (err) {
+      setError(String(err));
+      setState("failed");
+    }
+  }, [
+    appendMessage,
+    autoSignReady,
+    input,
+    keystorePassword,
+    locale,
+    output,
+    precheck,
+    signConfig,
+  ]);
+
+  const cancel = useCallback(async () => {
+    await api.cancelProtect().catch(() => undefined);
+  }, []);
+
+  const steps = autoSignReady
+    ? ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk", "Sign"]
+    : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk"];
+
+  return {
+    input,
+    output,
+    state,
+    dragActive,
+    warning,
+    error,
+    precheck,
+    currentStep,
+    messages,
+    autoSignReady,
+    steps,
+    hasInput: Boolean(input),
+    showProgress: Boolean(input) && (state === "running" || state === "done" || messages.length > 0),
+    browse,
+    start,
+    cancel,
+    resetSelection,
+  };
+}

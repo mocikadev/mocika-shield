@@ -1,7 +1,7 @@
 # GUI 设计文档
 
 > 当前唯一正式桌面 GUI：`shield-gui`（Tauri v2 + React + TypeScript）
-> 最后更新：2026-07-07
+> 最后更新：2026-07-08
 
 ## 1. 定位
 
@@ -17,11 +17,12 @@
 | 层 | 当前实现 |
 |----|----------|
 | 桌面容器 | Tauri v2 |
-| 后端 | Rust，`shield-gui/src-tauri/src/main.rs` |
-| 前端 | React + TypeScript |
+| 后端 | Rust，`main.rs` + 模块化后端（`app_config.rs`、`signing.rs`、`updates.rs` 等） |
+| 前端 | React + TypeScript，`App.tsx` 只保留应用壳，页面拆到 `pages/*` |
 | 构建 | Vite |
 | 样式 | Tailwind CSS |
-| 组件 | `src/components/ui/*`（基于 shadcn/ui 体系整理） |
+| 组件 | `src/components/ui/*` + `src/components/app/*`（基于 shadcn/ui 体系整理） |
+| 页面逻辑 | 页面内部副作用优先抽到 `src/hooks/*`，布局块优先收敛到 `src/components/app/*` |
 | 图标 | lucide-react |
 
 ## 3. 信息架构
@@ -118,11 +119,12 @@ sign_apk
   → spawn_blocking
   → shield_cli::sign_apk(...)
 
-check_apk / check_update / load_sign_config / save_sign_config
-  → 统一在 src-tauri/src/main.rs 中维护
+check_apk / check_update / 配置读写
+  → main.rs 只做 command 装配
+  → 具体实现分别落在 apk_check.rs / updates.rs / app_config.rs
 ```
 
-Windows 下调用 `java`、`keytool`、`apksigner` 等子进程时，必须统一走 `no_window_command()`，避免弹出控制台窗口。
+Windows 下调用 `java`、`keytool`、`apksigner` 等子进程时，统一复用 `shield_cli::utils::no_window_command()`，避免弹出控制台窗口。
 
 ## 8. 配置与持久化
 
@@ -156,3 +158,7 @@ GUI 启动时会调用 GitHub Releases API 检查版本更新，并在关于页�
 - README、使用指南、发布文档只描述当前这套 GUI
 - 新功能优先补齐中英文文案、深浅色主题和窄窗口状态
 - 文档里不再保留历史 GUI 的正式入口
+- 前端结构保持 `App.tsx -> pages -> components/app -> hooks` 这一层次，不再回到单文件堆叠
+- 加固页的事件监听、自动签名收尾、拖拽处理应优先放在独立 hook；设置页的签名表单优先拆成独立 panel
+- 签名页和关于页同样遵守这一规则：签名流程与数据加载逻辑进 hook，页面文件只保留布局和条件渲染
+- 进度侧栏、配置摘要卡、关于信息卡这类可复用块优先落在 `components/app/*`，不要继续内联回页面

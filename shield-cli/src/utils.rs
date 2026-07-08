@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use directories::ProjectDirs;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +19,7 @@ pub fn is_json_mode() -> bool {
 pub fn run_command(cmd: &str, args: &[&str], cwd: Option<&Path>) -> Result<String> {
     log::debug!("执行命令: {} {}", cmd, args.join(" "));
 
-    let mut command = Command::new(cmd);
+    let mut command = no_window_command(cmd);
     command
         .args(args)
         .stdout(Stdio::piped())
@@ -26,13 +27,6 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: Option<&Path>) -> Result<Strin
 
     if let Some(dir) = cwd {
         command.current_dir(dir);
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        command.creation_flags(CREATE_NO_WINDOW);
     }
 
     let output = command
@@ -46,6 +40,18 @@ pub fn run_command(cmd: &str, args: &[&str], cwd: Option<&Path>) -> Result<Strin
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     Ok(stdout)
+}
+
+pub fn no_window_command<S: AsRef<OsStr>>(prog: S) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(prog);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
 }
 
 #[allow(dead_code)]

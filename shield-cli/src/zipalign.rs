@@ -86,7 +86,9 @@ pub fn align_apk(path: &Path) -> Result<()> {
         .with_context(|| format!("创建临时对齐文件失败: {}", parent.display()))?;
 
     rewrite_aligned(path, temp.as_file_mut())?;
-    temp.as_file_mut().flush().context("刷新对齐后的 APK 失败")?;
+    temp.as_file_mut()
+        .flush()
+        .context("刷新对齐后的 APK 失败")?;
     if path.exists() {
         fs::remove_file(path).with_context(|| format!("删除旧 APK 失败: {}", path.display()))?;
     }
@@ -132,9 +134,7 @@ fn rewrite_aligned(path: &Path, output: &mut fs::File) -> Result<()> {
             continue;
         }
 
-        writer
-            .start_file(name, options)
-            .context("写入文件头失败")?;
+        writer.start_file(name, options).context("写入文件头失败")?;
         loop {
             let read = file.read(&mut buffer).context("读取 ZIP 条目数据失败")?;
             if read == 0 {
@@ -241,7 +241,9 @@ mod tests {
 
         let issues = verify_apk_alignment(&apk).unwrap();
         assert!(!issues.is_empty());
-        assert!(issues.iter().any(|it| it.name == "lib/arm64-v8a/libdemo.so"));
+        assert!(issues
+            .iter()
+            .any(|it| it.name == "lib/arm64-v8a/libdemo.so"));
     }
 
     #[test]
@@ -258,7 +260,10 @@ mod tests {
         let file = fs::File::open(&apk).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
 
-        let so_offset = archive.by_name("lib/arm64-v8a/libdemo.so").unwrap().data_start();
+        let so_offset = archive
+            .by_name("lib/arm64-v8a/libdemo.so")
+            .unwrap()
+            .data_start();
         assert_eq!(so_offset % SHARED_LIB_ALIGNMENT as u64, 0);
 
         let payload_offset = archive.by_name("res/raw/payload.bin").unwrap().data_start();

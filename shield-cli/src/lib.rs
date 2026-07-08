@@ -1,6 +1,7 @@
 pub mod commands;
 mod dex_packer;
 pub mod error;
+mod protect;
 pub mod utils;
 pub mod zipalign;
 

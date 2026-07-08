@@ -1,21 +1,10 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tempfile::TempDir;
 
+use crate::utils::no_window_command;
 use crate::zipalign::align_apk;
-
-fn no_window_command(prog: &str) -> Command {
-    #[allow(unused_mut)]
-    let mut cmd = Command::new(prog);
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeystoreType {
@@ -94,12 +83,8 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
     let v = &opts.signing_versions;
     let temp_dir = TempDir::new().context("创建签名临时目录失败")?;
     let aligned_input = temp_dir.path().join("aligned.apk");
-    std::fs::copy(&opts.apk_path, &aligned_input).with_context(|| {
-        format!(
-            "复制待签名 APK 到临时目录失败: {}",
-            opts.apk_path.display()
-        )
-    })?;
+    std::fs::copy(&opts.apk_path, &aligned_input)
+        .with_context(|| format!("复制待签名 APK 到临时目录失败: {}", opts.apk_path.display()))?;
     align_apk(&aligned_input).context("内置 APK 对齐失败")?;
 
     let final_output = opts
@@ -115,9 +100,7 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
     let aligned_input_str = aligned_input
         .to_str()
         .context("临时 APK 路径包含非法字符")?;
-    let sign_output_str = sign_output
-        .to_str()
-        .context("签名输出路径包含非法字符")?;
+    let sign_output_str = sign_output.to_str().context("签名输出路径包含非法字符")?;
 
     let mut cmd_args = vec![
         "-jar",
@@ -165,9 +148,8 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
 
     if sign_output != final_output {
         if final_output.exists() {
-            std::fs::remove_file(&final_output).with_context(|| {
-                format!("删除旧的签名输出失败: {}", final_output.display())
-            })?;
+            std::fs::remove_file(&final_output)
+                .with_context(|| format!("删除旧的签名输出失败: {}", final_output.display()))?;
         }
         std::fs::rename(&sign_output, &final_output).with_context(|| {
             format!(

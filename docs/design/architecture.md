@@ -17,9 +17,15 @@ mocika-shield/
 │       ├── main.rs                   # CLI 入口（clap 参数解析，-i/-o/-v）
 │       ├── error.rs                  # 错误类型（ShieldError）
 │       ├── utils.rs                  # 工具函数：exe_dir、strip_unc_prefix（dunce）、find_apktool 等
-│       └── commands/
-│           ├── protect.rs            # 加固命令（6 步流程 + 进度回调 + 取消信号）
-│           └── sign.rs               # 签名命令（apksigner）
+│       ├── commands/
+│       │   ├── protect.rs            # 加固命令薄编排层（流程、进度、取消）
+│       │   └── sign.rs               # 签名命令（apksigner）
+│       ├── protect/
+│       │   ├── mod.rs
+│       │   ├── manifest.rs           # AndroidManifest 修改与 Application 注入
+│       │   ├── dex.rs                # DEX 收集、打包、header 修复
+│       │   ├── runtime.rs            # runtime 资源注入、ABI 收集、metadata 读取
+│       │   └── signature.rs          # 原 APK 签名提取
 │       └── dex_packer/               # DEX 打包模块（Zstd 压缩 + ChaCha20-Poly1305 + HKDF）
 │           ├── crypto.rs             # 加解密：derive_key / encrypt / decrypt
 │           ├── packer.rs             # 打包入口：DexPacker，输出 DEXB v5 格式
@@ -55,13 +61,41 @@ mocika-shield/
 │   │   ├── build.rs
 │   │   ├── tauri.conf.json           # Tauri 配置（窗口、bundle、资源嵌入）
 │   │   └── src/
-│   │       └── main.rs               # Tauri commands + 子进程调用（keytool 等）
+│   │       ├── main.rs               # Tauri 启动入口、state 注入、command 注册
+│   │       ├── app_config.rs         # config.toml 读写、旧配置迁移、内存状态
+│   │       ├── app_paths.rs          # apktool/resources/apksigner 路径查找
+│   │       ├── apk_check.rs          # APK 预检、签名检测、证书指纹比对
+│   │       ├── signing.rs            # APK 签名、keystore alias 解析
+│   │       ├── protect_runner.rs     # 加固任务桥接、取消、进度事件
+│   │       ├── updates.rs            # GitHub Releases 更新检查与缓存
+│   │       ├── file_ops.rs           # 打开目录、删除文件、URL 打开
+│   │       └── build_info.rs         # 版本与构建工具信息
 │   └── src/                          # React + TypeScript 前端
 │       ├── main.tsx                  # React 入口
-│       ├── App.tsx                   # 主界面：加固 / 签名 / 设置 / 关于
+│       ├── App.tsx                   # 应用壳：侧边栏、页面切换、全局配置状态
+│       ├── pages/
+│       │   ├── protect-page.tsx      # 加固页
+│       │   ├── sign-page.tsx         # 签名页
+│       │   ├── settings-page.tsx     # 设置页
+│       │   └── about-page.tsx        # 关于页
+│       ├── components/app/
+│       │   ├── branding.ts           # Logo、默认签名配置、步骤文案
+│       │   ├── common.tsx            # 应用级共享控件
+│       │   ├── about-info-card.tsx   # 关于页信息卡
+│       │   ├── protect-progress-panel.tsx # 加固页进度侧栏
+│       │   ├── settings-signing-panel.tsx # 设置页签名配置面板
+│       │   └── sign-config-summary-card.tsx # 签名页配置摘要卡
 │       ├── styles.css                # Tailwind 与主题变量
 │       ├── components/ui/            # Sidebar、Switch、Input 等基础组件
-│       ├── hooks/use-mobile.tsx      # 响应式辅助 hook
+│       ├── hooks/
+│       │   ├── use-app-config.ts     # 配置加载、更新检查
+│       │   ├── use-applied-theme-mode.ts # 主题应用
+│       │   ├── use-about-page.ts     # 关于页数据加载与更新检查
+│       │   ├── use-clipboard.ts      # 复制反馈
+│       │   ├── use-protect-workflow.ts # 加固页工作流状态与事件监听
+│       │   ├── use-sign-workflow.ts  # 签名页工作流状态与拖拽处理
+│       │   ├── use-settings-form.ts  # 设置页表单状态与保存逻辑
+│       │   └── use-mobile.tsx        # 响应式辅助 hook
 │       └── lib/
 │           ├── i18n.ts               # 中英双语
 │           ├── path.ts               # 跨平台输出路径生成
@@ -147,15 +181,19 @@ shield-cli lib 暴露：
   protect_apk(opts, on_progress: impl Fn(ProgressEvent), cancel: Arc<AtomicBool>)
   sign_apk(opts) -> Result<(), ShieldError>
 
-Tauri 后端（main.rs）：
+Tauri 后端（main.rs + 模块）：
   #[tauri::command] protect_apk
     → tokio::task::spawn_blocking
-    → shield_protect_apk()
+    → protect_runner::execute_protect_apk()
     → window.emit("protect-progress", payload) 推送进度到前端
+
+  #[tauri::command] sign_apk / check_apk / check_update
+    → main.rs 只做参数接线
+    → 具体实现分别委托给 signing.rs / apk_check.rs / updates.rs
 
 React 前端：
   listen("protect-progress") → 更新分步进度条
   listen("protect-done" / "protect-error") → 完成/失败状态
 ```
 
-子进程调用（`java`、`keytool` 等）在 Windows 上统一通过 `no_window_command()` 包装，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。
+子进程调用（`java`、`keytool` 等）在 Windows 上统一复用 `shield_cli::utils::no_window_command()`，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。
