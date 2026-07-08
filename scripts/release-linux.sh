@@ -58,7 +58,7 @@ check_deps() {
 
   # Java（shield-stub 构建需要）
   if ! command -v java &>/dev/null; then
-    error "未安装 Java，shield-stub 构建需要 Java 8+"
+    error "未安装 Java，shield-stub 构建需要 Java 17+"
   fi
 
   if ! command -v npm &>/dev/null; then
@@ -172,7 +172,7 @@ Linux x86_64 静态链接版本，无需安装依赖。
 ## 要求
 
 - Linux x86_64
-- Java 8+（apktool 需要）
+- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 需可用）
 
 ## 目录结构
 

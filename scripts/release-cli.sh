@@ -96,7 +96,7 @@ mocika-shield-x.y.z/
 
 ### 环境要求
 
-- Java 8+（`java` 在 PATH）
+- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 在 PATH）
 - Linux / macOS
 
 ### 加固 APK

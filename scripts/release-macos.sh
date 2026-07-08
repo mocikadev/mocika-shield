@@ -11,7 +11,7 @@
 #   Xcode Command Line Tools: xcode-select --install
 #   Rust: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 #   Tauri CLI: cargo install tauri-cli
-#   Java 8+（shield-stub 构建需要）
+#   Java 17+（shield-stub 构建需要）
 #
 # 注意:
 #   - 暂不做 Apple 公证，使用 adhoc 签名（本地运行需关闭 Gatekeeper 或手动信任）
@@ -53,7 +53,7 @@ check_env() {
   fi
 
   if ! command -v java &>/dev/null; then
-    error "未安装 Java，shield-stub 构建需要 Java 8+"
+    error "未安装 Java，shield-stub 构建需要 Java 17+"
   fi
 
   if ! command -v npm &>/dev/null; then
@@ -187,7 +187,7 @@ macOS ${ARCH_LABEL} 版本。
 ## 要求
 
 - macOS 10.13+
-- Java 8+（apktool 需要）
+- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 需可用）
 
 ## 目录结构
 

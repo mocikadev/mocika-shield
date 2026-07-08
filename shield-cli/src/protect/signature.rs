@@ -2,14 +2,20 @@ use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
-use crate::utils::{create_temp_dir, no_window_command, print_success, run_command};
+use crate::utils::{
+    create_temp_dir, find_javac, find_keytool, no_window_command, print_success, run_command,
+};
 
-pub(crate) fn extract_apk_signature(apk_path: &Path, apktool: &Path) -> Result<String> {
+pub(crate) fn extract_apk_signature(
+    apk_path: &Path,
+    apktool: &Path,
+    java: &Path,
+) -> Result<String> {
     let temp_dir = create_temp_dir("sig-extract-")?;
     let extract_dir = temp_dir.path().join("apk");
 
     run_command(
-        "java",
+        java,
         &[
             "-jar",
             apktool.to_str().unwrap(),
@@ -86,7 +92,10 @@ public class CertExtractor {
     let java_file = temp_dir.path().join("CertExtractor.java");
     fs::write(&java_file, java_code)?;
 
-    let javac_output = no_window_command("javac")
+    let javac = find_javac()?;
+    let java = crate::utils::find_java()?;
+
+    let javac_output = no_window_command(&javac)
         .arg(java_file.to_str().unwrap())
         .current_dir(temp_dir.path())
         .output()?;
@@ -98,7 +107,7 @@ public class CertExtractor {
         );
     }
 
-    let java_output = no_window_command("java")
+    let java_output = no_window_command(&java)
         .arg("-cp")
         .arg(temp_dir.path().to_str().unwrap())
         .arg("CertExtractor")
@@ -118,8 +127,9 @@ public class CertExtractor {
 
 fn extract_signature_via_keytool(apk_path: &Path) -> Result<String> {
     log::info!("使用keytool提取证书...");
+    let keytool = find_keytool()?;
 
-    let output = no_window_command("keytool")
+    let output = no_window_command(&keytool)
         .arg("-printcert")
         .arg("-jarfile")
         .arg(apk_path.to_str().unwrap())

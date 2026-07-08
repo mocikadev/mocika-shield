@@ -214,14 +214,16 @@ fn check_keystore_json(ks: &Path, alias: &str, ks_pass: &str) -> String {
 }
 
 fn extract_apk_cert_fingerprint(apk_path: &Path) -> Result<String> {
-    let v1 = std::process::Command::new("keytool")
-        .args(["-printcert", "-jarfile", apk_path.to_str().unwrap_or("")])
-        .output();
-    if let Ok(out) = v1 {
-        if out.status.success() {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            if let Some(fp) = parse_sha256_from_keytool(&stdout) {
-                return Ok(fp);
+    if let Ok(keytool) = shield_cli::utils::find_keytool() {
+        let v1 = std::process::Command::new(&keytool)
+            .args(["-printcert", "-jarfile", apk_path.to_str().unwrap_or("")])
+            .output();
+        if let Ok(out) = v1 {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                if let Some(fp) = parse_sha256_from_keytool(&stdout) {
+                    return Ok(fp);
+                }
             }
         }
     }
@@ -264,7 +266,8 @@ fn parse_sha256_from_apksigner(output: &str) -> Option<String> {
 }
 
 fn extract_keystore_cert_fingerprint(ks: &Path, alias: &str, ks_pass: &str) -> Result<String> {
-    let output = std::process::Command::new("keytool")
+    let keytool = shield_cli::utils::find_keytool()?;
+    let output = std::process::Command::new(&keytool)
         .args([
             "-list",
             "-keystore",

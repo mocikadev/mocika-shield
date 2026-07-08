@@ -5,18 +5,22 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
 import { basename } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
-import { api, type SignConfig } from "@/lib/tauri";
+import { api, type BuildInfo, type SignConfig } from "@/lib/tauri";
 
 export function ProtectPage({
   locale,
   signConfig,
   keystorePassword,
   signConfigLoaded,
+  buildInfo,
+  runtimeInfoLoaded,
 }: {
   locale: Locale;
   signConfig: SignConfig;
   keystorePassword: string;
   signConfigLoaded: boolean;
+  buildInfo: BuildInfo | null;
+  runtimeInfoLoaded: boolean;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
   const {
@@ -42,6 +46,7 @@ export function ProtectPage({
     signConfig,
     keystorePassword,
     signConfigLoaded,
+    buildInfo,
   });
 
   return (
@@ -82,9 +87,9 @@ export function ProtectPage({
                 {t(locale, "protectAnother")}
               </AppButton>
             ) : (
-              <AppButton disabled={!input || !signConfigLoaded || Boolean(precheck) || state === "prechecking"} onClick={start}>
+              <AppButton disabled={!input || !signConfigLoaded || !runtimeInfoLoaded || Boolean(precheck) || state === "prechecking"} onClick={start}>
                 {state === "prechecking" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                {state === "prechecking" ? t(locale, "prechecking") : t(locale, "startProtect")}
+                {state === "prechecking" ? t(locale, "prechecking") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startProtect")}
               </AppButton>
             )}
           </div>

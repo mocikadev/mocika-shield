@@ -52,6 +52,12 @@ export type AppInfo = {
 export type BuildInfo = {
   apktool_version: string;
   apksigner_version: string;
+  java_version: string;
+  java_ready: boolean;
+  keytool_ready: boolean;
+  javac_ready: boolean;
+  java_major?: number | null;
+  min_java_major: number;
 };
 
 export type ProtectProgress = {

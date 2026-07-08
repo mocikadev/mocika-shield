@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { defaultSignConfig } from "@/components/app/branding";
 import { t, type Locale } from "@/lib/i18n";
-import { api, openFileDialog, type SignConfig, type ThemeMode } from "@/lib/tauri";
+import { getAliasJavaError, getSignJavaError } from "@/lib/java";
+import { api, openFileDialog, type BuildInfo, type SignConfig, type ThemeMode } from "@/lib/tauri";
 
 export type SettingsSavePayload = {
   locale: Locale;
@@ -34,6 +35,7 @@ export function useSettingsForm({
   signConfig,
   keystorePassword,
   keyPassword,
+  buildInfo,
   onConfigSaved,
 }: {
   locale: Locale;
@@ -43,6 +45,7 @@ export function useSettingsForm({
   signConfig: SignConfig;
   keystorePassword: string;
   keyPassword: string;
+  buildInfo: BuildInfo | null;
   onConfigSaved: (config: SettingsSavePayload) => void;
 }) {
   const [selectedLocale, setSelectedLocale] = useState<Locale>(locale);
@@ -198,6 +201,11 @@ export function useSettingsForm({
     setDetecting(true);
     setError("");
     try {
+      const javaError = getAliasJavaError(locale, buildInfo);
+      if (javaError) {
+        throw new Error(javaError);
+      }
+
       const list = await api.listKeystoreAliases(
         config.keystore_path,
         ksPass,
@@ -224,6 +232,11 @@ export function useSettingsForm({
     setStatus("validating");
 
     try {
+      const javaError = getAliasJavaError(locale, buildInfo);
+      if (javaError) {
+        throw new Error(javaError);
+      }
+
       if (!keystorePath) {
         throw new Error(t(locale, "missingKeystore"));
       }
@@ -338,6 +351,11 @@ export function useSettingsForm({
     setError("");
 
     try {
+      const javaError = getSignJavaError(locale, buildInfo);
+      if (javaError) {
+        throw new Error(javaError);
+      }
+
       if (!keystorePath || !alias || !savedKsPass.trim()) {
         throw new Error(t(locale, "saveSignFirst"));
       }

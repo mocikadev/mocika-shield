@@ -34,7 +34,7 @@ fi
 echo -e "${BLUE}检查必要工具...${NC}"
 
 if ! command -v java &> /dev/null; then
-    echo -e "${RED}错误: 未找到Java，请安装JDK 8+${NC}"
+    echo -e "${RED}错误: 未找到Java，请安装JDK 17+${NC}"
     exit 1
 fi
 

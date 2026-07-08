@@ -1,5 +1,5 @@
 use serde::Serialize;
-use shield_cli::utils::no_window_command;
+use shield_cli::utils::{find_java, find_keytool, no_window_command};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -56,21 +56,24 @@ pub(crate) fn do_compare_cert_fingerprints(
 }
 
 fn extract_apk_fingerprint(apk_path: &str, apksigner_path: Option<&Path>) -> Result<String, String> {
-    if let Ok(output) = no_window_command("keytool")
-        .args(["-printcert", "-jarfile", apk_path])
-        .output()
-    {
-        if output.status.success() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            if let Some(fp) = parse_sha256_fingerprint(&text) {
-                return Ok(fp);
+    if let Ok(keytool) = find_keytool() {
+        if let Ok(output) = no_window_command(&keytool)
+            .args(["-printcert", "-jarfile", apk_path])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                if let Some(fp) = parse_sha256_fingerprint(&text) {
+                    return Ok(fp);
+                }
             }
         }
     }
 
     let signer =
         apksigner_path.ok_or_else(|| "V1 证书提取失败，且未找到 apksigner.jar".to_string())?;
-    let result = no_window_command("java")
+    let java = find_java().map_err(|err| err.to_string())?;
+    let result = no_window_command(&java)
         .args([
             "-jar",
             signer.to_str().unwrap_or(""),
@@ -112,7 +115,8 @@ fn extract_keystore_fingerprint(
         args.push(t);
     }
 
-    let output = no_window_command("keytool")
+    let keytool = find_keytool().map_err(|err| err.to_string())?;
+    let output = no_window_command(&keytool)
         .args(&args)
         .output()
         .map_err(|e| format!("启动 keytool 失败: {e}"))?;
@@ -239,18 +243,24 @@ pub(crate) fn do_check_apk(path: String, apksigner_path: Option<PathBuf>) -> Apk
         };
     }
 
-    let is_signed = check_apk_signed(&apk_path, apksigner_path.as_deref());
-
-    ApkCheckResult {
-        already_protected,
-        is_signed,
-        error: None,
+    match check_apk_signed(&apk_path, apksigner_path.as_deref()) {
+        Ok(is_signed) => ApkCheckResult {
+            already_protected,
+            is_signed,
+            error: None,
+        },
+        Err(error) => ApkCheckResult {
+            already_protected,
+            is_signed: false,
+            error: Some(error),
+        },
     }
 }
 
-fn check_apk_signed(apk_path: &PathBuf, apksigner_path: Option<&Path>) -> bool {
+fn check_apk_signed(apk_path: &PathBuf, apksigner_path: Option<&Path>) -> Result<bool, String> {
     if let Some(signer) = apksigner_path {
-        if let Ok(status) = no_window_command("java")
+        let java = find_java().map_err(|err| err.to_string())?;
+        if let Ok(status) = no_window_command(&java)
             .args([
                 "-jar",
                 signer.to_str().unwrap_or(""),
@@ -259,15 +269,15 @@ fn check_apk_signed(apk_path: &PathBuf, apksigner_path: Option<&Path>) -> bool {
             ])
             .status()
         {
-            return status.success();
+            return Ok(status.success());
         }
     }
 
     let Ok(file) = fs::File::open(apk_path) else {
-        return false;
+        return Ok(false);
     };
     let Ok(mut archive) = zip::ZipArchive::new(file) else {
-        return false;
+        return Ok(false);
     };
     for i in 0..archive.len() {
         let Ok(entry) = archive.by_index(i) else {
@@ -277,8 +287,8 @@ fn check_apk_signed(apk_path: &PathBuf, apksigner_path: Option<&Path>) -> bool {
         if name.starts_with("META-INF/")
             && (name.ends_with(".RSA") || name.ends_with(".DSA") || name.ends_with(".EC"))
         {
-            return true;
+            return Ok(true);
         }
     }
-    false
+    Ok(false)
 }

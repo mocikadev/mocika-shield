@@ -7,7 +7,7 @@
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
 | Rust | 1.70+ | 含 rustup |
-| Java / JDK | 8+ | `java`、`javac`、`keytool` 均需在 PATH |
+| Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均需在 PATH |
 | Android SDK | API 21+ | 需设置 `ANDROID_HOME` |
 | Android NDK | 29.0.14206865（硬编码） | 见下方说明 |
 | cargo-ndk | 最新 | Android 交叉编译 |

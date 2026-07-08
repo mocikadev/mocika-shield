@@ -52,7 +52,7 @@
 - **加固**：拖入或选择 APK → 预检验证（非 APK 文件立即提示）→ 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
 - **签名**：拖入或选择 APK → 使用设置页保存的签名配置 → 点击签名 → 生成 `{name}_signed.apk`
 - **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）、维护唯一正式签名配置
-- **关于**：显示当前版本号、构建 git hash、构建日期及工具链版本
+- **关于**：显示当前版本号、构建 git hash、构建日期、Java 环境状态，并支持手动重新检测环境
 
 界面预览：
 
@@ -95,6 +95,7 @@
 ### 配置文件
 
 GUI 只维护一份正式配置，默认文件名为 `config.toml`，启动时一次性载入，签名页和加固页自动签名共用同一份数据。设置页中的签名信息必须先校验通过，之后才能保存到这份配置文件。
+Java 运行环境同样会在应用启动时检测一次，并缓存到全局状态中；关于页提供“重新检测环境”入口，用于用户安装或切换 JDK 后手动刷新。
 
 | 平台 | 默认位置 |
 |------|----------|
@@ -235,9 +236,9 @@ make build-all
 
 | 场景 | 要求 |
 |------|------|
-| 使用发布包（CLI） | Linux / macOS，Java 8+ |
+| 使用发布包（CLI） | Linux / macOS，Java 17+（需完整 JDK，`java` / `keytool` / `javac` 可用） |
 | 使用发布包（GUI） | Linux / macOS / Windows |
-| 从源码编译 | Rust 1.70+，Node.js 22+，Java 8+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
+| 从源码编译 | Rust 1.70+，Node.js 22+，Java 17+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
 
 ## 当前限制
 

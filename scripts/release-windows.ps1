@@ -48,7 +48,7 @@ function Check-Env {
 
     # Java（shield-stub 构建需要）
     if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
-        Err "未安装 Java，shield-stub 构建需要 Java 8+`n  下载: https://adoptium.net/"
+        Err "未安装 Java，shield-stub 构建需要 Java 17+`n  下载: https://adoptium.net/"
     }
 
     # x86_64-pc-windows-msvc Rust target
@@ -244,7 +244,7 @@ bin\shield.exe -i input.apk -o protected.apk
 ## 要求
 
 - Windows 10/11 (64-bit)
-- Java 8+（apktool 需要，java 须在 PATH 中）
+- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 须在 PATH 中）
 
 ## 目录结构
 

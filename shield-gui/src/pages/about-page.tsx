@@ -1,16 +1,22 @@
 import { AboutInfoCard } from "@/components/app/about-info-card";
 import { useAboutPage } from "@/hooks/use-about-page";
 import type { Locale } from "@/lib/i18n";
-import { type UpdateCheckResult } from "@/lib/tauri";
+import { type BuildInfo, type UpdateCheckResult } from "@/lib/tauri";
 
 export function AboutPage({
   locale,
   setUpdateInfo,
+  buildInfo,
+  runtimeInfoRefreshing,
+  onRefreshRuntimeInfo,
 }: {
   locale: Locale;
   setUpdateInfo: (result: UpdateCheckResult | null) => void;
+  buildInfo: BuildInfo | null;
+  runtimeInfoRefreshing: boolean;
+  onRefreshRuntimeInfo: () => void;
 }) {
-  const { appInfo, buildInfo, checking, message, checkUpdate } = useAboutPage({
+  const { appInfo, checking, message, checkUpdate } = useAboutPage({
     locale,
     setUpdateInfo,
   });
@@ -24,6 +30,8 @@ export function AboutPage({
         checking={checking}
         message={message}
         onCheckUpdate={checkUpdate}
+        runtimeInfoRefreshing={runtimeInfoRefreshing}
+        onRefreshRuntimeInfo={onRefreshRuntimeInfo}
       />
     </section>
   );

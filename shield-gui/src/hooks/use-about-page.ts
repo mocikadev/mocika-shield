@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
-import { api, type BuildInfo, type UpdateCheckResult } from "@/lib/tauri";
+import { api, type UpdateCheckResult } from "@/lib/tauri";
 
 type AppInfo = {
   version: string;
@@ -22,13 +22,11 @@ export function useAboutPage({
   setUpdateInfo: (result: UpdateCheckResult | null) => void;
 }) {
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
-  const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     api.getAppInfo().then(setAppInfo).catch(() => undefined);
-    api.getBuildInfo().then(setBuildInfo).catch(() => undefined);
   }, []);
 
   const checkUpdate = useCallback(async () => {
@@ -51,7 +49,6 @@ export function useAboutPage({
 
   return {
     appInfo,
-    buildInfo,
     checking,
     message,
     checkUpdate,

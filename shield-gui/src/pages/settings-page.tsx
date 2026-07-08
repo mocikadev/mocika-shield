@@ -7,7 +7,7 @@ import {
 import { useSettingsForm, type SettingsSavePayload } from "@/hooks/use-settings-form";
 import { Switch } from "@/components/ui/switch";
 import { t, type Locale } from "@/lib/i18n";
-import type { SignConfig, ThemeMode } from "@/lib/tauri";
+import type { BuildInfo, SignConfig, ThemeMode } from "@/lib/tauri";
 
 export function SettingsPage({
   locale,
@@ -17,6 +17,8 @@ export function SettingsPage({
   signConfig,
   keystorePassword,
   keyPassword,
+  buildInfo,
+  runtimeInfoLoaded,
   onConfigSaved,
 }: {
   locale: Locale;
@@ -26,6 +28,8 @@ export function SettingsPage({
   signConfig: SignConfig;
   keystorePassword: string;
   keyPassword: string;
+  buildInfo: BuildInfo | null;
+  runtimeInfoLoaded: boolean;
   onConfigSaved: (config: SettingsSavePayload) => void;
 }) {
   const {
@@ -62,6 +66,7 @@ export function SettingsPage({
     signConfig,
     keystorePassword,
     keyPassword,
+    buildInfo,
     onConfigSaved,
   });
 
@@ -113,6 +118,7 @@ export function SettingsPage({
           aliases={aliases}
           saving={saving}
           detecting={detecting}
+          runtimeInfoLoaded={runtimeInfoLoaded}
           status={status}
           error={error}
           signingValidated={signingValidated}
@@ -134,7 +140,7 @@ export function SettingsPage({
               </span>
               <Switch
                 checked={Boolean(config.auto_sign_enabled)}
-                disabled={!signingConfigured || autoSignSaving}
+                disabled={!signingConfigured || autoSignSaving || !runtimeInfoLoaded}
                 onCheckedChange={(checked) => void toggleAutoSign(checked)}
                 aria-label={t(locale, "autoSignAfterProtect")}
               />

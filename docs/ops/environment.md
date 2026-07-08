@@ -5,7 +5,7 @@
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
 | Rust | 1.70+ | 含 `rustup` |
-| Java / JDK | 8+ | 需要 `java`、`javac`、`keytool` 均在 PATH |
+| Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均在 PATH |
 | Android SDK | API 21+ | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
 | Android NDK | 29.0.14206865（必须与此版本一致） | `build.gradle.kts` 硬编码，版本不同需设 `ANDROID_NDK_ROOT` 覆盖 |
 | cargo-ndk | 最新 | `cargo install cargo-ndk` |
@@ -185,4 +185,4 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 如果只是使用发布包（不从源码编译），仅需：
 
 - Linux / macOS / Windows 系统
-- Java 8+（`java` 在 PATH）
+- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 在 PATH）

@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/sidebar";
 import { useAppConfigState, useAutoUpdateNotice } from "@/hooks/use-app-config";
 import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
+import { useRuntimeInfo } from "@/hooks/use-runtime-info";
 import { t, type Locale } from "@/lib/i18n";
-import { api } from "@/lib/tauri";
+import { api, type BuildInfo } from "@/lib/tauri";
 import { AboutPage } from "@/pages/about-page";
 import { ProtectPage } from "@/pages/protect-page";
 import { SettingsPage } from "@/pages/settings-page";
@@ -42,6 +43,7 @@ export function App() {
     signConfigLoaded,
   } = useAppConfigState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
+  const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
 
   useAppliedThemeMode(themeMode);
 
@@ -122,6 +124,8 @@ export function App() {
                 signConfig={signConfig}
                 keystorePassword={keystorePassword}
                 signConfigLoaded={signConfigLoaded}
+                buildInfo={buildInfo}
+                runtimeInfoLoaded={runtimeInfoLoaded}
               />
             )}
             {page === "sign" && (
@@ -129,6 +133,8 @@ export function App() {
                 locale={locale}
                 signConfig={signConfig}
                 signConfigLoaded={signConfigLoaded}
+                buildInfo={buildInfo}
+                runtimeInfoLoaded={runtimeInfoLoaded}
                 onOpenSettings={() => setPage("settings")}
               />
             )}
@@ -141,6 +147,8 @@ export function App() {
                 signConfig={signConfig}
                 keystorePassword={keystorePassword}
                 keyPassword={keyPassword}
+                buildInfo={buildInfo}
+                runtimeInfoLoaded={runtimeInfoLoaded}
                 onConfigSaved={(value) => {
                   setLocale(value.locale);
                   setThemeMode(value.themeMode);
@@ -154,7 +162,15 @@ export function App() {
                 }}
               />
             )}
-            {page === "about" && <AboutPage locale={locale} setUpdateInfo={setUpdateInfo} />}
+            {page === "about" && (
+              <AboutPage
+                locale={locale}
+                setUpdateInfo={setUpdateInfo}
+                buildInfo={buildInfo}
+                runtimeInfoRefreshing={runtimeInfoRefreshing}
+                onRefreshRuntimeInfo={() => void refreshRuntimeInfo()}
+              />
+            )}
           </div>
         </SidebarInset>
 
@@ -170,6 +186,11 @@ export function App() {
     </SidebarProvider>
   );
 }
+
+export type RuntimeInfoProps = {
+  buildInfo: BuildInfo | null;
+  runtimeInfoLoaded: boolean;
+};
 
 function NavItem({
   locale,

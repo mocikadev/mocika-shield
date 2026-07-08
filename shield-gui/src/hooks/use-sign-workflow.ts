@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isApk, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
+import { getSignJavaError } from "@/lib/java";
 import {
   api,
   onTauriEvent,
   openFileDialog,
+  type BuildInfo,
   type DragDropPayload,
   type SignConfig,
 } from "@/lib/tauri";
@@ -15,10 +17,12 @@ export function useSignWorkflow({
   locale,
   signConfig,
   signConfigLoaded,
+  buildInfo,
 }: {
   locale: Locale;
   signConfig: SignConfig;
   signConfigLoaded: boolean;
+  buildInfo: BuildInfo | null;
 }) {
   const [apkPath, setApkPath] = useState("");
   const [outputPath, setOutputPath] = useState("");
@@ -70,9 +74,16 @@ export function useSignWorkflow({
       setError(t(locale, "missingAlias"));
       return;
     }
-    setState("signing");
-    setError("");
     try {
+      const javaError = getSignJavaError(locale, buildInfo);
+      if (javaError) {
+        setError(javaError);
+        setState("failed");
+        return;
+      }
+
+      setState("signing");
+      setError("");
       await api.signApk({
         apkPath,
         outputPath: outputPath || null,

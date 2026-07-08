@@ -29,6 +29,7 @@ export function SettingsSigningPanel({
   aliases,
   saving,
   detecting,
+  runtimeInfoLoaded,
   status,
   error,
   signingValidated,
@@ -50,6 +51,7 @@ export function SettingsSigningPanel({
   aliases: string[];
   saving: boolean;
   detecting: boolean;
+  runtimeInfoLoaded: boolean;
   status: "idle" | "validating" | "validated" | "saved" | "failed";
   error: string;
   signingValidated: boolean;
@@ -106,9 +108,9 @@ export function SettingsSigningPanel({
             value={config.key_alias ?? ""}
             onChange={(e) => setConfig((old) => ({ ...old, key_alias: e.target.value }))}
           />
-          <AppButton className="shrink-0 justify-center" variant="secondary" onClick={onDetectAlias} disabled={detecting}>
+          <AppButton className="shrink-0 justify-center" variant="secondary" onClick={onDetectAlias} disabled={detecting || !runtimeInfoLoaded}>
             {detecting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {t(locale, "detectAlias")}
+            {!runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "detectAlias")}
           </AppButton>
         </div>
       </SettingsFieldRow>
@@ -185,7 +187,7 @@ export function SettingsSigningPanel({
             className="min-w-[120px] justify-center"
             variant="secondary"
             onClick={onValidate}
-            disabled={saving || detecting}
+            disabled={saving || detecting || !runtimeInfoLoaded}
           >
             {saving && status === "validating" ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -194,7 +196,7 @@ export function SettingsSigningPanel({
                 <Check className="h-3.5 w-3.5" />
               </span>
             ) : null}
-            {t(locale, "validate")}
+            {!runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "validate")}
           </AppButton>
           <AppButton
             className="min-w-[120px] justify-center"

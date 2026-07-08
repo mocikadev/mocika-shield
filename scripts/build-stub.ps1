@@ -71,7 +71,7 @@ if (-not (Test-Path "Cargo.toml") -or -not (Test-Path "shield-stub")) {
 Info "检查必要工具..."
 
 if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
-    Err "未找到 Java，请安装 JDK 8+`n  下载: https://adoptium.net/"
+    Err "未找到 Java，请安装 JDK 17+`n  下载: https://adoptium.net/"
 }
 
 if (-not (Test-Path "shield-stub\gradlew.bat") -and -not (Test-Path "shield-stub\gradlew")) {

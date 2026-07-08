@@ -100,9 +100,10 @@ pub fn protect_apk(
         println!("{}", "========================================".cyan());
     }
 
+    let java = find_java().map_err(ShieldError::from)?;
+
     emit_progress(&on_progress, &cancel, ProgressStep::CheckTools, "检查工具")?;
     print_step("检查工具");
-    find_java().map_err(ShieldError::from)?;
     find_apktool().map_err(ShieldError::from)?;
     find_runtime_resources().map_err(ShieldError::from)?;
     print_success("所有工具就绪");
@@ -113,7 +114,7 @@ pub fn protect_apk(
     emit_progress(&on_progress, &cancel, ProgressStep::Unpack, "解包APK")?;
     print_step("解包APK");
     run_command(
-        "java",
+        &java,
         &[
             "-jar",
             apktool.to_str().unwrap(),
@@ -148,7 +149,8 @@ pub fn protect_apk(
         "处理DEX文件",
     )?;
     print_internal_step("提取APK签名");
-    let signature = extract_apk_signature(&opts.input, &apktool).map_err(ShieldError::from)?;
+    let signature =
+        extract_apk_signature(&opts.input, &apktool, &java).map_err(ShieldError::from)?;
 
     let mut ikm = [0u8; 32];
     rand::rng().fill_bytes(&mut ikm);
@@ -169,7 +171,7 @@ pub fn protect_apk(
     emit_progress(&on_progress, &cancel, ProgressStep::Repack, "重打包APK")?;
     print_step("重打包APK");
     run_command(
-        "java",
+        &java,
         &[
             "-jar",
             apktool.to_str().unwrap(),

@@ -98,6 +98,8 @@ const dict = {
     errorDetail: "错误详情",
     checkUpdate: "检查更新",
     checkingUpdate: "检查中",
+    refreshEnvironment: "重新检测环境",
+    checkingEnvironment: "环境检测中",
     upToDate: "已是最新版本",
     updateAvailable: "发现新版本",
     majorUpdate: "重大版本更新",
@@ -106,9 +108,18 @@ const dict = {
     ignore: "忽略",
     version: "版本",
     build: "构建",
+    java: "Java",
     versionInfo: "版本信息",
     tools: "工具",
     unknown: "未知",
+    javaReadyDetail: "已检测到 Java {version}",
+    javaMissingDetail: "未检测到 Java {min}+",
+    javaTooLowDetail: "Java 版本过低：{version}，需要 {min}+",
+    javaMissingKeytool: "缺少 keytool，请安装完整 JDK {min}+",
+    javaMissingJavac: "缺少 javac，请安装完整 JDK {min}+",
+    javaRequiredForProtect: "未检测到可用的 Java {min}+ / keytool。加固流程无法继续。",
+    javaRequiredForSign: "未检测到可用的 Java {min}+ / keytool。签名流程无法继续。",
+    javaRequiredForAlias: "未检测到可用的 Java {min}+ / keytool。Alias 识别与校验无法继续。",
   },
   en: {
     appSubtitle: "Android APK hardening tool",
@@ -207,6 +218,8 @@ const dict = {
     errorDetail: "Error detail",
     checkUpdate: "Check for Updates",
     checkingUpdate: "Checking",
+    refreshEnvironment: "Refresh Environment",
+    checkingEnvironment: "Checking Environment",
     upToDate: "You're up to date",
     updateAvailable: "New version available",
     majorUpdate: "Major Update",
@@ -215,9 +228,18 @@ const dict = {
     ignore: "Ignore",
     version: "Version",
     build: "Build",
+    java: "Java",
     versionInfo: "Version Info",
     tools: "Tools",
     unknown: "Unknown",
+    javaReadyDetail: "Detected Java {version}",
+    javaMissingDetail: "Java {min}+ not detected",
+    javaTooLowDetail: "Java {version} is too old, requires {min}+",
+    javaMissingKeytool: "keytool is missing, install a full JDK {min}+",
+    javaMissingJavac: "javac is missing, install a full JDK {min}+",
+    javaRequiredForProtect: "Java {min}+ and keytool are required before protection can continue.",
+    javaRequiredForSign: "Java {min}+ and keytool are required before signing can continue.",
+    javaRequiredForAlias: "Java {min}+ and keytool are required before alias detection or validation can continue.",
   },
 } as const;
 
@@ -225,6 +247,10 @@ export type I18nKey = keyof typeof dict.zh;
 
 export function t(locale: Locale, key: I18nKey) {
   return dict[locale][key] ?? dict.zh[key];
+}
+
+export function tf(locale: Locale, key: I18nKey, values: Record<string, string | number>) {
+  return t(locale, key).replace(/\{(\w+)\}/g, (_, token) => String(values[token] ?? ""));
 }
 
 export function detectSystemLocale(): Locale {

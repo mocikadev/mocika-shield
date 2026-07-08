@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tempfile::TempDir;
 
-use crate::utils::no_window_command;
+use crate::utils::{find_java, no_window_command};
 use crate::zipalign::align_apk;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -173,19 +173,6 @@ fn bool_str(b: bool) -> &'static str {
 
 pub fn find_apksigner() -> Result<PathBuf> {
     crate::utils::find_apksigner()
-}
-
-fn find_java() -> Result<String> {
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(java_home) = std::env::var("JAVA_HOME") {
-            let java_exe = PathBuf::from(&java_home).join("bin").join("java.exe");
-            if java_exe.exists() {
-                return Ok(java_exe.to_str().unwrap_or("java").to_string());
-            }
-        }
-    }
-    Ok("java".to_string())
 }
 
 pub fn check_apksigner(custom: Option<&Path>) -> (bool, Option<String>) {

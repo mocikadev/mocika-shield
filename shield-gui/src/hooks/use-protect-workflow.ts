@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isApk, protectedOutputPath, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
+import { getProtectJavaError } from "@/lib/java";
 import {
   api,
   onTauriEvent,
@@ -8,6 +9,7 @@ import {
   type ApkCheckResult,
   type DragDropPayload,
   type ProtectProgress,
+  type BuildInfo,
   type SignConfig,
 } from "@/lib/tauri";
 
@@ -31,11 +33,13 @@ export function useProtectWorkflow({
   signConfig,
   keystorePassword,
   signConfigLoaded,
+  buildInfo,
 }: {
   locale: Locale;
   signConfig: SignConfig;
   keystorePassword: string;
   signConfigLoaded: boolean;
+  buildInfo: BuildInfo | null;
 }) {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
@@ -144,11 +148,19 @@ export function useProtectWorkflow({
     if (!input || !output || precheck) {
       return;
     }
-    setState("running");
-    setError("");
-    setMessages([]);
-    setCurrentStep("CheckTools");
     try {
+      const javaError = getProtectJavaError(locale, buildInfo);
+      if (javaError) {
+        setError(javaError);
+        setState("failed");
+        return;
+      }
+
+      setState("running");
+      setError("");
+      setMessages([]);
+      setCurrentStep("CheckTools");
+
       const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
       await api.protectApk(input, unsignedOutput);
       if (autoSignReady && signConfig.keystore_path && signConfig.key_alias) {

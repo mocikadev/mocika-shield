@@ -5,17 +5,21 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import { useSignWorkflow } from "@/hooks/use-sign-workflow";
 import { basename } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
-import { api, type SignConfig } from "@/lib/tauri";
+import { api, type BuildInfo, type SignConfig } from "@/lib/tauri";
 
 export function SignPage({
   locale,
   signConfig,
   signConfigLoaded,
+  buildInfo,
+  runtimeInfoLoaded,
   onOpenSettings,
 }: {
   locale: Locale;
   signConfig: SignConfig;
   signConfigLoaded: boolean;
+  buildInfo: BuildInfo | null;
+  runtimeInfoLoaded: boolean;
   onOpenSettings: () => void;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
@@ -36,6 +40,7 @@ export function SignPage({
     locale,
     signConfig,
     signConfigLoaded,
+    buildInfo,
   });
 
   return (
@@ -81,9 +86,9 @@ export function SignPage({
               <p className="mt-1 truncate text-sm text-muted-foreground">{basename(apkPath)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <AppButton disabled={!apkPath || !signConfigLoaded || !savedReady || state === "signing"} onClick={sign}>
+              <AppButton disabled={!apkPath || !signConfigLoaded || !runtimeInfoLoaded || !savedReady || state === "signing"} onClick={sign}>
                 {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                {state === "signing" ? t(locale, "signing") : t(locale, "startSign")}
+                {state === "signing" ? t(locale, "signing") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startSign")}
               </AppButton>
               {(state === "done" || state === "failed") && (
                 <AppButton variant="secondary" onClick={reset}>

@@ -1,8 +1,9 @@
 use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
 use shield_cli::{
-    sign_apk as shield_sign_apk, utils::no_window_command, KeystoreType, SignOptions,
-    SigningVersions,
+    sign_apk as shield_sign_apk,
+    utils::{find_keytool, no_window_command},
+    KeystoreType, SignOptions, SigningVersions,
 };
 use std::path::PathBuf;
 
@@ -61,7 +62,8 @@ pub(crate) fn query_keystore_aliases(
     ks_type: Option<String>,
 ) -> Result<Vec<String>, String> {
     let ks_type_str = ks_type.as_deref().unwrap_or("JKS");
-    let output = no_window_command("keytool")
+    let keytool = find_keytool().map_err(|err| err.to_string())?;
+    let output = no_window_command(&keytool)
         .args([
             "-list",
             "-keystore",
@@ -72,7 +74,7 @@ pub(crate) fn query_keystore_aliases(
             &ks_pass,
         ])
         .output()
-        .map_err(|e| format!("启动 keytool 失败，请确认 Java 已安装: {e}"))?;
+        .map_err(|e| format!("启动 keytool 失败，请确认 JDK 17+ 已安装: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
