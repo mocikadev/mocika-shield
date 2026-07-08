@@ -6,11 +6,6 @@
   ],
   "permissions": [
     "core:default",
-    "dialog:default",
-    "store:allow-load",
-    "store:allow-get-store",
-    "store:allow-set",
-    "store:allow-get",
-    "store:allow-save"
+    "dialog:default"
   ]
 }

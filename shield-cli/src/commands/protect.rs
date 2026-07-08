@@ -10,6 +10,7 @@ use std::sync::{
 };
 
 use crate::error::ShieldError;
+use crate::zipalign::align_apk;
 use crate::utils::is_json_mode;
 use crate::utils::{
     create_temp_dir, find_apktool, find_java, find_runtime_resources, human_size, print_step,
@@ -52,6 +53,7 @@ pub enum ProgressStep {
     ProcessDex,
     InjectRuntime,
     Repack,
+    AlignApk,
 }
 
 pub fn protect_apk(
@@ -191,6 +193,11 @@ pub fn protect_apk(
         human_size(output_size),
         ratio
     ));
+
+    emit_progress(&on_progress, &cancel, ProgressStep::AlignApk, "对齐APK数据")?;
+    print_step("对齐APK数据");
+    align_apk(&opts.output).map_err(ShieldError::from)?;
+    print_success("APK数据对齐完成");
 
     Ok(())
 }

@@ -44,17 +44,18 @@ import {
   api,
   onTauriEvent,
   openFileDialog,
+  type AppConfig,
   type ApkCheckResult,
   type BuildInfo,
   type DragDropPayload,
   type ProtectProgress,
   type SignConfig,
+  type ThemeMode,
   type UpdateCheckResult,
 } from "./lib/tauri";
 import { basename, isApk, protectedOutputPath, signedOutputPath } from "./lib/path";
 
 type Page = "protect" | "sign" | "settings" | "about";
-type ThemeMode = "system" | "light" | "dark";
 type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
 type SignState = "idle" | "signing" | "done" | "failed";
 
@@ -77,6 +78,7 @@ const stepLabels: Record<string, { zh: string; en: string }> = {
   ProcessDex: { zh: "处理 DEX", en: "Process DEX" },
   InjectRuntime: { zh: "注入 Runtime", en: "Inject runtime" },
   Repack: { zh: "重打包", en: "Repack" },
+  AlignApk: { zh: "对齐 APK", en: "Align APK" },
   Sign: { zh: "自动签名", en: "Auto sign" },
 };
 
@@ -289,26 +291,21 @@ function SelectedApkCard({
   );
 }
 
-function useThemeMode() {
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    const stored = localStorage.getItem("mocika-theme-mode");
-    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-  });
+function normalizeThemeMode(value: string): ThemeMode {
+  return value === "light" || value === "dark" || value === "system" ? value : "system";
+}
 
+function useAppliedThemeMode(mode: ThemeMode) {
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
       const resolved = mode === "system" ? (media.matches ? "dark" : "light") : mode;
       document.documentElement.setAttribute("data-theme", resolved);
-      localStorage.setItem("mocika-theme", resolved);
-      localStorage.setItem("mocika-theme-mode", mode);
     };
     apply();
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [mode]);
-
-  return [mode, setMode] as const;
 }
 
 function useClipboard(locale: Locale) {
@@ -327,22 +324,30 @@ function useClipboard(locale: Locale) {
 export function App() {
   const [page, setPage] = useState<Page>("protect");
   const [locale, setLocale] = useState<Locale>(detectSystemLocale);
-  const [themeMode, setThemeMode] = useThemeMode();
+  const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [majorDialogOpen, setMajorDialogOpen] = useState(false);
   const [signConfig, setSignConfig] = useState<SignConfig>(defaultSignConfig);
+  const [keystorePassword, setKeystorePassword] = useState("");
+  const [keyPassword, setKeyPassword] = useState("");
   const [signConfigLoaded, setSignConfigLoaded] = useState(false);
 
-  useEffect(() => {
-    api.getLocale().then((value) => setLocale(value === "en" ? "en" : "zh")).catch(() => undefined);
-  }, []);
+  useAppliedThemeMode(themeMode);
 
   useEffect(() => {
     let disposed = false;
-    api.getSignConfig()
-      .then((value) => {
+    api.getAppConfig()
+      .then((value: AppConfig) => {
         if (!disposed) {
-          setSignConfig({ ...defaultSignConfig, ...value, ks_type: value.ks_type || "JKS" });
+          setLocale(value.locale === "en" ? "en" : "zh");
+          setThemeMode(normalizeThemeMode(value.theme_mode));
+          setSignConfig({
+            ...defaultSignConfig,
+            ...value.sign_config,
+            ks_type: value.sign_config.ks_type || "JKS",
+          });
+          setKeystorePassword(value.keystore_password ?? "");
+          setKeyPassword(value.key_password ?? "");
         }
       })
       .catch(() => undefined)
@@ -457,7 +462,14 @@ export function App() {
           }}
         />
         <div className="scrollbar-none min-h-0 flex-1 overflow-auto">
-          {page === "protect" && <ProtectPage locale={locale} signConfig={signConfig} signConfigLoaded={signConfigLoaded} />}
+          {page === "protect" && (
+            <ProtectPage
+              locale={locale}
+              signConfig={signConfig}
+              keystorePassword={keystorePassword}
+              signConfigLoaded={signConfigLoaded}
+            />
+          )}
           {page === "sign" && (
             <SignPage
               locale={locale}
@@ -473,7 +485,15 @@ export function App() {
               themeMode={themeMode}
               setThemeMode={setThemeMode}
               signConfig={signConfig}
-              onSignConfigSaved={(value) => setSignConfig({ ...defaultSignConfig, ...value, ks_type: value.ks_type || "JKS" })}
+              keystorePassword={keystorePassword}
+              keyPassword={keyPassword}
+              onConfigSaved={(value) => {
+                setLocale(value.locale);
+                setThemeMode(value.themeMode);
+                setSignConfig({ ...defaultSignConfig, ...value.signConfig, ks_type: value.signConfig.ks_type || "JKS" });
+                setKeystorePassword(value.keystorePassword);
+                setKeyPassword(value.keyPassword);
+              }}
             />
           )}
           {page === "about" && <AboutPage locale={locale} setUpdateInfo={setUpdateInfo} />}
@@ -555,10 +575,12 @@ function UpdateBanner({
 function ProtectPage({
   locale,
   signConfig,
+  keystorePassword,
   signConfigLoaded,
 }: {
   locale: Locale;
   signConfig: SignConfig;
+  keystorePassword: string;
   signConfigLoaded: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -647,6 +669,10 @@ function ProtectPage({
     }
   }
 
+  function appendMessage(message: string) {
+    setMessages((items) => [...items.slice(-7), message]);
+  }
+
   async function start() {
     if (!input || !output || precheck) {
       return;
@@ -660,11 +686,11 @@ function ProtectPage({
       await api.protectApk(input, unsignedOutput);
       if (autoSignReady && signConfig.keystore_path && signConfig.key_alias) {
         setCurrentStep("Sign");
-        const [ksPass] = await api.getSignPasswords();
+        appendMessage(t(locale, "autoSignStarted"));
         const compare = await api.compareCertFingerprints({
           apkPath: input,
           keystorePath: signConfig.keystore_path,
-          ksPass,
+          ksPass: keystorePassword,
           ksType: signConfig.ks_type ?? "JKS",
           keyAlias: signConfig.key_alias,
         });
@@ -684,7 +710,12 @@ function ProtectPage({
           signV4: signConfig.sign_v4,
         });
         await api.deleteFile(`${output}.idsig`).catch(() => undefined);
+        appendMessage(t(locale, "autoSignCompleted"));
+        await api.deleteFile(unsignedOutput)
+          .then(() => appendMessage(t(locale, "cleanedIntermediate")))
+          .catch(() => appendMessage(t(locale, "cleanupIntermediateFailed")));
       }
+      appendMessage(t(locale, "protectCompleted"));
       setState("done");
     } catch (err) {
       setError(String(err));
@@ -697,8 +728,8 @@ function ProtectPage({
   }
 
   const steps = autoSignReady
-    ? ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "Sign"]
-    : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack"];
+    ? ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk", "Sign"]
+    : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk"];
   const hasInput = Boolean(input);
   const showProgress = hasInput && (state === "running" || state === "done" || messages.length > 0);
 
@@ -1139,18 +1170,30 @@ function SettingsPage({
   themeMode,
   setThemeMode,
   signConfig,
-  onSignConfigSaved,
+  keystorePassword,
+  keyPassword,
+  onConfigSaved,
 }: {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   signConfig: SignConfig;
-  onSignConfigSaved: (config: SignConfig) => void;
+  keystorePassword: string;
+  keyPassword: string;
+  onConfigSaved: (config: {
+    locale: Locale;
+    themeMode: ThemeMode;
+    signConfig: SignConfig;
+    keystorePassword: string;
+    keyPassword: string;
+  }) => void;
 }) {
+  const [selectedLocale, setSelectedLocale] = useState<Locale>(locale);
+  const [selectedThemeMode, setSelectedThemeMode] = useState<ThemeMode>(themeMode);
   const [config, setConfig] = useState<SignConfig>({ ...defaultSignConfig, ...signConfig, ks_type: signConfig.ks_type || "JKS" });
-  const [ksPass, setKsPass] = useState("");
-  const [keyPass, setKeyPass] = useState("");
+  const [ksPass, setKsPass] = useState(keystorePassword);
+  const [keyPass, setKeyPass] = useState(keyPassword);
   const [showPass, setShowPass] = useState(false);
   const [aliases, setAliases] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -1159,12 +1202,24 @@ function SettingsPage({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.getSignPasswords().then(([ks, key]) => { setKsPass(ks); setKeyPass(key); }).catch(() => undefined);
-  }, []);
+    setSelectedLocale(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    setSelectedThemeMode(themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     setConfig({ ...defaultSignConfig, ...signConfig, ks_type: signConfig.ks_type || "JKS" });
   }, [signConfig]);
+
+  useEffect(() => {
+    setKsPass(keystorePassword);
+  }, [keystorePassword]);
+
+  useEffect(() => {
+    setKeyPass(keyPassword);
+  }, [keyPassword]);
 
   async function browseKeystore() {
     const path = await openFileDialog("Keystore", ["jks", "keystore", "p12", "pfx", "bks"]);
@@ -1206,9 +1261,20 @@ function SettingsPage({
       if (config.auto_sign_enabled && (!config.keystore_path || !config.key_alias || !ksPass)) {
         throw new Error(t(locale, "saveSignFirst"));
       }
-      await api.saveSignConfig(config);
-      await api.saveSignPasswords(ksPass, keyPass);
-      onSignConfigSaved(config);
+      await api.saveAppConfig({
+        locale: selectedLocale,
+        theme_mode: selectedThemeMode,
+        sign_config: config,
+        keystore_password: ksPass,
+        key_password: keyPass,
+      });
+      onConfigSaved({
+        locale: selectedLocale,
+        themeMode: selectedThemeMode,
+        signConfig: config,
+        keystorePassword: ksPass,
+        keyPassword: keyPass,
+      });
       setStatus("saved");
     } catch (err) {
       setError(String(err));
@@ -1219,8 +1285,13 @@ function SettingsPage({
   }
 
   function updateLocale(next: Locale) {
+    setSelectedLocale(next);
     setLocale(next);
-    void api.saveLocale(next);
+  }
+
+  function updateThemeMode(next: ThemeMode) {
+    setSelectedThemeMode(next);
+    setThemeMode(next);
   }
 
   const signingConfigured = Boolean(config.keystore_path && config.key_alias);
@@ -1232,8 +1303,8 @@ function SettingsPage({
           <SettingsFieldRow label={t(locale, "theme")}>
             <div className="flex justify-end">
               <PillSegment
-                value={themeMode}
-                onChange={setThemeMode}
+                value={selectedThemeMode}
+                onChange={updateThemeMode}
                 options={[
                   { value: "system", label: t(locale, "system") },
                   { value: "light", label: t(locale, "light") },
@@ -1245,7 +1316,7 @@ function SettingsPage({
           <SettingsFieldRow label={t(locale, "language")}>
             <div className="flex justify-end">
               <PillSegment
-                value={locale}
+                value={selectedLocale}
                 onChange={updateLocale}
                 options={[
                   { value: "zh", label: "中文" },

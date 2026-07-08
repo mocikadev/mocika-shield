@@ -57,7 +57,7 @@ GUI 固定四个页面：
 | 项目 | 规则 |
 |------|------|
 | 配置来源 | 设置页 |
-| 配置文件 | `tool_config.json` |
+| 配置文件 | `config.toml` |
 | 签名页 | 不维护临时配置，只读取设置页保存值 |
 | 自动签名 | 加固完成后复用同一份配置 |
 | Keystore 类型 | 根据扩展名自动推断，可手动覆盖 |
@@ -126,19 +126,19 @@ Windows 下调用 `java`、`keytool`、`apksigner` 等子进程时，必须统�
 
 ## 8. 配置与持久化
 
-GUI 自动维护的配置文件固定为 `tool_config.json`：
+GUI 自动维护的配置文件固定为 `config.toml`，应用启动时载入一次，后续页面共享同一份内存状态：
 
 | 平台 | 路径 |
 |------|------|
-| Linux | `~/.local/share/mocika-shield/tool_config.json` |
-| macOS | `~/Library/Application Support/mocika-shield/tool_config.json` |
-| Windows | `%APPDATA%\\mocika-shield\\tool_config.json` |
+| Linux | `~/.config/dev.mocika.shield-gui/config.toml` |
+| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
 
 命名约束：
 
-- `tool_config.json`：GUI 自动读写
-- `mocika-shield.toml`：预留给未来 CLI 的人工配置
-- 不使用泛化的 `config.toml` 作为 GUI 默认配置名
+- `config.toml`：GUI 自动读写的唯一正式配置
+- `mocika-shield.toml`：如未来为 CLI 增加人工配置文件，可使用独立文件名
+- 旧版 `tool_config.json` 在新版本首次启动时自动迁移并清理
 
 ## 9. 更新检查
 

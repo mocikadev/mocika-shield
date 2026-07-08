@@ -284,7 +284,7 @@ shield protect -i input.apk -o output.apk [--apktool <path>] [--resources <path>
 shield sign    -i input.apk -o output.apk --ks keystore.jks --ks-pass <pass> --key-alias <alias>
 ```
 
-同时支持 `--config <mocika-shield.toml>` 从文件读取参数，命令行优先级高于配置文件，方便 CI 复用。CLI 的人工配置使用 TOML；GUI 自动维护的配置继续使用 `tool_config.json`。
+同时支持 `--config <mocika-shield.toml>` 从文件读取参数，命令行优先级高于配置文件，方便 CI 复用。CLI 的人工配置使用 TOML；GUI 自动维护的配置已统一为 `config.toml`。
 
 ---
 

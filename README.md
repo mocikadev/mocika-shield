@@ -19,6 +19,7 @@
 - **运行时反调试**：Rust native 层检测 ptrace 附加（TracerPid）、Frida maps 特征、Frida GLib 线程名，检测到立即中止
 - **低特征**：加密数据追加到 `classes.dex` 末尾（DEX `file_size` 边界外），apktool / jadx 完全不可见，无 `assets/app.bin`；壳类名、JNI 符号、日志字符串均经过混淆，静态分析难以定位入口
 - **GUI 签名工具**：内置 APK 签名标签页，支持拖拽、自动清理 `.idsig`，无需额外工具
+- **内置 APK 对齐**：加固输出与 GUI 签名链路会自动执行 4 KB / 16 KB ZIP 对齐，无需额外运行 `zipalign`
 - **完全离线**：加固、签名和校验均在本地完成，不上传 APK 或密钥库
 - **版本更新提示**：启动时自动检查 GitHub Releases，有新版本时分级提示（patch/minor 横幅、major 弹窗）
 - **多架构支持**：arm64-v8a / armeabi-v7a / x86 / x86_64
@@ -63,6 +64,46 @@
 |--------|--------|
 | ![Mocika Shield 签名页](docs/assets/screenshots/readme-sign-main.png) | ![Mocika Shield 关于页](docs/assets/screenshots/readme-about.png) |
 
+### 支持矩阵
+
+| 能力 | Linux | macOS | Windows |
+|------|-------|-------|---------|
+| GUI 使用发布包 | 支持 | 支持 | 支持 |
+| CLI 使用发布包 | 支持 | 支持 | 当前 Release 以 GUI 为主 |
+| 从源码编译 GUI | 支持 | 支持 | 支持 |
+| Android 壳构建 | 支持 | 支持 | 支持 |
+
+### 首次使用最短路径
+
+1. 从 [Releases](../../releases) 下载对应平台的 GUI 安装包并安装
+2. 在 **设置** 页面保存唯一签名配置（`keystore`、`alias`、密码、签名版本）
+3. 回到 **加固** 页面选择已签名 APK，按需开启“加固后自动签名”
+4. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
+
+### 签名材料准备
+
+在开始前，请准备：
+
+- 已签名的原始 APK
+- 与该应用同一证书链对应的 `keystore` / `p12`
+- `alias`
+- `keystore` 密码
+- `key` 密码（与 `keystore` 密码相同可留空）
+
+如果原 APK 与设置页中保存的证书指纹不一致，GUI 会提示重新签名后可能无法覆盖安装。
+
+### 配置文件
+
+GUI 只维护一份正式配置，默认文件名为 `config.toml`，启动时一次性载入，签名页和加固页自动签名共用同一份数据。
+
+| 平台 | 默认位置 |
+|------|----------|
+| Linux | `~/.config/dev.mocika.shield-gui/config.toml` |
+| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
+
+旧版本遗留的 `tool_config.json` 会在新版本首次启动时自动迁移。
+
 ### 方式二：命令行（CLI）
 
 ```bash
@@ -72,7 +113,7 @@ cd mocika-shield-x.y.z
 # 加固
 ./bin/shield protect -i input.apk -o protected.apk
 
-# 签名（加固后必须重新签名）
+# 签名（加固后必须重新签名；无需额外执行 zipalign）
 apksigner sign --ks keystore.jks protected.apk
 
 # 安装
@@ -111,7 +152,7 @@ adb install -r protected.apk
     ↓
 [5. 注入壳资源] → stub-classes.dex + libmocikashield.so（四架构）
     ↓
-[6. 重新打包] → 加固后 APK（未签名，需手动签名）
+[6. 重新打包并对齐] → 生成 4 KB / 16 KB 对齐的加固 APK（未签名，需手动签名）
 ```
 
 ### 运行时流程（Android 设备）
@@ -197,6 +238,14 @@ make build-all
 | 使用发布包（CLI） | Linux / macOS，Java 8+ |
 | 使用发布包（GUI） | Linux / macOS / Windows |
 | 从源码编译 | Rust 1.70+，Node.js 22+，Java 8+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
+
+## 当前限制
+
+- 输入 APK 必须已经签名；未签名 APK 会在预检阶段被拒绝
+- 不支持对已加固 APK 再次加固
+- GUI 当前以单文件工作流为主，不支持批量队列
+- Windows 端当前主要提供 GUI 发布产物；CLI 使用建议从源码编译
+- 加固依赖本地 `apktool` / `apksigner` / `resources.zip`，从源码编译前必须先执行 `make build-stub`
 
 ---
 

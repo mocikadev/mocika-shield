@@ -18,11 +18,48 @@
 - **设置**：配置唯一正式签名信息（keystore / alias / 密码 / 签名版本）、主题、语言
 - **关于**：显示版本号、构建信息、检查更新
 
+### 适用场景
+
+- **优先使用 GUI**：日常加固、重新签名、保存正式签名配置
+- **使用 CLI**：批处理脚本、CI 流水线、本地调试加固过程
+
+### 首次使用建议流程
+
+1. 先在 **设置** 页面保存唯一正式签名配置
+2. 返回 **加固** 页面选择已签名 APK
+3. 需要直接得到可安装产物时，开启“加固后自动签名”
+4. 只做重签名时，使用 **签名** 页面
+
 签名配置只有一份，保存在设置页中：
 
 - 加固页开启“自动签名”后，会在加固完成后直接使用这份配置继续签名
 - 签名页不会再单独维护临时配置，只读取设置页中保存的正式配置
 - 最终产物为 `{name}_protected_signed.apk`
+- GUI 内部会在输出前自动完成 APK ZIP 对齐，无需手动运行 `zipalign`
+
+### 签名材料准备
+
+建议提前准备以下材料：
+
+- 已签名的原始 APK
+- `keystore` / `p12`
+- `alias`
+- `keystore` 密码
+- `key` 密码（相同可留空）
+
+GUI 会在自动签名前比对原 APK 与当前配置的证书指纹。不一致时会给出提示，避免覆盖安装失败。
+
+### 配置文件位置
+
+GUI 启动时会一次性加载 `config.toml`，运行期间使用同一份内存状态，不会在页面切换时反复从磁盘读取。
+
+| 平台 | 默认位置 |
+|------|----------|
+| Linux | `~/.config/dev.mocika.shield-gui/config.toml` |
+| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
+
+旧版本 `tool_config.json` 会在首次启动时自动迁移到新路径。
 
 ---
 
@@ -48,7 +85,7 @@ shield protect -v -i input.apk -o protected.apk
 # 1. 加固
 shield protect -i input.apk -o protected.apk
 
-# 2. 签名（使用 apksigner）
+# 2. 签名（使用 apksigner；无需额外执行 zipalign）
 java -jar apksigner.jar sign \
   --ks keystore.jks \
   --ks-key-alias alias \
@@ -120,6 +157,10 @@ ls -lh input.apk protected.apk
 ### 能否重复加固？
 
 不可以。GUI 和 CLI 均会检测已加固的 APK 并阻止重复操作。请始终使用原始未加固的 APK。
+
+### 为什么设置页改了之后其他页面立即生效？
+
+GUI 现在只维护一份全局正式配置。设置页保存后，会同时更新内存中的全局状态和磁盘上的 `config.toml`，加固页、签名页会立即复用这份配置。
 
 ### 加固后为什么体积反而变小？
 

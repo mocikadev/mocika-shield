@@ -12,7 +12,6 @@ use std::sync::{
     Arc, Mutex,
 };
 use tauri::{Emitter, Manager};
-use tauri_plugin_store::StoreExt;
 
 fn no_window_command(prog: &str) -> std::process::Command {
     #[allow(unused_mut)]
@@ -28,7 +27,8 @@ fn no_window_command(prog: &str) -> std::process::Command {
 
 struct CancelHandle(Arc<AtomicBool>);
 
-const STORE_FILE: &str = "tool_config.json";
+const CONFIG_FILE: &str = "config.toml";
+const LEGACY_STORE_FILE: &str = "tool_config.json";
 const STORE_KEY_KEYSTORE: &str = "keystore_path";
 const STORE_KEY_KEY_ALIAS: &str = "key_alias";
 const STORE_KEY_AUTO_SIGN: &str = "auto_sign_enabled";
@@ -45,7 +45,8 @@ const STORE_KEY_UPDATE_LATEST_TAG: &str = "update_latest_tag";
 const STORE_KEY_UPDATE_RELEASE_URL: &str = "update_release_url";
 const STORE_KEY_UPDATE_DISMISSED: &str = "dismissed_version";
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct SignConfig {
     keystore_path: Option<String>,
     key_alias: Option<String>,
@@ -57,98 +58,334 @@ struct SignConfig {
     sign_v4: bool,
 }
 
-fn load_sign_config(app: &tauri::AppHandle) -> Result<SignConfig, String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    Ok(SignConfig {
-        keystore_path: store
-            .get(STORE_KEY_KEYSTORE)
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .filter(|s| !s.is_empty()),
-        key_alias: store
-            .get(STORE_KEY_KEY_ALIAS)
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .filter(|s| !s.is_empty()),
-        auto_sign_enabled: store
-            .get(STORE_KEY_AUTO_SIGN)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-        ks_type: store
-            .get(STORE_KEY_KS_TYPE)
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .filter(|s| !s.is_empty()),
-        sign_v1: store
-            .get(STORE_KEY_SIGN_V1)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true),
-        sign_v2: store
-            .get(STORE_KEY_SIGN_V2)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true),
-        sign_v3: store
-            .get(STORE_KEY_SIGN_V3)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true),
-        sign_v4: store
-            .get(STORE_KEY_SIGN_V4)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-    })
+impl Default for SignConfig {
+    fn default() -> Self {
+        Self {
+            keystore_path: None,
+            key_alias: None,
+            auto_sign_enabled: false,
+            ks_type: Some("JKS".to_string()),
+            sign_v1: true,
+            sign_v2: true,
+            sign_v3: true,
+            sign_v4: false,
+        }
+    }
 }
 
-fn store_sign_config(app: &tauri::AppHandle, config: SignConfig) -> Result<(), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    store.set(
-        STORE_KEY_KEYSTORE,
-        serde_json::Value::String(config.keystore_path.unwrap_or_default()),
-    );
-    store.set(
-        STORE_KEY_KEY_ALIAS,
-        serde_json::Value::String(config.key_alias.unwrap_or_default()),
-    );
-    store.set(
-        STORE_KEY_AUTO_SIGN,
-        serde_json::Value::Bool(config.auto_sign_enabled),
-    );
-    store.set(
-        STORE_KEY_KS_TYPE,
-        serde_json::Value::String(config.ks_type.unwrap_or_else(|| "JKS".to_string())),
-    );
-    store.set(STORE_KEY_SIGN_V1, serde_json::Value::Bool(config.sign_v1));
-    store.set(STORE_KEY_SIGN_V2, serde_json::Value::Bool(config.sign_v2));
-    store.set(STORE_KEY_SIGN_V3, serde_json::Value::Bool(config.sign_v3));
-    store.set(STORE_KEY_SIGN_V4, serde_json::Value::Bool(config.sign_v4));
-    store.save().map_err(|e| e.to_string())
-}
-
-fn load_sign_passwords(app: &tauri::AppHandle) -> Result<(String, String), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    let ks_pass = store
-        .get(STORE_KEY_KS_PASS)
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_default();
-    let key_pass = store
-        .get(STORE_KEY_KEY_PASS)
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_default();
-    Ok((ks_pass, key_pass))
-}
-
-fn store_sign_passwords(
-    app: &tauri::AppHandle,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct StoredSigningConfig {
+    keystore_path: Option<String>,
+    key_alias: Option<String>,
+    auto_sign_enabled: bool,
+    ks_type: Option<String>,
+    sign_v1: bool,
+    sign_v2: bool,
+    sign_v3: bool,
+    sign_v4: bool,
     keystore_password: String,
     key_password: String,
-) -> Result<(), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    store.set(
-        STORE_KEY_KS_PASS,
-        serde_json::Value::String(keystore_password),
+}
+
+impl Default for StoredSigningConfig {
+    fn default() -> Self {
+        Self {
+            keystore_path: None,
+            key_alias: None,
+            auto_sign_enabled: false,
+            ks_type: Some("JKS".to_string()),
+            sign_v1: true,
+            sign_v2: true,
+            sign_v3: true,
+            sign_v4: false,
+            keystore_password: String::new(),
+            key_password: String::new(),
+        }
+    }
+}
+
+impl StoredSigningConfig {
+    fn to_sign_config(&self) -> SignConfig {
+        SignConfig {
+            keystore_path: self.keystore_path.clone().filter(|s| !s.is_empty()),
+            key_alias: self.key_alias.clone().filter(|s| !s.is_empty()),
+            auto_sign_enabled: self.auto_sign_enabled,
+            ks_type: normalize_keystore_type(self.ks_type.as_deref()),
+            sign_v1: self.sign_v1,
+            sign_v2: self.sign_v2,
+            sign_v3: self.sign_v3,
+            sign_v4: self.sign_v4,
+        }
+    }
+
+    fn apply_sign_config(&mut self, config: SignConfig) {
+        self.keystore_path = config.keystore_path.filter(|s| !s.is_empty());
+        self.key_alias = config.key_alias.filter(|s| !s.is_empty());
+        self.auto_sign_enabled = config.auto_sign_enabled;
+        self.ks_type = normalize_keystore_type(config.ks_type.as_deref());
+        self.sign_v1 = config.sign_v1;
+        self.sign_v2 = config.sign_v2;
+        self.sign_v3 = config.sign_v3;
+        self.sign_v4 = config.sign_v4;
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+struct UpdateCache {
+    last_check: Option<i64>,
+    latest_tag: Option<String>,
+    release_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct AppConfig {
+    locale: String,
+    theme_mode: String,
+    signing: StoredSigningConfig,
+    dismissed_version: Option<String>,
+    update_cache: UpdateCache,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            locale: "zh".to_string(),
+            theme_mode: "system".to_string(),
+            signing: StoredSigningConfig::default(),
+            dismissed_version: None,
+            update_cache: UpdateCache::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AppConfigPayload {
+    locale: String,
+    theme_mode: String,
+    sign_config: SignConfig,
+    keystore_password: String,
+    key_password: String,
+}
+
+impl From<&AppConfig> for AppConfigPayload {
+    fn from(config: &AppConfig) -> Self {
+        Self {
+            locale: normalize_locale(&config.locale),
+            theme_mode: normalize_theme_mode(&config.theme_mode),
+            sign_config: config.signing.to_sign_config(),
+            keystore_password: config.signing.keystore_password.clone(),
+            key_password: config.signing.key_password.clone(),
+        }
+    }
+}
+
+struct AppConfigState {
+    path: PathBuf,
+    config: Mutex<AppConfig>,
+}
+
+impl AppConfigState {
+    fn new(path: PathBuf, config: AppConfig) -> Self {
+        Self {
+            path,
+            config: Mutex::new(config),
+        }
+    }
+
+    fn read(&self) -> Result<AppConfig, String> {
+        self.config
+            .lock()
+            .map(|cfg| cfg.clone())
+            .map_err(|_| "读取配置失败：配置状态锁已损坏".to_string())
+    }
+
+    fn mutate<F>(&self, mutator: F) -> Result<(), String>
+    where
+        F: FnOnce(&mut AppConfig),
+    {
+        let snapshot = {
+            let mut cfg = self
+                .config
+                .lock()
+                .map_err(|_| "写入配置失败：配置状态锁已损坏".to_string())?;
+            mutator(&mut cfg);
+            cfg.locale = normalize_locale(&cfg.locale);
+            cfg.theme_mode = normalize_theme_mode(&cfg.theme_mode);
+            cfg.signing.ks_type = normalize_keystore_type(cfg.signing.ks_type.as_deref());
+            cfg.signing.keystore_path = cfg.signing.keystore_path.take().filter(|s| !s.is_empty());
+            cfg.signing.key_alias = cfg.signing.key_alias.take().filter(|s| !s.is_empty());
+            cfg.clone()
+        };
+        save_app_config_file(&self.path, &snapshot)
+    }
+}
+
+fn normalize_locale(value: &str) -> String {
+    if value.eq_ignore_ascii_case("en") {
+        "en".to_string()
+    } else {
+        "zh".to_string()
+    }
+}
+
+fn normalize_theme_mode(value: &str) -> String {
+    match value {
+        "light" | "dark" | "system" => value.to_string(),
+        _ => "system".to_string(),
+    }
+}
+
+fn normalize_keystore_type(value: Option<&str>) -> Option<String> {
+    match value.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        Some(raw) if raw.eq_ignore_ascii_case("pkcs12") || raw.eq_ignore_ascii_case("p12") => {
+            Some("PKCS12".to_string())
+        }
+        Some(_) => Some("JKS".to_string()),
+        None => Some("JKS".to_string()),
+    }
+}
+
+fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("无法定位配置目录: {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {e}"))?;
+    Ok(dir.join(CONFIG_FILE))
+}
+
+fn legacy_store_paths(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Ok(dir) = app.path().app_config_dir() {
+        paths.push(dir.join(LEGACY_STORE_FILE));
+    }
+    if let Ok(dir) = app.path().app_data_dir() {
+        let candidate = dir.join(LEGACY_STORE_FILE);
+        if !paths.iter().any(|item| item == &candidate) {
+            paths.push(candidate);
+        }
+    }
+    paths
+}
+
+fn migrate_legacy_store(path: &Path) -> Option<AppConfig> {
+    let raw = fs::read_to_string(path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let mut config = AppConfig::default();
+    config.locale = normalize_locale(
+        json.get(STORE_KEY_LOCALE)
+            .and_then(|v| v.as_str())
+            .unwrap_or("zh"),
     );
-    store.set(STORE_KEY_KEY_PASS, serde_json::Value::String(key_password));
-    store.save().map_err(|e| e.to_string())
+    config.signing.keystore_path = json
+        .get(STORE_KEY_KEYSTORE)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    config.signing.key_alias = json
+        .get(STORE_KEY_KEY_ALIAS)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    config.signing.auto_sign_enabled = json
+        .get(STORE_KEY_AUTO_SIGN)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    config.signing.ks_type =
+        normalize_keystore_type(json.get(STORE_KEY_KS_TYPE).and_then(|v| v.as_str()));
+    config.signing.sign_v1 = json
+        .get(STORE_KEY_SIGN_V1)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    config.signing.sign_v2 = json
+        .get(STORE_KEY_SIGN_V2)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    config.signing.sign_v3 = json
+        .get(STORE_KEY_SIGN_V3)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    config.signing.sign_v4 = json
+        .get(STORE_KEY_SIGN_V4)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    config.signing.keystore_password = json
+        .get(STORE_KEY_KS_PASS)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    config.signing.key_password = json
+        .get(STORE_KEY_KEY_PASS)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    config.dismissed_version = json
+        .get(STORE_KEY_UPDATE_DISMISSED)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    config.update_cache.last_check = json
+        .get(STORE_KEY_UPDATE_LAST_CHECK)
+        .and_then(|v| v.as_i64());
+    config.update_cache.latest_tag = json
+        .get(STORE_KEY_UPDATE_LATEST_TAG)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    config.update_cache.release_url = json
+        .get(STORE_KEY_UPDATE_RELEASE_URL)
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    Some(config)
+}
+
+fn load_app_config(
+    app: &tauri::AppHandle,
+) -> Result<(PathBuf, AppConfig, Option<PathBuf>), String> {
+    let path = config_file_path(app)?;
+    if path.exists() {
+        let raw = fs::read_to_string(&path).map_err(|e| format!("读取配置文件失败: {e}"))?;
+        let mut config: AppConfig =
+            toml::from_str(&raw).map_err(|e| format!("解析配置文件失败: {e}"))?;
+        config.locale = normalize_locale(&config.locale);
+        config.theme_mode = normalize_theme_mode(&config.theme_mode);
+        config.signing.ks_type = normalize_keystore_type(config.signing.ks_type.as_deref());
+        config.signing.keystore_path = config
+            .signing
+            .keystore_path
+            .take()
+            .filter(|s| !s.is_empty());
+        config.signing.key_alias = config.signing.key_alias.take().filter(|s| !s.is_empty());
+        return Ok((path, config, None));
+    }
+
+    for legacy in legacy_store_paths(app) {
+        if legacy.exists() {
+            if let Some(config) = migrate_legacy_store(&legacy) {
+                return Ok((path, config, Some(legacy)));
+            }
+        }
+    }
+
+    Ok((path, AppConfig::default(), None))
+}
+
+fn save_app_config_file(path: &Path, config: &AppConfig) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {e}"))?;
+    }
+    let body = toml::to_string_pretty(config).map_err(|e| format!("序列化配置失败: {e}"))?;
+    fs::write(path, body).map_err(|e| format!("写入配置文件失败: {e}"))
 }
 
 fn execute_sign_apk(
     app: &tauri::AppHandle,
+    keystore_password: String,
+    key_password: String,
     apk_path: String,
     output_path: Option<String>,
     apksigner_path: Option<String>,
@@ -164,7 +401,8 @@ fn execute_sign_apk(
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| find_apksigner_path(app));
-    let (ks_pass, key_pass) = load_sign_passwords(app)?;
+    let ks_pass = keystore_password;
+    let key_pass = key_password;
     let effective_key_pass = if key_pass.is_empty() {
         ks_pass.clone()
     } else {
@@ -812,32 +1050,29 @@ async fn check_apk(app: tauri::AppHandle, path: String) -> ApkCheckResult {
 }
 
 #[tauri::command]
-fn get_sign_config(app: tauri::AppHandle) -> Result<SignConfig, String> {
-    load_sign_config(&app)
+fn get_app_config(state: tauri::State<'_, AppConfigState>) -> Result<AppConfigPayload, String> {
+    let config = state.read()?;
+    Ok(AppConfigPayload::from(&config))
 }
 
 #[tauri::command]
-fn save_sign_config(app: tauri::AppHandle, config: SignConfig) -> Result<(), String> {
-    store_sign_config(&app, config)
-}
-
-#[tauri::command]
-fn get_sign_passwords(app: tauri::AppHandle) -> Result<(String, String), String> {
-    load_sign_passwords(&app)
-}
-
-#[tauri::command]
-fn save_sign_passwords(
-    app: tauri::AppHandle,
-    keystore_password: String,
-    key_password: String,
+fn save_app_config(
+    state: tauri::State<'_, AppConfigState>,
+    config: AppConfigPayload,
 ) -> Result<(), String> {
-    store_sign_passwords(&app, keystore_password, key_password)
+    state.mutate(move |current| {
+        current.locale = normalize_locale(&config.locale);
+        current.theme_mode = normalize_theme_mode(&config.theme_mode);
+        current.signing.apply_sign_config(config.sign_config);
+        current.signing.keystore_password = config.keystore_password;
+        current.signing.key_password = config.key_password;
+    })
 }
 
 #[tauri::command]
 async fn sign_apk(
     app: tauri::AppHandle,
+    state: tauri::State<'_, AppConfigState>,
     apk_path: String,
     output_path: Option<String>,
     apksigner_path: Option<String>,
@@ -849,9 +1084,14 @@ async fn sign_apk(
     sign_v3: bool,
     sign_v4: bool,
 ) -> Result<(), String> {
+    let config = state.read()?;
+    let keystore_password = config.signing.keystore_password;
+    let key_password = config.signing.key_password;
     tauri::async_runtime::spawn_blocking(move || {
         execute_sign_apk(
             &app,
+            keystore_password,
+            key_password,
             apk_path,
             output_path,
             apksigner_path,
@@ -875,31 +1115,6 @@ fn list_keystore_aliases(
     ks_type: Option<String>,
 ) -> Result<Vec<String>, String> {
     query_keystore_aliases(keystore_path, ks_pass, ks_type)
-}
-
-#[tauri::command]
-fn get_locale(app: tauri::AppHandle) -> Result<String, String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    let locale = store
-        .get(STORE_KEY_LOCALE)
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_else(|| "zh".to_string());
-    Ok(locale)
-}
-
-#[tauri::command]
-fn save_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    store.set(STORE_KEY_LOCALE, serde_json::Value::String(locale));
-    store.save().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_home_dir(app: tauri::AppHandle) -> String {
-    app.path()
-        .home_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -947,9 +1162,9 @@ fn compare_semver(current: &str, latest: &str, release_url: Option<String>) -> U
     }
 }
 
-fn get_cached_update(app: &tauri::AppHandle) -> Option<UpdateCheckResult> {
-    let store = app.store(STORE_FILE).ok()?;
-    let last_check = store.get(STORE_KEY_UPDATE_LAST_CHECK)?.as_i64()?;
+fn get_cached_update(state: &AppConfigState) -> Option<UpdateCheckResult> {
+    let config = state.read().ok()?;
+    let last_check = config.update_cache.last_check?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
@@ -958,13 +1173,8 @@ fn get_cached_update(app: &tauri::AppHandle) -> Option<UpdateCheckResult> {
         // 24 小时 = 86400 秒
         return None;
     }
-    let latest_tag = store
-        .get(STORE_KEY_UPDATE_LATEST_TAG)?
-        .as_str()?
-        .to_string();
-    let release_url = store
-        .get(STORE_KEY_UPDATE_RELEASE_URL)
-        .and_then(|v| v.as_str().map(|s| s.to_string()));
+    let latest_tag = config.update_cache.latest_tag?;
+    let release_url = config.update_cache.release_url;
     Some(compare_semver(
         env!("CARGO_PKG_VERSION"),
         &latest_tag,
@@ -972,31 +1182,29 @@ fn get_cached_update(app: &tauri::AppHandle) -> Option<UpdateCheckResult> {
     ))
 }
 
-fn save_update_to_cache(app: &tauri::AppHandle, latest_tag: &str, release_url: Option<&str>) {
-    if let Ok(store) = app.store(STORE_FILE) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        store.set(STORE_KEY_UPDATE_LAST_CHECK, serde_json::json!(now));
-        store.set(
-            STORE_KEY_UPDATE_LATEST_TAG,
-            serde_json::Value::String(latest_tag.to_string()),
-        );
-        store.set(
-            STORE_KEY_UPDATE_RELEASE_URL,
-            release_url
-                .map(|u| serde_json::Value::String(u.to_string()))
-                .unwrap_or(serde_json::Value::Null),
-        );
-        let _ = store.save();
-    }
+fn save_update_to_cache(state: &AppConfigState, latest_tag: &str, release_url: Option<&str>) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let _ = state.mutate(|config| {
+        config.update_cache.last_check = Some(now);
+        config.update_cache.latest_tag = if latest_tag.is_empty() {
+            None
+        } else {
+            Some(latest_tag.to_string())
+        };
+        config.update_cache.release_url = release_url.map(|value| value.to_string());
+    });
 }
 
 #[tauri::command]
-async fn check_update(app: tauri::AppHandle, force: bool) -> Result<UpdateCheckResult, String> {
+async fn check_update(
+    state: tauri::State<'_, AppConfigState>,
+    force: bool,
+) -> Result<UpdateCheckResult, String> {
     if !force {
-        if let Some(cached) = get_cached_update(&app) {
+        if let Some(cached) = get_cached_update(&state) {
             return Ok(cached);
         }
     }
@@ -1019,7 +1227,7 @@ async fn check_update(app: tauri::AppHandle, force: bool) -> Result<UpdateCheckR
 
     if response.status().as_u16() == 404 {
         // 尚无 Release，静默返回无更新
-        save_update_to_cache(&app, "", None);
+        save_update_to_cache(&state, "", None);
         return Ok(UpdateCheckResult {
             has_update: false,
             latest_version: None,
@@ -1037,7 +1245,7 @@ async fn check_update(app: tauri::AppHandle, force: bool) -> Result<UpdateCheckR
     let latest = tag.trim_start_matches(|c: char| c == 'v' || c == 'V');
     let release_url = json["html_url"].as_str();
 
-    save_update_to_cache(&app, latest, release_url);
+    save_update_to_cache(&state, latest, release_url);
     Ok(compare_semver(
         current,
         latest,
@@ -1066,21 +1274,21 @@ fn open_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn dismiss_update(app: tauri::AppHandle, version: String) -> Result<(), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    store.set(
-        STORE_KEY_UPDATE_DISMISSED,
-        serde_json::Value::String(version),
-    );
-    store.save().map_err(|e| e.to_string())
+fn dismiss_update(state: tauri::State<'_, AppConfigState>, version: String) -> Result<(), String> {
+    state.mutate(move |config| {
+        config.dismissed_version = if version.is_empty() {
+            None
+        } else {
+            Some(version)
+        };
+    })
 }
 
 #[tauri::command]
-fn get_dismissed_version(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    Ok(store
-        .get(STORE_KEY_UPDATE_DISMISSED)
-        .and_then(|v| v.as_str().map(|s| s.to_string())))
+fn get_dismissed_version(
+    state: tauri::State<'_, AppConfigState>,
+) -> Result<Option<String>, String> {
+    Ok(state.read()?.dismissed_version)
 }
 
 #[derive(Serialize)]
@@ -1154,8 +1362,16 @@ fn get_build_info(app: tauri::AppHandle) -> BuildInfo {
 fn main() {
     if let Err(err) = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .manage(CancelHandle(Arc::new(AtomicBool::new(false))))
+        .setup(|app| {
+            let (path, config, legacy_path) = load_app_config(app.handle())?;
+            save_app_config_file(&path, &config)?;
+            if let Some(legacy) = legacy_path {
+                let _ = fs::remove_file(legacy);
+            }
+            app.manage(AppConfigState::new(path, config));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             protect_apk,
             cancel_protect,
@@ -1163,16 +1379,11 @@ fn main() {
             delete_file,
             show_in_folder,
             check_apk,
-            get_sign_config,
-            save_sign_config,
-            get_sign_passwords,
-            save_sign_passwords,
+            get_app_config,
+            save_app_config,
             sign_apk,
             list_keystore_aliases,
             compare_cert_fingerprints,
-            get_locale,
-            save_locale,
-            get_home_dir,
             check_update,
             open_url,
             dismiss_update,

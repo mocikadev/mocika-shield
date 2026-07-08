@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use tempfile::TempDir;
+
+use crate::zipalign::align_apk;
 
 fn no_window_command(prog: &str) -> Command {
     #[allow(unused_mut)]
@@ -77,7 +80,6 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
 
     let java = find_java()?;
 
-    let apk_path_str = opts.apk_path.to_str().context("APK 路径包含非法字符")?;
     let ks_path_str = opts
         .keystore_path
         .to_str()
@@ -90,6 +92,33 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
     let key_pass_arg = format!("pass:{}", opts.key_password);
 
     let v = &opts.signing_versions;
+    let temp_dir = TempDir::new().context("创建签名临时目录失败")?;
+    let aligned_input = temp_dir.path().join("aligned.apk");
+    std::fs::copy(&opts.apk_path, &aligned_input).with_context(|| {
+        format!(
+            "复制待签名 APK 到临时目录失败: {}",
+            opts.apk_path.display()
+        )
+    })?;
+    align_apk(&aligned_input).context("内置 APK 对齐失败")?;
+
+    let final_output = opts
+        .output_path
+        .clone()
+        .unwrap_or_else(|| opts.apk_path.clone());
+    let sign_output = if final_output == opts.apk_path {
+        temp_dir.path().join("signed.apk")
+    } else {
+        final_output.clone()
+    };
+
+    let aligned_input_str = aligned_input
+        .to_str()
+        .context("临时 APK 路径包含非法字符")?;
+    let sign_output_str = sign_output
+        .to_str()
+        .context("签名输出路径包含非法字符")?;
+
     let mut cmd_args = vec![
         "-jar",
         &apksigner_str,
@@ -110,6 +139,8 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
         bool_str(v.v2),
         "--v3-signing-enabled",
         bool_str(v.v3),
+        "--out",
+        sign_output_str,
     ];
 
     if v.v4 {
@@ -117,14 +148,7 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
         cmd_args.push("true");
     }
 
-    let out_str;
-    if let Some(out) = &opts.output_path {
-        out_str = out.to_str().context("输出路径包含非法字符")?.to_string();
-        cmd_args.push("--out");
-        cmd_args.push(&out_str);
-    }
-
-    cmd_args.push(apk_path_str);
+    cmd_args.push(aligned_input_str);
 
     let output = no_window_command(&java)
         .args(&cmd_args)
@@ -137,6 +161,21 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let code = output.status.code().unwrap_or(-1);
         anyhow::bail!("apksigner 签名失败（退出码 {}）: {}", code, stderr.trim());
+    }
+
+    if sign_output != final_output {
+        if final_output.exists() {
+            std::fs::remove_file(&final_output).with_context(|| {
+                format!("删除旧的签名输出失败: {}", final_output.display())
+            })?;
+        }
+        std::fs::rename(&sign_output, &final_output).with_context(|| {
+            format!(
+                "写回最终签名 APK 失败: {} -> {}",
+                sign_output.display(),
+                final_output.display()
+            )
+        })?;
     }
 
     Ok(())

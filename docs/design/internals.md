@@ -35,7 +35,7 @@
 │  ⑤ inject_runtime     解压 resources.zip 注入 stub + .so；      │
 │                        DEXB payload 以 MSHD 块追加到            │
 │                        classes.dex 末尾（DEX file_size 之外）   │
-│  ⑥ apktool b          重打包 APK（未签名）                      │
+│  ⑥ apktool b + 内置对齐  重打包并执行 4 KB / 16 KB ZIP 对齐      │
 └──────────────────────────────┬──────────────────────────────────┘
                                │ protected.apk（未签名，需签名后安装）
                                ▼

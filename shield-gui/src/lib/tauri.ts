@@ -13,6 +13,16 @@ export type SignConfig = {
   sign_v4: boolean;
 };
 
+export type ThemeMode = "system" | "light" | "dark";
+
+export type AppConfig = {
+  locale: "zh" | "en" | string;
+  theme_mode: ThemeMode | string;
+  sign_config: SignConfig;
+  keystore_password: string;
+  key_password: string;
+};
+
 export type ApkCheckResult = {
   already_protected: boolean;
   is_signed: boolean;
@@ -65,11 +75,8 @@ export const api = {
   cancelProtect: () => invoke<void>("cancel_protect"),
   showInFolder: (path: string) => invoke<void>("show_in_folder", { path }),
   deleteFile: (path: string) => invoke<void>("delete_file", { path }),
-  getSignConfig: () => invoke<SignConfig>("get_sign_config"),
-  saveSignConfig: (config: SignConfig) => invoke<void>("save_sign_config", { config }),
-  getSignPasswords: () => invoke<[string, string]>("get_sign_passwords"),
-  saveSignPasswords: (keystorePassword: string, keyPassword: string) =>
-    invoke<void>("save_sign_passwords", { keystorePassword, keyPassword }),
+  getAppConfig: () => invoke<AppConfig>("get_app_config"),
+  saveAppConfig: (config: AppConfig) => invoke<void>("save_app_config", { config }),
   signApk: (args: {
     apkPath: string;
     outputPath?: string | null;
@@ -91,9 +98,6 @@ export const api = {
     ksType?: string | null;
     keyAlias: string;
   }) => invoke<CertCompareResult>("compare_cert_fingerprints", args),
-  getLocale: () => invoke<string>("get_locale"),
-  saveLocale: (locale: string) => invoke<void>("save_locale", { locale }),
-  getHomeDir: () => invoke<string>("get_home_dir"),
   checkUpdate: (force: boolean) => invoke<UpdateCheckResult>("check_update", { force }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   dismissUpdate: (version: string) => invoke<void>("dismiss_update", { version }),
