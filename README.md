@@ -103,7 +103,7 @@ Java 运行环境同样会在应用启动时检测一次，并缓存到全局状
 | macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
 | Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
 
-旧版本遗留的 `tool_config.json` 会在新版本首次启动时自动迁移。
+旧版本遗留的 `tool_config.json` 会在新版本首次启动时自动迁移到 `config.toml`。
 
 ### 方式二：命令行（CLI）
 

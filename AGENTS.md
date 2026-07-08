@@ -87,7 +87,7 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
 
 ### 配置文件命名
-GUI 自动维护的用户配置固定使用 `tool_config.json`，不要改成 `config.toml`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
+GUI 自动维护的用户配置固定使用 `config.toml`，不要改成 `tool_config.json`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
 
 ### 前端路径拼接
 前端构造输出路径时必须通过 `src/lib/path.ts` 的路径辅助函数处理 Windows 反斜杠，不要用裸 `format!("{}/{}", parent, stem)` 或字符串拼接散落在页面里。
