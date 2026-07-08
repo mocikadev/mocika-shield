@@ -66,14 +66,15 @@ make build-cli
 
 ```bash
 make build-gui
-# 等价于：cd shield-gui && cargo tauri build
+# 等价于：cd apps/shield-gui && cargo tauri build --no-bundle
 ```
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（Linux）：`target/release/bundle/` 下的 AppImage / deb
-输出（macOS）：`.dmg` / `.app`
-输出（Windows）：NSIS `.exe` / `.msi`
+输出（Linux / macOS）：`target/release/mocika-shield`
+输出（Windows）：`target\\release\\mocika-shield.exe`
+
+如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等正式 bundle，请使用下方发布脚本，而不是 `make build-gui`。
 
 ## 发布包构建
 

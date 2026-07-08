@@ -118,9 +118,8 @@ GUI 发布包已内置 apktool.jar、apksigner.jar、resources.zip，用户无�
 ```
 dist/windows/
 ├── MocikaShield_x.y.z_windows_x64_setup.exe    # GUI NSIS 安装包
-├── MocikaShield_x.y.z_windows_x64_setup.exe.sha256
 ├── mocika-shield-cli-x.y.z-windows-x86_64.zip  # CLI 发布包
-└── mocika-shield-cli-x.y.z-windows-x86_64.zip.sha256
+└── checksums-sha256.txt
 ```
 
 ---
@@ -191,8 +190,8 @@ Release Notes 生成规则：
 
 ### 手动触发发布
 
-在 GitHub Actions 页面选择 `Release` workflow，输入版本号 `x.y.z` 后运行。手动触发会创建或更新 `vx.y.z` Release 草稿，但不会自动创建 git tag；正式发布仍建议使用 tag 触发。
-如果输入的是带预发布后缀的版本号（如 `1.2.0-rc.1`），会直接创建或更新为 Pre-release。
+在 GitHub Actions 页面选择 `Release` workflow，输入版本号 `x.y.z` 后运行。手动触发不会自动创建 git tag；正式发布仍建议使用 tag 触发。
+如果输入的是稳定版本号，会创建或更新 `vx.y.z` Draft Release；如果输入的是带预发布后缀的版本号（如 `1.2.0-rc.1`），会直接创建或更新为 Pre-release。
 
 ---
 
@@ -202,15 +201,15 @@ Release Notes 生成规则：
 2. 确认 CI 通过
 3. 打 tag 并推送：`git tag vx.y.z && git push origin main vx.y.z`
 4. 等待 Release workflow 完成
-5. 检查 GitHub Release 草稿的产物、校验和和 Release Notes
-6. 确认无误后取消草稿正式发布
+5. 检查 GitHub Release 的产物、校验和和 Release Notes
+6. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
 
 ### 产物与命名规则
 
 | 平台 | 产物文件 |
 |------|----------|
 | Linux（Tauri） | `MocikaShield_X.Y.Z_linux_amd64.AppImage`、`MocikaShield_X.Y.Z_linux_amd64.deb`、CLI tar.gz |
-| macOS（Tauri） | `MocikaShield_X.Y.Z_macos_universal.dmg` + `.sha256` |
-| Windows | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、CLI zip |
+| macOS（Tauri） | `MocikaShield_X.Y.Z_macos_universal.dmg`、CLI tar.gz、`macos-tauri-checksums-sha256.txt` |
+| Windows | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、CLI zip、`windows-checksums-sha256.txt` |
 
 > 发布仓库：`mocikadev/mocika-shield`（源码与 Release 包同仓库维护）

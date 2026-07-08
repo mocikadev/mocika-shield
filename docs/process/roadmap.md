@@ -226,10 +226,10 @@ remote(1.1.2) vs local(1.1.1) → patch 不同 → "patch"
 
 #### 发布流程（GitHub Actions 自动上传同一 Release）
 
-推送 `vX.Y.Z` tag 后，由 `.github/workflows/release.yml` 并行构建 Linux、macOS、Windows 产物，最后创建或更新同一个 GitHub Release 草稿。
+推送 `vX.Y.Z` tag 后，由 `.github/workflows/release.yml` 并行构建 Linux、macOS、Windows 产物，最后创建或更新同一个 GitHub Release；稳定版本保持 Draft，预发布版本直接标记为 Pre-release。
 
 - Linux Tauri、macOS Tauri、Windows 各自上传 workflow artifact
-- `publish` job 汇总所有 artifact，上传到 `vX.Y.Z` Release 草稿
+- `publish` job 汇总所有 artifact，上传到 `vX.Y.Z` Release
 - Release Notes 与正式发布仍由维护者最终确认
 
 详细规则见 [docs/process/release.md → GitHub Actions CI/CD](release.md#github-actions-cicd)。

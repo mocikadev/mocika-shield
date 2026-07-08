@@ -272,7 +272,7 @@ mocika-shield-cli-$Version-windows-x86_64\
 function Collect-Gui {
     Info "收集 GUI 产物..."
 
-    $tauriTarget = Join-Path $Root "apps\shield-gui\src-tauri\target\release\bundle"
+    $tauriTarget = Join-Path $Root "target\release\bundle"
     $nsisDir     = Join-Path $tauriTarget "nsis"
 
     $exe = Get-ChildItem $nsisDir -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1

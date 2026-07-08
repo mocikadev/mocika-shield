@@ -183,7 +183,6 @@ jobs:
           path: |
             dist/macos/**/*.tar.gz
             dist/macos/**/*.dmg
-            dist/macos/**/*.dmg.sha256
             dist/macos/checksums-sha256.txt
           if-no-files-found: error
 
