@@ -1,3 +1,4 @@
+pub mod apk_inspect;
 mod dex_packer;
 pub mod error;
 mod protect;
@@ -6,6 +7,10 @@ pub mod signing;
 pub mod utils;
 pub mod zipalign;
 
+pub use apk_inspect::{
+    check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint,
+    normalize_fingerprint, ApkCheckOutcome,
+};
 pub use error::ShieldError;
 pub use protect_api::{protect_apk, ProgressEvent, ProgressStep, ProtectOptions};
 pub use signing::{

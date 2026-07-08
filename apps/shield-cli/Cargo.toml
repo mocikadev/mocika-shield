@@ -19,3 +19,5 @@ log = "0.4"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 colored = "3.1"
 shield-core = { path = "../../crates/shield-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
