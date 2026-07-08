@@ -16,7 +16,7 @@ export function AboutPage({
   });
 
   return (
-    <section className="flex min-h-full items-center justify-center px-8 py-10">
+    <section className="mx-auto flex min-h-full w-full items-center justify-center px-8 py-12">
       <AboutInfoCard
         locale={locale}
         appInfo={appInfo}

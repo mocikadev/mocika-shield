@@ -26,30 +26,38 @@ export function AboutInfoCard({
   onCheckUpdate: () => void;
 }) {
   return (
-    <div className="w-full max-w-[640px] rounded-[28px] border bg-card px-10 py-12 text-center shadow-panel">
-      <img src={logoSvg} alt="Mocika Shield" className="mx-auto h-24 w-24 rounded-[22px]" />
-      <h1 className="mt-8 text-[34px] font-semibold tracking-normal">Mocika Shield</h1>
-      <p className="mt-3 text-base font-medium text-muted-foreground">v{appInfo.version}</p>
-      <p className="mt-4 text-[15px] font-medium text-muted-foreground">{t(locale, "appSubtitle")}</p>
-      <p className="mt-4 font-mono text-sm text-muted-foreground">
-        apktool {buildInfo?.apktool_version ?? t(locale, "unknown")}
-        <span className="mx-3">·</span>
-        apksigner {buildInfo?.apksigner_version ?? t(locale, "unknown")}
-      </p>
-      <div className="mt-8 flex justify-center">
-        <AppButton variant="secondary" onClick={onCheckUpdate} disabled={checking}>
-          {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {checking ? t(locale, "checkingUpdate") : t(locale, "checkUpdate")}
-        </AppButton>
+    <div className="mx-auto flex w-full max-w-[620px] flex-col items-center text-center">
+      <img src={logoSvg} alt="Mocika Shield" className="h-16 w-16 rounded-[18px] shadow-sm" />
+      <h1 className="mt-5 text-[30px] font-semibold tracking-normal">Mocika Shield</h1>
+      <div className="mt-2 rounded-full border border-border/70 bg-muted/45 px-3 py-1 text-xs font-semibold text-muted-foreground">
+        v{appInfo.version}
       </div>
-      {message && <p className="mt-5 text-sm font-medium text-muted-foreground">{message}</p>}
-      <div className="mt-8 grid gap-2 rounded-2xl bg-muted/50 p-4 text-left">
+
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <span className="rounded-full border border-border/70 bg-muted/35 px-3 py-1.5 font-mono text-xs text-muted-foreground">
+          apktool {buildInfo?.apktool_version ?? t(locale, "unknown")}
+        </span>
+        <span className="rounded-full border border-border/70 bg-muted/35 px-3 py-1.5 font-mono text-xs text-muted-foreground">
+          apksigner {buildInfo?.apksigner_version ?? t(locale, "unknown")}
+        </span>
+      </div>
+
+      <div className="mt-8 w-full max-w-[460px] border-y border-border/60 py-2 text-left">
         <SummaryRow label="Git" value={appInfo.git_hash || t(locale, "unknown")} muted={!appInfo.git_hash} />
+        <div className="border-t border-border/60" />
         <SummaryRow
           label={t(locale, "build")}
           value={appInfo.build_date || t(locale, "unknown")}
           muted={!appInfo.build_date}
         />
+      </div>
+
+      <div className="mt-6 flex flex-col items-center gap-3">
+        <AppButton variant="secondary" onClick={onCheckUpdate} disabled={checking}>
+          {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {checking ? t(locale, "checkingUpdate") : t(locale, "checkUpdate")}
+        </AppButton>
+        {message && <p className="text-sm text-muted-foreground">{message}</p>}
       </div>
     </div>
   );

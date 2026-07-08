@@ -1,11 +1,8 @@
-import { Loader2, Save } from "lucide-react";
 import { SettingsSigningPanel } from "@/components/app/settings-signing-panel";
 import {
-  AppButton,
   PillSegment,
   SettingsFieldRow,
   SettingsGroup,
-  StatusMessage,
 } from "@/components/app/common";
 import { useSettingsForm, type SettingsSavePayload } from "@/hooks/use-settings-form";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +41,7 @@ export function SettingsPage({
     setShowPass,
     aliases,
     saving,
+    autoSignSaving,
     detecting,
     status,
     error,
@@ -51,7 +49,10 @@ export function SettingsPage({
     updateThemeMode,
     browseKeystore,
     detectAlias,
-    save,
+    validateSigningConfig,
+    saveSigningConfig,
+    toggleAutoSign,
+    signingValidated,
     signingConfigured,
   } = useSettingsForm({
     locale,
@@ -65,12 +66,15 @@ export function SettingsPage({
   });
 
   return (
-    <section className="mx-auto max-w-[820px] px-8 py-9">
-      <h1 className="mb-8 text-[22px] font-semibold">{t(locale, "settingsTitle")}</h1>
-      <div className="space-y-8">
+    <section className="mx-auto max-w-[920px] px-8 py-10">
+      <header className="mb-9">
+        <h1 className="text-[24px] font-semibold tracking-normal">{t(locale, "settingsTitle")}</h1>
+      </header>
+
+      <div className="space-y-10">
         <SettingsGroup title={t(locale, "appearance")}>
           <SettingsFieldRow label={t(locale, "theme")}>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end">
               <PillSegment
                 value={selectedThemeMode}
                 onChange={updateThemeMode}
@@ -83,7 +87,7 @@ export function SettingsPage({
             </div>
           </SettingsFieldRow>
           <SettingsFieldRow label={t(locale, "language")}>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end">
               <PillSegment
                 value={selectedLocale}
                 onChange={updateLocale}
@@ -107,34 +111,36 @@ export function SettingsPage({
           showPass={showPass}
           setShowPass={setShowPass}
           aliases={aliases}
+          saving={saving}
           detecting={detecting}
+          status={status}
+          error={error}
+          signingValidated={signingValidated}
+          signingConfigured={signingConfigured}
           onBrowseKeystore={browseKeystore}
           onDetectAlias={detectAlias}
+          onValidate={() => void validateSigningConfig()}
+          onSave={() => void saveSigningConfig()}
         />
 
         <SettingsGroup title={t(locale, "protectSection")}>
-          <SettingsFieldRow label={t(locale, "autoSignAfterProtect")} hint={signingConfigured ? t(locale, "ready") : t(locale, "noSavedConfig")}>
-            <div className="flex justify-end">
+          <SettingsFieldRow
+            label={t(locale, "autoSignAfterProtect")}
+            hint={!signingConfigured ? t(locale, "noSavedConfig") : undefined}
+          >
+            <div className="flex items-center justify-end gap-3">
+              <span className="text-sm text-muted-foreground">
+                {config.auto_sign_enabled ? t(locale, "enabled") : t(locale, "disabled")}
+              </span>
               <Switch
                 checked={Boolean(config.auto_sign_enabled)}
-                onCheckedChange={(checked) => setConfig((old) => ({ ...old, auto_sign_enabled: checked }))}
+                disabled={!signingConfigured || autoSignSaving}
+                onCheckedChange={(checked) => void toggleAutoSign(checked)}
                 aria-label={t(locale, "autoSignAfterProtect")}
               />
             </div>
           </SettingsFieldRow>
         </SettingsGroup>
-
-        <div className="space-y-3">
-          {status === "saved" && <StatusMessage kind="success">{t(locale, "saved")}</StatusMessage>}
-          {status === "failed" && <StatusMessage kind="error">{error || t(locale, "saveFailed")}</StatusMessage>}
-          {error && status !== "failed" && <StatusMessage kind="error">{error}</StatusMessage>}
-          <div className="flex justify-end">
-            <AppButton onClick={save} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {t(locale, "save")}
-            </AppButton>
-          </div>
-        </div>
       </div>
     </section>
   );

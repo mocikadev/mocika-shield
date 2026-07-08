@@ -22,26 +22,25 @@ export function AppSidebarHeader({ locale }: { locale: Locale }) {
   const collapsed = state === "collapsed";
 
   return (
-    <SidebarHeader className="h-[82px] justify-center px-3">
+    <SidebarHeader className="h-[92px] justify-center px-4 pb-3 pt-4 group-data-[collapsible=icon]:px-3">
       {collapsed ? (
         <button
           type="button"
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl hover:bg-sidebar-accent"
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-[18px] border border-sidebar-border/70 bg-sidebar-accent/35 shadow-sm transition-colors hover:bg-sidebar-accent"
           onClick={toggleSidebar}
           aria-label={t(locale, "expandSidebar")}
           title={t(locale, "expandSidebar")}
         >
-          <img src={logoSvg} alt="Mocika Shield" className="h-8 w-8 rounded-lg" />
+          <img src={logoSvg} alt="Mocika Shield" className="h-9 w-9 rounded-xl" />
         </button>
       ) : (
-        <div className="flex items-center gap-3">
-          <img src={logoSvg} alt="Mocika Shield" className="ml-1.5 h-9 w-9 rounded-lg" />
+        <div className="flex h-14 items-center gap-3 rounded-[20px] border border-sidebar-border/70 bg-sidebar-accent/30 px-3.5 shadow-sm">
+          <img src={logoSvg} alt="Mocika Shield" className="h-10 w-10 rounded-[14px]" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-semibold">Mocika Shield</div>
-            <div className="truncate text-xs text-muted-foreground">{t(locale, "appSubtitle")}</div>
+            <div className="truncate text-[15px] font-semibold tracking-normal">Mocika Shield</div>
           </div>
           <SidebarTrigger
-            className="h-9 w-9 shrink-0"
+            className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent hover:text-foreground"
             aria-label={t(locale, "collapseSidebar")}
             title={t(locale, "collapseSidebar")}
           />
@@ -86,7 +85,7 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={cn(
-        "h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground",
+        "h-10 w-full rounded-xl border border-border/80 bg-background/90 px-3.5 text-sm text-foreground placeholder:text-muted-foreground shadow-sm",
         "min-w-0",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         props.className,
@@ -100,7 +99,7 @@ export function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>
     <select
       {...props}
       className={cn(
-        "h-9 w-full rounded-md border bg-background px-3 text-sm text-foreground",
+        "h-10 w-full rounded-xl border border-border/80 bg-background/90 px-3.5 text-sm text-foreground shadow-sm",
         "min-w-0",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         props.className,
@@ -261,12 +260,12 @@ export function SettingsFieldRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-[56px] gap-2 border-b border-border/70 px-5 py-3 last:border-b-0 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center">
+    <div className="grid min-h-[72px] gap-4 border-b border-border/60 px-6 py-4 last:border-b-0 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
       <div className="min-w-0">
-        <div className="text-[15px] font-medium text-foreground">{label}</div>
+        <div className="text-[14px] font-semibold text-foreground">{label}</div>
         {hint && <div className="field-hint mt-1">{hint}</div>}
       </div>
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0 sm:flex sm:items-center sm:justify-end">{children}</div>
     </div>
   );
 }
@@ -280,8 +279,8 @@ export function SettingsGroup({
 }) {
   return (
     <section>
-      <h2 className="mb-3 text-[17px] font-semibold">{title}</h2>
-      <div className="overflow-hidden rounded-[18px] border bg-card">
+      <h2 className="mb-3 px-1 text-[15px] font-semibold tracking-normal text-foreground/90">{title}</h2>
+      <div className="overflow-hidden rounded-[22px] border border-border/80 bg-card/95 shadow-sm">
         {children}
       </div>
     </section>
@@ -298,7 +297,10 @@ export function PillSegment<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="inline-grid rounded-xl bg-muted p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div
+      className="inline-grid min-h-10 rounded-[14px] border border-border/70 bg-muted/75 p-1 shadow-inner"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
       {options.map((item) => {
         const active = value === item.value;
         return (
@@ -306,8 +308,10 @@ export function PillSegment<T extends string>({
             key={item.value}
             type="button"
             className={cn(
-              "min-h-8 rounded-lg px-5 text-sm font-semibold transition-colors",
-              active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              "min-h-8 rounded-[10px] px-5 text-sm font-semibold transition-[background-color,color,box-shadow]",
+              active
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
             )}
             onClick={() => onChange(item.value)}
             aria-pressed={active}
@@ -322,8 +326,8 @@ export function PillSegment<T extends string>({
 
 export function SummaryRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="grid gap-1 px-3 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
+    <div className="grid gap-1 py-3 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-4">
+      <div className="text-sm font-medium text-muted-foreground">{label}</div>
       <div className={cn("min-w-0 break-all text-sm", muted ? "text-muted-foreground" : "text-foreground")}>{value}</div>
     </div>
   );

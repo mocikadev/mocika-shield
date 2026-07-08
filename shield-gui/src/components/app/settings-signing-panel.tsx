@@ -1,5 +1,5 @@
 import type React from "react";
-import { BadgeCheck, Check, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { basename } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import type { SignConfig } from "@/lib/tauri";
@@ -9,8 +9,12 @@ import {
   SelectInput,
   SettingsFieldRow,
   SettingsGroup,
+  StatusMessage,
   TextInput,
 } from "@/components/app/common";
+
+const successBadgeClass =
+  "inline-flex h-5 w-5 items-center justify-center rounded-full border border-emerald-300/70 bg-emerald-500 text-white shadow-sm dark:border-emerald-300/30 dark:bg-emerald-400";
 
 export function SettingsSigningPanel({
   locale,
@@ -23,9 +27,16 @@ export function SettingsSigningPanel({
   showPass,
   setShowPass,
   aliases,
+  saving,
   detecting,
+  status,
+  error,
+  signingValidated,
+  signingConfigured,
   onBrowseKeystore,
   onDetectAlias,
+  onValidate,
+  onSave,
 }: {
   locale: Locale;
   config: SignConfig;
@@ -37,18 +48,38 @@ export function SettingsSigningPanel({
   showPass: boolean;
   setShowPass: (show: boolean) => void;
   aliases: string[];
+  saving: boolean;
   detecting: boolean;
+  status: "idle" | "validating" | "validated" | "saved" | "failed";
+  error: string;
+  signingValidated: boolean;
+  signingConfigured: boolean;
   onBrowseKeystore: () => void;
   onDetectAlias: () => void;
+  onValidate: () => void;
+  onSave: () => void;
 }) {
   return (
     <SettingsGroup title={t(locale, "defaultSignConfig")}>
+      {status === "failed" && (
+        <div className="border-b border-border/60 px-6 py-4">
+          <StatusMessage kind="error">{error || t(locale, "saveFailed")}</StatusMessage>
+        </div>
+      )}
       <SettingsFieldRow label={t(locale, "keystore")}>
-        <div className="flex min-w-0 items-center justify-end gap-3">
-          <span className="min-w-0 truncate font-mono text-sm text-foreground">
-            {config.keystore_path ? basename(config.keystore_path) : t(locale, "unknown")}
-          </span>
-          {config.keystore_path && <Check className="h-5 w-5 shrink-0 text-success" />}
+        <div className="grid min-w-0 gap-3 sm:w-[520px] sm:grid-cols-[minmax(0,1fr)_108px] sm:items-center">
+          <div className="flex min-w-0 items-center gap-3 rounded-[14px] border border-border/70 bg-muted/35 px-3.5 py-2.5 shadow-sm">
+            <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground" title={config.keystore_path || undefined}>
+              {config.keystore_path ? basename(config.keystore_path) : t(locale, "unknown")}
+            </span>
+            {saving && status === "validating" ? (
+              <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin text-muted-foreground" />
+            ) : signingConfigured ? (
+              <span className={successBadgeClass}>
+                <Check className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+          </div>
           <AppButton className="shrink-0" size="sm" variant="secondary" onClick={onBrowseKeystore}>
             {t(locale, "browse")}...
           </AppButton>
@@ -56,75 +87,85 @@ export function SettingsSigningPanel({
       </SettingsFieldRow>
 
       <SettingsFieldRow label={t(locale, "keystoreType")}>
-        <SelectInput
-          id="settings-kstype"
-          className="sm:max-w-[220px]"
-          value={config.ks_type ?? "JKS"}
-          onChange={(e) => setConfig((old) => ({ ...old, ks_type: e.target.value }))}
-        >
-          <option value="JKS">JKS</option>
-          <option value="PKCS12">PKCS12</option>
-        </SelectInput>
+        <div className="w-full sm:w-[240px]">
+          <SelectInput
+            id="settings-kstype"
+            value={config.ks_type ?? "JKS"}
+            onChange={(e) => setConfig((old) => ({ ...old, ks_type: e.target.value }))}
+          >
+            <option value="JKS">JKS</option>
+            <option value="PKCS12">PKCS12</option>
+          </SelectInput>
+        </div>
       </SettingsFieldRow>
 
       <SettingsFieldRow label={t(locale, "keyAlias")}>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 gap-3 sm:w-[520px] sm:grid-cols-[minmax(0,1fr)_136px]">
           <TextInput
             id="settings-alias"
             value={config.key_alias ?? ""}
             onChange={(e) => setConfig((old) => ({ ...old, key_alias: e.target.value }))}
           />
-          <AppButton className="shrink-0" variant="secondary" onClick={onDetectAlias} disabled={detecting}>
-            {detecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-            {detecting ? t(locale, "detecting") : t(locale, "detectAlias")}
+          <AppButton className="shrink-0 justify-center" variant="secondary" onClick={onDetectAlias} disabled={detecting}>
+            {detecting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {t(locale, "detectAlias")}
           </AppButton>
         </div>
       </SettingsFieldRow>
 
       {aliases.length > 1 && (
         <SettingsFieldRow label={t(locale, "keyAlias")}>
-          <SelectInput
-            value={config.key_alias ?? ""}
-            onChange={(e) => setConfig((old) => ({ ...old, key_alias: e.target.value }))}
-          >
-            <option value="">{t(locale, "keyAlias")}</option>
-            {aliases.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </SelectInput>
+          <div className="w-full sm:w-[520px]">
+            <SelectInput
+              value={config.key_alias ?? ""}
+              onChange={(e) => setConfig((old) => ({ ...old, key_alias: e.target.value }))}
+            >
+              <option value="">{t(locale, "keyAlias")}</option>
+              {aliases.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </SelectInput>
+          </div>
         </SettingsFieldRow>
       )}
 
       <SettingsFieldRow label={t(locale, "keystorePassword")}>
-        <PasswordControl
-          id="settings-kspass"
-          label={t(locale, "keystorePassword")}
-          value={ksPass}
-          onChange={setKsPass}
-          show={showPass}
-          setShow={setShowPass}
-        />
+        <div className="w-full sm:w-[520px]">
+          <PasswordControl
+            id="settings-kspass"
+            label={t(locale, "keystorePassword")}
+            value={ksPass}
+            onChange={setKsPass}
+            show={showPass}
+            setShow={setShowPass}
+          />
+        </div>
       </SettingsFieldRow>
 
       <SettingsFieldRow label={t(locale, "keyPassword")} hint={t(locale, "keyPasswordHint")}>
-        <PasswordControl
-          id="settings-keypass"
-          label={t(locale, "keyPassword")}
-          value={keyPass}
-          onChange={setKeyPass}
-          show={showPass}
-          setShow={setShowPass}
-        />
+        <div className="w-full sm:w-[520px]">
+          <PasswordControl
+            id="settings-keypass"
+            label={t(locale, "keyPassword")}
+            value={keyPass}
+            onChange={setKeyPass}
+            show={showPass}
+            setShow={setShowPass}
+          />
+        </div>
       </SettingsFieldRow>
 
       <SettingsFieldRow label={t(locale, "signVersions")}>
-        <div className="flex flex-wrap justify-end gap-4">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:w-[520px] sm:grid-cols-4">
           {(["v1", "v2", "v3", "v4"] as const).map((version) => {
             const key = `sign_${version}` as keyof SignConfig;
             return (
-              <label key={version} className="flex min-h-8 items-center gap-2 text-sm font-semibold">
+              <label
+                key={version}
+                className="flex min-h-10 items-center gap-2 rounded-xl border border-border/70 bg-muted/30 px-3.5 text-sm font-semibold shadow-sm"
+              >
                 <input
                   type="checkbox"
                   className="h-5 w-5 accent-primary"
@@ -135,6 +176,39 @@ export function SettingsSigningPanel({
               </label>
             );
           })}
+        </div>
+      </SettingsFieldRow>
+
+      <SettingsFieldRow label="">
+        <div className="flex flex-wrap justify-end gap-3 sm:w-[520px]">
+          <AppButton
+            className="min-w-[120px] justify-center"
+            variant="secondary"
+            onClick={onValidate}
+            disabled={saving || detecting}
+          >
+            {saving && status === "validating" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : signingValidated ? (
+              <span className={successBadgeClass}>
+                <Check className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+            {t(locale, "validate")}
+          </AppButton>
+          <AppButton
+            className="min-w-[120px] justify-center"
+            variant="secondary"
+            onClick={onSave}
+            disabled={saving || !signingValidated}
+          >
+            {signingConfigured ? (
+              <span className={successBadgeClass}>
+                <Check className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+            {t(locale, "save")}
+          </AppButton>
         </div>
       </SettingsFieldRow>
     </SettingsGroup>

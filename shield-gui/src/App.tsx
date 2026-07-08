@@ -13,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { useAppConfigState, useAutoUpdateNotice } from "@/hooks/use-app-config";
 import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
@@ -67,10 +68,13 @@ export function App() {
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
-        <Sidebar collapsible="icon" className="border-r bg-sidebar">
+        <Sidebar
+          collapsible="icon"
+          className="border-r border-sidebar-border/80 bg-sidebar/95 backdrop-blur supports-[backdrop-filter]:bg-sidebar/88"
+        >
           <AppSidebarHeader locale={locale} />
-          <SidebarContent className="scrollbar-none px-0 group-data-[collapsible=icon]:items-center">
-            <SidebarGroup className="p-0 group-data-[collapsible=icon]:items-center">
+          <SidebarContent className="scrollbar-none px-0 py-3 group-data-[collapsible=icon]:items-center">
+            <SidebarGroup className="px-2 py-0 group-data-[collapsible=icon]:items-center">
               <SidebarGroupContent>
                 <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
                   {primaryNavItems.map((item) => (
@@ -86,8 +90,11 @@ export function App() {
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter className="gap-0 px-0 pb-4 group-data-[collapsible=icon]:items-center">
-            <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
+          <SidebarFooter className="gap-0 px-0 pb-5 pt-2 group-data-[collapsible=icon]:items-center">
+            <div className="px-4 group-data-[collapsible=icon]:px-3">
+              <SidebarSeparator className="mx-0 opacity-80" />
+            </div>
+            <SidebarMenu className="gap-2 px-2 pt-3 group-data-[collapsible=icon]:items-center">
               {utilityNavItems.map((item) => (
                 <NavItem
                   key={item.key}
@@ -188,11 +195,13 @@ function NavItem({
         size="lg"
         isActive={page === item.key}
         tooltip={item.label}
-        className="mx-3 h-11 rounded-xl pl-[14px] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:pl-0"
+        className="h-12 rounded-[18px] px-3.5 text-[15px] font-medium shadow-none transition-[background-color,color,transform] duration-200 data-[active=true]:bg-sidebar-accent data-[active=true]:shadow-sm group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:!size-12 group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!gap-0 group-data-[collapsible=icon]:!p-0"
         onClick={onSelect}
       >
-        <Icon />
-        <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+        <Icon className="h-[22px] w-[22px] shrink-0" />
+        <span className="min-w-0 flex-1 truncate transition-[opacity,transform,width] duration-200 group-data-[collapsible=icon]:hidden">
+          {item.label}
+        </span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
