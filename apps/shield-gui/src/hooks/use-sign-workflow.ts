@@ -102,7 +102,7 @@ export function useSignWorkflow({
       setError(String(err));
       setState("failed");
     }
-  }, [apkPath, locale, outputPath, signConfig]);
+  }, [apkPath, buildInfo, locale, outputPath, signConfig]);
 
   const reset = useCallback(() => {
     setApkPath("");

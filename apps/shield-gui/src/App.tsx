@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Download, Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
+import { Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { defaultSignConfig } from "@/components/app/branding";
-import { AppButton, AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
+import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +18,7 @@ import {
 import { useAppConfigState, useAutoUpdateNotice } from "@/hooks/use-app-config";
 import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
 import { useRuntimeInfo } from "@/hooks/use-runtime-info";
-import { t, type Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { api, type BuildInfo } from "@/lib/tauri";
 import { AboutPage } from "@/pages/about-page";
 import { ProtectPage } from "@/pages/protect-page";
@@ -82,7 +82,6 @@ export function App() {
                   {primaryNavItems.map((item) => (
                     <NavItem
                       key={item.key}
-                      locale={locale}
                       page={page}
                       item={item}
                       onSelect={() => setPage(item.key)}
@@ -100,7 +99,6 @@ export function App() {
               {utilityNavItems.map((item) => (
                 <NavItem
                   key={item.key}
-                  locale={locale}
                   page={page}
                   item={item}
                   onSelect={() => setPage(item.key)}
@@ -193,12 +191,10 @@ export type RuntimeInfoProps = {
 };
 
 function NavItem({
-  locale,
   page,
   item,
   onSelect,
 }: {
-  locale: Locale;
   page: Page;
   item: {
     key: Page;

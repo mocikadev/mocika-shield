@@ -203,6 +203,7 @@ export function useProtectWorkflow({
   }, [
     appendMessage,
     autoSignReady,
+    buildInfo,
     input,
     keystorePassword,
     locale,

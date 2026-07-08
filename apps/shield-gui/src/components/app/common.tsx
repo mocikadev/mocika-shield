@@ -1,7 +1,7 @@
 import type React from "react";
 import { useSidebar, SidebarHeader, SidebarTrigger } from "@/components/ui/sidebar";
 import { t, type Locale } from "@/lib/i18n";
-import type { ThemeMode, UpdateCheckResult } from "@/lib/tauri";
+import type { UpdateCheckResult } from "@/lib/tauri";
 import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
 import { logoSvg } from "@/components/app/branding";
