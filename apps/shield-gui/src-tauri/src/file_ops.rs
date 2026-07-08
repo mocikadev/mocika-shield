@@ -45,7 +45,7 @@ pub(crate) fn open_url(url: String) -> Result<(), String> {
         .spawn()
         .map_err(|e| e.to_string())?;
     #[cfg(target_os = "windows")]
-    shield_cli::utils::no_window_command("cmd")
+    shield_core::utils::no_window_command("cmd")
         .args(["/c", "start", "", &url])
         .spawn()
         .map_err(|e| e.to_string())?;

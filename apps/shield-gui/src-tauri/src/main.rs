@@ -7,30 +7,28 @@ mod protect_runner;
 mod signing;
 mod updates;
 
-use apk_check::{
-    ApkCheckResult, CertCompareResult, do_check_apk, do_compare_cert_fingerprints,
-};
+use apk_check::{do_check_apk, do_compare_cert_fingerprints, ApkCheckResult, CertCompareResult};
 use app_config::{
-    AppConfigPayload, AppConfigState, load_app_config, normalize_locale,
-    normalize_theme_mode, save_app_config_file,
+    load_app_config, normalize_locale, normalize_theme_mode, save_app_config_file,
+    AppConfigPayload, AppConfigState,
 };
 use app_paths::find_apksigner_path;
 use build_info::{
-    AppInfo, BuildInfo, get_app_info as get_app_info_impl, get_build_info as get_build_info_impl,
+    get_app_info as get_app_info_impl, get_build_info as get_build_info_impl, AppInfo, BuildInfo,
 };
 use file_ops::{
     check_file_exists as check_file_exists_impl, delete_file as delete_file_impl,
     open_url as open_url_impl, show_in_folder as show_in_folder_impl,
 };
-use protect_runner::{CancelHandle, execute_protect_apk};
+use protect_runner::{execute_protect_apk, CancelHandle};
 use signing::{execute_sign_apk, query_keystore_aliases};
 use std::fs;
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, Ordering},
+    Arc,
 };
 use tauri::Manager;
-use updates::{UpdateCheckResult, check_update_impl};
+use updates::{check_update_impl, UpdateCheckResult};
 
 #[tauri::command]
 async fn compare_cert_fingerprints(
@@ -187,10 +185,7 @@ fn open_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn dismiss_update(
-    state: tauri::State<'_, AppConfigState>,
-    version: String,
-) -> Result<(), String> {
+fn dismiss_update(state: tauri::State<'_, AppConfigState>, version: String) -> Result<(), String> {
     state.mutate(move |config| {
         config.dismissed_version = if version.trim().is_empty() {
             None

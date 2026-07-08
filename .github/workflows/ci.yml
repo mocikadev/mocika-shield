@@ -39,23 +39,23 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: shield-gui/package-lock.json
+          cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 检查 Rust 格式
         run: cargo fmt --all --check
 
       - name: 运行 CLI 单元测试
-        run: cargo test --manifest-path shield-cli/Cargo.toml
+        run: cargo test -p shield-core -p shield-cli
 
       - name: 运行 stub Rust 单元测试
         run: cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml
 
       - name: 安装 GUI 前端依赖
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: npm ci
 
       - name: 检查 GUI 前端
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: |
           npm run lint
           npm run typecheck
@@ -84,7 +84,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: shield-gui/package-lock.json
+          cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 安装 Linux Tauri 依赖
         run: |
@@ -125,14 +125,14 @@ jobs:
           cargo install tauri-cli --locked
 
       - name: 安装 GUI 前端依赖
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: npm ci
 
       - name: 构建 shield-stub
         run: make build-stub
 
       - name: 检查 Linux Tauri bundle
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: cargo tauri build --bundles appimage,deb --debug
 
   stub:

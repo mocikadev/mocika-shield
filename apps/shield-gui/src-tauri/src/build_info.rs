@@ -1,6 +1,6 @@
-use crate::app_paths::{find_apktool_path, find_apksigner_path};
+use crate::app_paths::{find_apksigner_path, find_apktool_path};
 use serde::Serialize;
-use shield_cli::utils::{no_window_command, probe_java_environment, MIN_JAVA_MAJOR_VERSION};
+use shield_core::utils::{no_window_command, probe_java_environment, MIN_JAVA_MAJOR_VERSION};
 
 #[derive(Serialize)]
 pub(crate) struct BuildInfo {

@@ -1,4 +1,4 @@
-VERSION    := $(shell grep '^version' shield-cli/Cargo.toml | head -1 | sed 's/version = "\([^"]*\)"/\1/')
+VERSION    := $(shell grep '^version' apps/shield-cli/Cargo.toml | head -1 | sed 's/version = "\([^"]*\)"/\1/')
 CLI_BIN    := target/release/shield
 DIST_DIR   := dist
 
@@ -30,12 +30,12 @@ help:
 	@echo "  release-macos-universal  macOS Tauri universal binary 发布包（ARM64 + x86_64）"
 	@echo "  release VERSION=x.y.z  旧版 CLI-only 发布包（向后兼容）"
 	@echo "  bump-version V=x.y.z   同步版本号到所有配置文件"
-	@echo "  test                   运行 shield-cli 单元测试"
+	@echo "  test                   运行 shield-core + shield-cli 单元测试"
 	@echo "  clean                  清理所有构建产物"
 
 build-cli:
 	@echo "🦀 编译 shield-cli..."
-	cargo build --release --manifest-path shield-cli/Cargo.toml
+	cargo build --release -p shield-cli
 	@echo "✅ 产物: $(CLI_BIN)"
 
 build-stub:
@@ -45,11 +45,11 @@ build-stub:
 
 build-gui:
 	@echo "🖥️  构建 shield-gui（Tauri）..."
-	cd shield-gui && cargo tauri build --no-bundle
+	cd apps/shield-gui && cargo tauri build --no-bundle
 ifeq ($(OS),Windows_NT)
-	@echo "✅ 产物: shield-gui/src-tauri/target/release/mocika-shield.exe"
+	@echo "✅ 产物: target/release/mocika-shield.exe"
 else
-	@echo "✅ 产物: shield-gui/src-tauri/target/release/mocika-shield"
+	@echo "✅ 产物: target/release/mocika-shield"
 endif
 
 build-all: build-stub build-cli build-gui
@@ -81,7 +81,8 @@ release: build-all
 
 test:
 	@echo "🧪 运行测试..."
-	cargo test --manifest-path shield-cli/Cargo.toml
+	cargo test -p shield-core
+	cargo test -p shield-cli
 
 bump-version:
 	@if [ -z "$(V)" ]; then echo "用法: make bump-version V=x.y.z"; exit 1; fi
@@ -94,12 +95,11 @@ clean:
 		build \
 		dist \
 		release \
-		shield-cli/target \
-		shield-gui/dist \
-		shield-gui/src-tauri/target \
-		shield-gui/src-tauri/gen/schemas/acl-manifests.json \
+		apps/shield-cli/target \
+		apps/shield-gui/dist \
+		apps/shield-gui/src-tauri/gen/schemas/acl-manifests.json \
 		shield-stub/build \
 		shield-stub/.gradle \
 		shield-stub/src/main/rust/target \
-		shield-gui/node_modules
+		apps/shield-gui/node_modules
 	@echo "✅ 清理完成"

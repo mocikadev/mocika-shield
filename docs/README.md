@@ -10,9 +10,10 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 
 | 模块 | 说明 |
 |------|------|
-| `shield-cli/` | Rust CLI，提供 APK 加固、签名能力，也作为库被 Tauri GUI 直接链接 |
+| `crates/shield-core/` | Rust 共享核心库，承载 APK 加固、签名、ZIP 对齐、Java/工具探测等共用能力 |
+| `apps/shield-cli/` | Rust CLI，负责参数解析、终端输出与 JSON 进度协议 |
 | `shield-stub/` | Android 壳模块，包含 Java 壳层和 Rust JNI native 库 |
-| `shield-gui/` | Tauri v2 + React 桌面 GUI，唯一正式 GUI，目标覆盖 Linux / macOS / Windows |
+| `apps/shield-gui/` | Tauri v2 + React 桌面 GUI，唯一正式 GUI，目标覆盖 Linux / macOS / Windows |
 | `scripts/` | 构建、版本同步、发布脚本 |
 | `tools/` | `apktool`、`apksigner` 等外部工具 |
 

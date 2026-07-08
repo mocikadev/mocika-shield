@@ -60,7 +60,7 @@ pub(crate) fn project_root_path() -> PathBuf {
     let current = strip_unc_prefix(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let mut path = current.clone();
     loop {
-        if path.join("shield-stub").exists() && path.join("shield-cli").exists() {
+        if path.join("shield-stub").exists() && path.join("apps").exists() {
             return path;
         }
         if !path.pop() {

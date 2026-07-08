@@ -1,0 +1,21 @@
+[package]
+name = "shield-cli"
+version = "1.2.0-rc.1"
+edition = "2021"
+authors = ["MocikaDev"]
+license = "MIT"
+description = "Mocika Shield APK 加固命令行工具"
+repository = "git@github.com:mocikadev/mocika-shield.git"
+
+[[bin]]
+name = "shield"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "cargo"] }
+anyhow = "1.0"
+env_logger = "0.11"
+log = "0.4"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+colored = "3.1"
+shield-core = { path = "../../crates/shield-core" }

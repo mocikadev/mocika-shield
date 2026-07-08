@@ -1,6 +1,6 @@
 # 目录与代码重构方案
 
-> 2026-07-08 更新：阶段一“拆 Tauri 后端”、阶段二“拆前端 App.tsx”、阶段三“拆 CLI 加固主流程”已经落地，`shield-gui/src-tauri/src/main.rs`、`shield-gui/src/App.tsx`、`shield-cli/src/commands/protect.rs` 都已收缩为薄入口；CLI 与 GUI 也已经共用同一份 `no_window_command()`。
+> 2026-07-08 更新：阶段一“拆 Tauri 后端”、阶段二“拆前端 App.tsx”、阶段三“拆 CLI 加固主流程”已经落地，`apps/shield-gui/src-tauri/src/main.rs`、`apps/shield-gui/src/App.tsx`、`crates/shield-core/src/protect_api.rs` 都已收缩为薄入口；CLI 与 GUI 也已经共用同一份 `no_window_command()`。
 
 > 本文基于当前 `main` 分支实际代码结构整理，目标是降低维护成本、收敛职责边界，并保持现有 CLI / GUI / Android 壳行为稳定。
 
@@ -8,9 +8,9 @@
 
 当前仓库已经完成开源前的一轮收口，技术路线也比较明确：
 
-- `shield-cli/` 负责 APK 加固、对齐、签名等核心能力
+- `crates/shield-core/` 负责 APK 加固、对齐、签名等核心能力
 - `shield-stub/` 负责 Android 运行时壳
-- `shield-gui/` 是唯一正式 GUI（Tauri v2 + React）
+- `apps/shield-gui/` 是唯一正式 GUI（Tauri v2 + React）
 - `docs/` 已基本按 `ops / design / process` 分层
 
 目前最需要重构的不是目录数量，而是**单文件职责堆积**。
@@ -19,21 +19,21 @@
 
 | 文件 | 规模 | 当前问题 |
 |------|------|----------|
-| `shield-gui/src-tauri/src/main.rs` | 1500 行 | Tauri commands、配置加载、路径查找、签名、证书比对、APK 检测、更新检查、文件操作、构建信息全堆在一个文件 |
-| `shield-gui/src/App.tsx` | 1499 行 | 加固页、签名页、设置页、关于页、事件监听、状态管理、页面布局全部混在一个组件 |
-| `shield-cli/src/commands/protect.rs` | 1003 行 | 主流程编排、Manifest 修改、DEX 处理、运行时注入、证书提取、DEX header 修复、临时 Java 编译、测试全部放在一处 |
-| `shield-cli/src/main.rs` | 317 行 | 除 clap 入口外，还承载 APK/keystore 检查、指纹解析、JSON 输出拼装 |
+| `apps/shield-gui/src-tauri/src/main.rs` | 1500 行 | Tauri commands、配置加载、路径查找、签名、证书比对、APK 检测、更新检查、文件操作、构建信息全堆在一个文件 |
+| `apps/shield-gui/src/App.tsx` | 1499 行 | 加固页、签名页、设置页、关于页、事件监听、状态管理、页面布局全部混在一个组件 |
+| `crates/shield-core/src/protect_api.rs` | 1003 行 | 主流程编排、Manifest 修改、DEX 处理、运行时注入、证书提取、DEX header 修复、临时 Java 编译、测试全部放在一处 |
+| `apps/shield-cli/src/main.rs` | 317 行 | 除 clap 入口外，还承载 APK/keystore 检查、指纹解析、JSON 输出拼装 |
 
 ### 1.2 结构层面的问题
 
-#### `shield-gui/src-tauri`
+#### `apps/shield-gui/src-tauri`
 
 - `main.rs` 是“后端总线”，职责边界不清晰
 - 路径查找逻辑散落：`find_apktool_path` / `find_resources_path` / `find_apksigner_path` / `project_root_path`
 - 配置读写、证书逻辑、更新逻辑、文件操作都与 Tauri command 注册耦合
 - 后续任何一个功能点改动，都会持续放大 `main.rs`
 
-#### `shield-gui/src`
+#### `apps/shield-gui/src`
 
 - `App.tsx` 已经不只是根组件，而是完整应用实现
 - 页面级逻辑没有拆分，导致：
@@ -43,7 +43,7 @@
 
 > 以上问题已通过拆分 `pages/*`、`components/app/*`、`hooks/*` 解决，保留这段是为了记录重构前风险来源。
 
-#### `shield-cli/src`
+#### `apps/shield-cli/src`
 
 - `commands/` 目录里既有“命令入口”，又承载了大量底层实现
 - `protect.rs` 实际上已经是一个子系统，而不只是一个 command handler
@@ -62,7 +62,7 @@
   - 分层已经合理，只需随着代码重构同步更新
 - `tools/`
   - 仍被构建脚本和发布包依赖，暂不建议迁移位置
-- `shield-gui/dist` / `shield-gui/node_modules` / `target` / `shield-stub/build`
+- `apps/shield-gui/dist` / `apps/shield-gui/node_modules` / `target` / `shield-stub/build`
   - 这些是构建产物或依赖目录，不属于版本化结构重构对象
 
 ## 2. 重构目标
@@ -76,9 +76,9 @@
 
 ### 2.2 本轮建议优先级
 
-1. **优先拆 `shield-gui/src-tauri/src/main.rs`**
-2. **再拆 `shield-gui/src/App.tsx`**
-3. **最后拆 `shield-cli/src/commands/protect.rs`**
+1. **优先拆 `apps/shield-gui/src-tauri/src/main.rs`**
+2. **再拆 `apps/shield-gui/src/App.tsx`**
+3. **最后拆 `crates/shield-core/src/protect_api.rs`**
 
 这个顺序的原因：
 
@@ -88,14 +88,14 @@
 
 ## 3. 目标目录树
 
-### 3.1 `shield-gui/src-tauri` 目标结构
+### 3.1 `apps/shield-gui/src-tauri` 目标结构
 
 保持 **binary crate**，继续以 `main.rs` 为入口，不引入 `lib.rs`。
 
 当前已落地结构：
 
 ```text
-shield-gui/src-tauri/src/
+apps/shield-gui/src-tauri/src/
 ├── main.rs                 # 仅保留启动、state 注入、command 注册
 ├── app_config.rs           # config.toml 读写、迁移、状态结构
 ├── app_paths.rs            # resource_dir、project_root、apktool/resources/apksigner 查找
@@ -107,12 +107,12 @@ shield-gui/src-tauri/src/
 └── build_info.rs           # get_app_info、get_build_info
 ```
 
-### 3.2 `shield-gui/src` 目标结构
+### 3.2 `apps/shield-gui/src` 目标结构
 
 当前已落地结构：
 
 ```text
-shield-gui/src/
+apps/shield-gui/src/
 ├── App.tsx
 ├── pages/
 │   ├── protect-page.tsx
@@ -136,12 +136,12 @@ shield-gui/src/
     └── utils.ts
 ```
 
-### 3.3 `shield-cli/src` 目标结构
+### 3.3 `apps/shield-cli/src` 目标结构
 
 当前已落地结构：
 
 ```text
-shield-cli/src/
+apps/shield-cli/src/
 ├── lib.rs
 ├── main.rs
 ├── error.rs
@@ -170,7 +170,7 @@ shield-cli/src/
 
 ### 目标
 
-- `shield-gui/src-tauri/src/main.rs` 收缩为薄入口
+- `apps/shield-gui/src-tauri/src/main.rs` 收缩为薄入口
 - 所有 command 仍保持原名字、原参数、原返回值
 - GUI 前端不需要同时改协议
 
@@ -280,7 +280,7 @@ shield-cli/src/
 
 ### 目标
 
-- `shield-cli/src/commands/protect.rs` 降到 250 行以内
+- `crates/shield-core/src/protect_api.rs` 降到 250 行以内
 - 加固主流程保持不变
 
 ### 具体步骤
@@ -316,7 +316,7 @@ shield-cli/src/
 
 这些现在不建议动：
 
-- 不把 `shield-gui/src-tauri` 改成 `lib.rs + main.rs` 双入口
+- 不把 `apps/shield-gui/src-tauri` 改成 `lib.rs + main.rs` 双入口
 - 不重组 `shield-stub` 的 Gradle / Rust 目录
 - 不把 `tools/` 改成更深层的目录
 - 不一次性引入前端路由器、状态库或表单库
@@ -326,10 +326,10 @@ shield-cli/src/
 
 建议严格按下面顺序推进：
 
-1. 拆 `shield-gui/src-tauri/src/main.rs`
-2. 拆 `shield-gui/src/App.tsx`
+1. 拆 `apps/shield-gui/src-tauri/src/main.rs`
+2. 拆 `apps/shield-gui/src/App.tsx`
 3. 更新文档（`architecture.md` / `docs/README.md`）
-4. 拆 `shield-cli/src/commands/protect.rs`
+4. 拆 `crates/shield-core/src/protect_api.rs`
 
 上述四步已全部完成。
 
@@ -337,9 +337,9 @@ shield-cli/src/
 
 每个阶段完成后至少满足：
 
-- `cargo test --manifest-path shield-cli/Cargo.toml`
-- `cargo check --manifest-path shield-gui/src-tauri/Cargo.toml`
-- `npm run build`（在 `shield-gui/` 下）
+- `cargo test -p shield-core -p shield-cli`
+- `cargo check --manifest-path apps/shield-gui/src-tauri/Cargo.toml`
+- `npm run build`（在 `apps/shield-gui/` 下）
 - `git diff --check`
 
 GUI 相关阶段完成后，建议再实际验证：

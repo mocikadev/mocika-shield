@@ -23,7 +23,7 @@ make build-stub             # ① 构建 Android 壳（必须最先执行）
 make build-cli              # ② 编译 shield 命令行工具
 make build-gui              # ③ 构建桌面 GUI Tauri 版（需先 build-stub）
 make build-all              # build-stub + build-cli + build-gui（Tauri）
-make test                   # 运行 shield-cli 单元测试
+make test                   # 运行 shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 
@@ -56,7 +56,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ```bash
 make build-cli
-# 等价于：cargo build --release --manifest-path shield-cli/Cargo.toml
+# 等价于：cargo build --release -p shield-cli
 ```
 
 输出（Linux / macOS）：`target/release/shield`
@@ -71,7 +71,7 @@ make build-gui
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（Linux）：`shield-gui/src-tauri/target/release/bundle/` 下的 AppImage / deb
+输出（Linux）：`target/release/bundle/` 下的 AppImage / deb
 输出（macOS）：`.dmg` / `.app`
 输出（Windows）：NSIS `.exe` / `.msi`
 

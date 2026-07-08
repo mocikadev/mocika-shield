@@ -5,8 +5,8 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::{atomic::AtomicBool, Arc};
 
-use shield_cli::utils::set_json_mode;
-use shield_cli::{protect_apk, ProgressEvent, ProtectOptions};
+use shield_core::utils::set_json_mode;
+use shield_core::{protect_apk, ProgressEvent, ProtectOptions};
 
 #[derive(Parser)]
 #[command(
@@ -214,7 +214,7 @@ fn check_keystore_json(ks: &Path, alias: &str, ks_pass: &str) -> String {
 }
 
 fn extract_apk_cert_fingerprint(apk_path: &Path) -> Result<String> {
-    if let Ok(keytool) = shield_cli::utils::find_keytool() {
+    if let Ok(keytool) = shield_core::utils::find_keytool() {
         let v1 = std::process::Command::new(&keytool)
             .args(["-printcert", "-jarfile", apk_path.to_str().unwrap_or("")])
             .output();
@@ -229,8 +229,8 @@ fn extract_apk_cert_fingerprint(apk_path: &Path) -> Result<String> {
     }
 
     let apksigner =
-        shield_cli::utils::find_apksigner().context("V1 证书提取失败，且未找到 apksigner.jar")?;
-    let java = shield_cli::utils::find_java().context("V1 证书提取失败，且未找到 Java")?;
+        shield_core::utils::find_apksigner().context("V1 证书提取失败，且未找到 apksigner.jar")?;
+    let java = shield_core::utils::find_java().context("V1 证书提取失败，且未找到 Java")?;
     let out2 = std::process::Command::new(&java)
         .args([
             "-jar",
@@ -266,7 +266,7 @@ fn parse_sha256_from_apksigner(output: &str) -> Option<String> {
 }
 
 fn extract_keystore_cert_fingerprint(ks: &Path, alias: &str, ks_pass: &str) -> Result<String> {
-    let keytool = shield_cli::utils::find_keytool()?;
+    let keytool = shield_core::utils::find_keytool()?;
     let output = std::process::Command::new(&keytool)
         .args([
             "-list",

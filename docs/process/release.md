@@ -37,12 +37,13 @@
 
 | 文件 | 字段 |
 |------|------|
-| `shield-cli/Cargo.toml` | `version = "x.y.z[-pre]"` |
+| `crates/shield-core/Cargo.toml` | `version = "x.y.z[-pre]"` |
+| `apps/shield-cli/Cargo.toml` | `version = "x.y.z[-pre]"` |
 | `shield-stub/src/main/rust/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `shield-gui/src-tauri/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `shield-gui/src-tauri/tauri.conf.json` | `"version": "x.y.z[-pre]"` |
-| `shield-gui/package.json` | `"version": "x.y.z[-pre]"` |
-| `shield-gui/package-lock.json` | `"version": "x.y.z[-pre]"` |
+| `apps/shield-gui/src-tauri/Cargo.toml` | `version = "x.y.z[-pre]"` |
+| `apps/shield-gui/src-tauri/tauri.conf.json` | `"version": "x.y.z[-pre]"` |
+| `apps/shield-gui/package.json` | `"version": "x.y.z[-pre]"` |
+| `apps/shield-gui/package-lock.json` | `"version": "x.y.z[-pre]"` |
 
 优先使用：
 
@@ -142,7 +143,7 @@ make build-stub  →  make build-cli / make build-gui / make release / make rele
 
 | 工作流 | 文件 | 触发 | 内容 |
 |--------|------|------|------|
-| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、CLI 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
+| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、`shield-core`/CLI 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
 | Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows 产物，汇总上传到 GitHub Release |
 
 Release Notes 相关文件：

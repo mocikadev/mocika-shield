@@ -1,6 +1,6 @@
 # AGENTS.md — Mocika Shield
 
-Android APK 加固工具。`shield-cli`（Rust 命令行）加固 APK，`shield-stub`（Android 壳模块）在运行时解密加载 DEX，`shield-gui`（Tauri v2 桌面 GUI）提供跨平台图形化加固与签名界面。
+Android APK 加固工具。`crates/shield-core` 提供共享核心能力，`apps/shield-cli`（Rust 命令行）负责命令入口，`shield-stub`（Android 壳模块）在运行时解密加载 DEX，`apps/shield-gui`（Tauri v2 桌面 GUI）提供跨平台图形化加固与签名界面。
 
 ## 语言约定
 
@@ -14,9 +14,10 @@ Android APK 加固工具。`shield-cli`（Rust 命令行）加固 APK，`shield-
 
 ## 技术栈
 
-- `shield-cli`：Rust + clap，单一二进制 `shield`，同时作为 lib 被 GUI 直接链接
+- `crates/shield-core`：Rust 共享核心库，加固、签名、对齐、环境探测
+- `apps/shield-cli`：Rust + clap，单一二进制 `shield`，仅承担命令行入口与输出适配
 - `shield-stub`：Android（Java 壳 + Rust Native JNI，`libmocikashield.so`）
-- `shield-gui`：Tauri v2，唯一正式桌面 GUI，目标三平台（Linux/macOS/Windows）
+- `apps/shield-gui`：Tauri v2，唯一正式桌面 GUI，目标三平台（Linux/macOS/Windows）
 - GUI 前端：React + TypeScript + Vite + Tailwind CSS + shadcn/ui + lucide-react
 - 构建：Makefile + Gradle（AGP 8.x / Kotlin 2.x）+ cargo-ndk + npm + tauri-cli
 
@@ -32,7 +33,7 @@ make build-all              # build-stub + build-cli + build-gui
 make release VERSION=x.y.z  # 旧版 CLI-only 发布包（向后兼容）
 VERSION=x.y.z make release-linux        # Linux Tauri 发布包
 VERSION=x.y.z make release-macos        # macOS Tauri 发布包
-make test                   # 运行 shield-cli 单元测试
+make test                   # 运行 shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 
@@ -59,7 +60,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时需同时修改 `shield-cli/Cargo.toml` 和 `shield-stub/src/main/rust/Cargo.toml`（以及可选的 `shield-gui/src-tauri/Cargo.toml`）。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`tauri.conf.json` 和 `package.json`。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。
@@ -80,10 +81,10 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 调用 `java`、`keytool`、`apksigner` 等子进程时，必须通过 `no_window_command(prog)` 辅助函数创建 `Command`，该函数在 `#[cfg(target_os = "windows")]` 下设置 `CREATE_NO_WINDOW` flag（其他平台零开销）。
 
 ### shield-gui 纯 binary crate
-`shield-gui/src-tauri` 是纯 binary crate（`main.rs` only），**没有 `lib.rs`**。Tauri commands 和所有后端逻辑均在 `main.rs` 中。
+`apps/shield-gui/src-tauri` 是纯 binary crate（`main.rs` only），**没有 `lib.rs`**。Tauri commands 和所有后端逻辑均在 `main.rs` 中。
 
 ### GUI 维护策略
-正式开源版本只维护一份桌面 GUI：`shield-gui`（Tauri + React）。
+正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
 
 ### 配置文件命名
 GUI 自动维护的用户配置固定使用 `tool_config.json`，不要改成 `config.toml`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。

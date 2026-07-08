@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: shield-gui/package-lock.json
+          cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 安装系统依赖
         run: |
@@ -95,7 +95,7 @@ jobs:
           cargo install cargo-deb --locked
 
       - name: 安装 GUI 前端依赖
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: npm ci
 
       - name: 构建 Linux Tauri 发布包
@@ -145,7 +145,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: shield-gui/package-lock.json
+          cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 配置 Android SDK / NDK
         shell: bash
@@ -170,7 +170,7 @@ jobs:
           cargo install tauri-cli --locked
 
       - name: 安装 GUI 前端依赖
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: npm ci
 
       - name: 构建 macOS Tauri Universal 发布包
@@ -220,7 +220,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: shield-gui/package-lock.json
+          cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 安装 NSIS
         shell: pwsh
@@ -234,7 +234,7 @@ jobs:
           "ANDROID_NDK_ROOT=$env:ANDROID_HOME\ndk\$env:ANDROID_NDK_VERSION" >> $env:GITHUB_ENV
 
       - name: 安装 GUI 前端依赖
-        working-directory: shield-gui
+        working-directory: apps/shield-gui
         run: npm ci
 
       - name: 构建 Windows 发布包

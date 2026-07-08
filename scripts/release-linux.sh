@@ -85,7 +85,7 @@ build_cli() {
   info "构建 CLI（x86_64-unknown-linux-musl 静态链接）..."
   cd "$ROOT"
   cargo build --release \
-    --manifest-path shield-cli/Cargo.toml \
+    -p shield-cli \
     --target x86_64-unknown-linux-musl
 
   CLI_BIN="$ROOT/target/x86_64-unknown-linux-musl/release/shield"
@@ -106,7 +106,7 @@ build_cli() {
 # ========== 构建 GUI（Tauri bundle：AppImage + deb）==========
 build_gui() {
   info "构建 GUI（cargo tauri build --bundles appimage,deb）..."
-  cd "$ROOT/shield-gui"
+  cd "$ROOT/apps/shield-gui"
 
   npm ci
   cargo tauri build --bundles appimage,deb
@@ -202,7 +202,7 @@ READMEEOF
 collect_gui() {
   info "收集 GUI 产物..."
 
-  local TAURI_TARGET="$ROOT/shield-gui/src-tauri/target/release/bundle"
+  local TAURI_TARGET="$ROOT/target/release/bundle"
 
   # AppImage（重命名为规范格式）
   local APPIMAGE

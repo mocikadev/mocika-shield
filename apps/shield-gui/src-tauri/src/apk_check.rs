@@ -1,5 +1,5 @@
 use serde::Serialize;
-use shield_cli::utils::{find_java, find_keytool, no_window_command};
+use shield_core::utils::{find_java, find_keytool, no_window_command};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -55,7 +55,10 @@ pub(crate) fn do_compare_cert_fingerprints(
     }
 }
 
-fn extract_apk_fingerprint(apk_path: &str, apksigner_path: Option<&Path>) -> Result<String, String> {
+fn extract_apk_fingerprint(
+    apk_path: &str,
+    apksigner_path: Option<&Path>,
+) -> Result<String, String> {
     if let Ok(keytool) = find_keytool() {
         if let Ok(output) = no_window_command(&keytool)
             .args(["-printcert", "-jarfile", apk_path])

@@ -1,6 +1,6 @@
 use crate::app_paths::{find_apktool_path, find_resources_path, strip_unc_prefix};
 use serde::Serialize;
-use shield_cli::{protect_apk as shield_protect_apk, ProgressEvent, ProtectOptions, ShieldError};
+use shield_core::{protect_apk as shield_protect_apk, ProgressEvent, ProtectOptions, ShieldError};
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},

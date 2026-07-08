@@ -1,6 +1,8 @@
 [workspace]
 members = [
-    "shield-cli",
+    "crates/shield-core",
+    "apps/shield-cli",
+    "apps/shield-gui/src-tauri",
     "shield-stub/src/main/rust",
 ]
 resolver = "2"

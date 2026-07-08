@@ -169,7 +169,7 @@ function Build-Cli {
     Push-Location $Root
     try {
         Run cargo @("build", "--release",
-            "--manifest-path", "shield-cli\Cargo.toml",
+            "-p", "shield-cli",
             "--target", "x86_64-pc-windows-msvc")
     } finally {
         Pop-Location
@@ -183,7 +183,7 @@ function Build-Cli {
 # ========== 构建 GUI（Tauri NSIS bundle）==========
 function Build-Gui {
     Info "构建 GUI（cargo tauri build --bundles nsis）..."
-    Push-Location (Join-Path $Root "shield-gui")
+    Push-Location (Join-Path $Root "apps\shield-gui")
     try {
         Run npm @("ci")
         Run cargo @("tauri", "build", "--bundles", "nsis")
@@ -272,7 +272,7 @@ mocika-shield-cli-$Version-windows-x86_64\
 function Collect-Gui {
     Info "收集 GUI 产物..."
 
-    $tauriTarget = Join-Path $Root "shield-gui\src-tauri\target\release\bundle"
+    $tauriTarget = Join-Path $Root "apps\shield-gui\src-tauri\target\release\bundle"
     $nsisDir     = Join-Path $tauriTarget "nsis"
 
     $exe = Get-ChildItem $nsisDir -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1

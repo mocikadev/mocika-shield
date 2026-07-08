@@ -6,7 +6,7 @@
 
 对 Android APK 的 DEX 文件进行压缩加密，并在运行时通过壳程序动态解密加载，防止静态反编译与重打包攻击。
 
-提供两种使用方式：**桌面 GUI**（推荐）和 **命令行**。
+提供两种使用方式：**桌面 GUI**（推荐）和 **命令行**。当前 Rust 部分已整理为统一 workspace：`shield-core` 提供共享核心能力，`apps/shield-cli` 与 `apps/shield-gui` 分别作为命令行与桌面入口。
 
 > 本项目仅用于保护你拥有合法权利的 Android 应用。请勿用于绕过第三方应用保护、规避平台安全机制或其他未授权场景。
 
@@ -196,15 +196,17 @@ adb install -r protected.apk
 
 ```
 mocika-shield/
-├── shield-cli/              # Rust 命令行工具（单一二进制 shield）
-│   └── src/dex_packer/      # DEX 打包、加密、DEXB v5 格式
+├── crates/
+│   └── shield-core/         # Rust 共享核心库（加固、签名、ZIP 对齐、Java/工具探测）
+├── apps/
+│   ├── shield-cli/          # Rust 命令行工具（单一二进制 shield）
+│   └── shield-gui/          # 桌面 GUI（Tauri v2，Linux/macOS/Windows）
+│       ├── src-tauri/       # Tauri 后端（直接链接 shield-core）
+│       └── src/             # React + TypeScript 前端
 ├── shield-stub/             # Android 壳模块
 │   └── src/main/
 │       ├── java/            # Java 壳层（StubApp、Ld）
 │       └── rust/            # Rust Native 层（libmocikashield.so，含反调试）
-├── shield-gui/              # 桌面 GUI（Tauri v2，Linux/macOS/Windows）
-│   ├── src-tauri/           # Tauri 后端（调用 shield-cli 逻辑）
-│   └── src/                 # React + TypeScript 前端
 ├── tools/                   # 外部工具（apktool、apksigner）
 ├── scripts/                 # 构建与发布脚本
 └── Makefile                 # 统一构建入口

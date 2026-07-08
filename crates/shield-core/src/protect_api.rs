@@ -1,8 +1,7 @@
-use anyhow::Result;
 use colored::Colorize;
 use rand::RngCore;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -21,18 +20,6 @@ use crate::utils::{
     print_success, run_command,
 };
 use crate::zipalign::align_apk;
-
-pub fn execute(input: &Path, output: &Path) -> Result<()> {
-    let opts = ProtectOptions {
-        input: input.to_path_buf(),
-        output: output.to_path_buf(),
-        apktool_path: None,
-        resources_path: None,
-    };
-
-    protect_apk(&opts, |_| {}, Arc::new(AtomicBool::new(false)))?;
-    Ok(())
-}
 
 #[derive(Debug, Clone)]
 pub struct ProtectOptions {

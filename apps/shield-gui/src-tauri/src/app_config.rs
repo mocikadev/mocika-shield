@@ -331,7 +331,11 @@ pub(crate) fn load_app_config(
         config.locale = normalize_locale(&config.locale);
         config.theme_mode = normalize_theme_mode(&config.theme_mode);
         config.signing.ks_type = normalize_keystore_type(config.signing.ks_type.as_deref());
-        config.signing.keystore_path = config.signing.keystore_path.take().filter(|s| !s.is_empty());
+        config.signing.keystore_path = config
+            .signing
+            .keystore_path
+            .take()
+            .filter(|s| !s.is_empty());
         config.signing.key_alias = config.signing.key_alias.take().filter(|s| !s.is_empty());
         return Ok((path, config, None));
     }

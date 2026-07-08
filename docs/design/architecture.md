@@ -6,30 +6,36 @@
 
 ```
 mocika-shield/
-├── Cargo.toml                        # Rust workspace 根（shield-cli + shield-stub/rust）
+├── Cargo.toml                        # Rust workspace 根（shield-core + apps/shield-cli + apps/shield-gui/src-tauri + shield-stub/rust）
 ├── Cargo.lock
 ├── Makefile                          # 统一构建入口
 │
-├── shield-cli/                       # Rust 命令行工具（单一二进制 shield）
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs                    # 公共 API：protect_apk / sign_apk / ProgressEvent 等
-│       ├── main.rs                   # CLI 入口（clap 参数解析，-i/-o/-v）
-│       ├── error.rs                  # 错误类型（ShieldError）
-│       ├── utils.rs                  # 工具函数：exe_dir、strip_unc_prefix（dunce）、find_apktool 等
-│       ├── commands/
-│       │   ├── protect.rs            # 加固命令薄编排层（流程、进度、取消）
-│       │   └── sign.rs               # 签名命令（apksigner）
-│       ├── protect/
-│       │   ├── mod.rs
-│       │   ├── manifest.rs           # AndroidManifest 修改与 Application 注入
-│       │   ├── dex.rs                # DEX 收集、打包、header 修复
-│       │   ├── runtime.rs            # runtime 资源注入、ABI 收集、metadata 读取
-│       │   └── signature.rs          # 原 APK 签名提取
-│       └── dex_packer/               # DEX 打包模块（Zstd 压缩 + ChaCha20-Poly1305 + HKDF）
-│           ├── crypto.rs             # 加解密：derive_key / encrypt / decrypt
-│           ├── packer.rs             # 打包入口：DexPacker，输出 DEXB v5 格式
-│           └── mod.rs
+├── crates/
+│   └── shield-core/                  # Rust 共享核心库
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs                # 公共 API：protect_apk / sign_apk / ProgressEvent 等
+│           ├── error.rs              # 错误类型（ShieldError）
+│           ├── utils.rs              # 工具函数：exe_dir、strip_unc_prefix（dunce）、find_apktool 等
+│           ├── protect_api.rs        # 加固流程编排、进度事件、取消
+│           ├── signing.rs            # APK 签名（apksigner）
+│           ├── protect/
+│           │   ├── mod.rs
+│           │   ├── manifest.rs       # AndroidManifest 修改与 Application 注入
+│           │   ├── dex.rs            # DEX 收集、打包、header 修复
+│           │   ├── runtime.rs        # runtime 资源注入、ABI 收集、metadata 读取
+│           │   └── signature.rs      # 原 APK 签名提取
+│           └── dex_packer/           # DEX 打包模块（Zstd 压缩 + ChaCha20-Poly1305 + HKDF）
+│               ├── crypto.rs         # 加解密：derive_key / encrypt / decrypt
+│               ├── packer.rs         # 打包入口：DexPacker，输出 DEXB v5 格式
+│               └── mod.rs
+│
+├── apps/
+│   ├── shield-cli/                   # Rust 命令行工具（单一二进制 shield）
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs                # 兼容层：对外 re-export shield-core
+│   │       └── main.rs               # CLI 入口（clap 参数解析，-i/-o/-v）
 │
 ├── shield-stub/                      # Android 壳模块（独立 Gradle 项目）
 │   ├── settings.gradle.kts
@@ -51,29 +57,29 @@ mocika-shield/
 │               ├── bin_loader.rs     # MSHD 扫描、DEXB v5 解析、Zstd 解压
 │               └── crypto.rs        # derive_key（HKDF-SHA256）/ decrypt（ChaCha20-Poly1305）
 │
-├── shield-gui/                       # 桌面 GUI（Tauri v2 + React，三平台）
-│   ├── package.json                  # React 前端依赖与 npm 脚本
-│   ├── vite.config.ts                # Vite 构建配置
-│   ├── tailwind.config.ts            # Tailwind 主题 token
-│   ├── index.html                    # React 入口 HTML
-│   ├── src-tauri/                    # Tauri 后端（Rust）
-│   │   ├── Cargo.toml
-│   │   ├── build.rs
-│   │   ├── tauri.conf.json           # Tauri 配置（窗口、bundle、资源嵌入）
-│   │   └── src/
-│   │       ├── main.rs               # Tauri 启动入口、state 注入、command 注册
-│   │       ├── app_config.rs         # config.toml 读写、旧配置迁移、内存状态
-│   │       ├── app_paths.rs          # apktool/resources/apksigner 路径查找
-│   │       ├── apk_check.rs          # APK 预检、签名检测、证书指纹比对
-│   │       ├── signing.rs            # APK 签名、keystore alias 解析
-│   │       ├── protect_runner.rs     # 加固任务桥接、取消、进度事件
-│   │       ├── updates.rs            # GitHub Releases 更新检查与缓存
-│   │       ├── file_ops.rs           # 打开目录、删除文件、URL 打开
-│   │       └── build_info.rs         # 版本与构建工具信息
-│   └── src/                          # React + TypeScript 前端
-│       ├── main.tsx                  # React 入口
-│       ├── App.tsx                   # 应用壳：侧边栏、页面切换、全局配置状态
-│       ├── pages/
+│   └── shield-gui/                   # 桌面 GUI（Tauri v2 + React，三平台）
+│       ├── package.json              # React 前端依赖与 npm 脚本
+│       ├── vite.config.ts            # Vite 构建配置
+│       ├── tailwind.config.ts        # Tailwind 主题 token
+│       ├── index.html                # React 入口 HTML
+│       ├── src-tauri/                # Tauri 后端（Rust）
+│       │   ├── Cargo.toml
+│       │   ├── build.rs
+│       │   ├── tauri.conf.json       # Tauri 配置（窗口、bundle、资源嵌入）
+│       │   └── src/
+│       │       ├── main.rs           # Tauri 启动入口、state 注入、command 注册
+│       │       ├── app_config.rs     # config.toml 读写、旧配置迁移、内存状态
+│       │       ├── app_paths.rs      # apktool/resources/apksigner 路径查找
+│       │       ├── apk_check.rs      # APK 预检、签名检测、证书指纹比对
+│       │       ├── signing.rs        # APK 签名、keystore alias 解析
+│       │       ├── protect_runner.rs # 加固任务桥接、取消、进度事件
+│       │       ├── updates.rs        # GitHub Releases 更新检查与缓存
+│       │       ├── file_ops.rs       # 打开目录、删除文件、URL 打开
+│       │       └── build_info.rs     # 版本与构建工具信息
+│       └── src/                      # React + TypeScript 前端
+│           ├── main.tsx              # React 入口
+│           ├── App.tsx               # 应用壳：侧边栏、页面切换、全局配置状态
+│           ├── pages/
 │       │   ├── protect-page.tsx      # 加固页
 │       │   ├── sign-page.tsx         # 签名页
 │       │   ├── settings-page.tsx     # 设置页
@@ -122,7 +128,7 @@ mocika-shield/
 
 ## 工具路径自动检测逻辑
 
-`shield-cli` 的 `find_apktool()` / `find_apksigner()` / `find_runtime_resources()` 按以下优先级查找：
+`shield-core` 的 `find_apktool()` / `find_apksigner()` / `find_runtime_resources()` 按以下优先级查找：
 
 1. **发布包路径**：`bin/../lib/apktool.jar`、`bin/../resources/resources.zip`
 2. **用户数据目录**（`directories::ProjectDirs`）：`~/.local/share/mocika-shield/`（Linux）等
@@ -137,7 +143,7 @@ mocika-shield/
 
 所有路径在 Windows 下通过 `dunce::simplified()` 自动去除 UNC 前缀（`\\?\C:\...` → `C:\...`）。
 
-项目根通过 `exe_dir()` / `dev_project_root()` 从 CWD 或可执行文件所在目录向上逐层查找，直到找到同时含有 `shield-stub/` 和 `shield-cli/` 的目录。
+项目根通过 `exe_dir()` / `dev_project_root()` 从 CWD 或可执行文件所在目录向上逐层查找，直到找到同时含有 `shield-stub/` 和 `apps/` 的目录。
 
 ---
 
@@ -149,10 +155,10 @@ mocika-shield/
 | `shield.exe`（Windows） | `target\release\shield.exe` |
 | 版本化壳资源包 | `shield-stub/build/outputs/resources/mocika-runtime-resources-x.y.z.zip` |
 | `resources.zip` 兼容入口 | `shield-stub/build/outputs/resources/resources.zip` |
-| Tauri GUI AppImage | `shield-gui/src-tauri/target/release/bundle/appimage/` |
-| Tauri GUI deb | `shield-gui/src-tauri/target/release/bundle/deb/` |
-| Tauri GUI dmg | `shield-gui/src-tauri/target/release/bundle/dmg/` |
-| Tauri GUI NSIS 安装包 | `shield-gui/src-tauri/target/release/bundle/nsis/` |
+| Tauri GUI AppImage | `target/release/bundle/appimage/` |
+| Tauri GUI deb | `target/release/bundle/deb/` |
+| Tauri GUI dmg | `target/release/bundle/dmg/` |
+| Tauri GUI NSIS 安装包 | `target/release/bundle/nsis/` |
 | 发布压缩包 | `dist/mocika-shield-x.y.z.tar.gz` |
 
 ---
@@ -172,12 +178,12 @@ codegen-units = 1
 
 ---
 
-## shield-gui（Tauri 版）与 shield-cli 的集成方式
+## shield-gui（Tauri 版）与 shield-core 的集成方式
 
-Tauri GUI **不**通过子进程调用 `shield` 二进制，直接链接 `shield-cli` 库：
+Tauri GUI **不**通过子进程调用 `shield` 二进制，直接链接 `shield-core` 库：
 
 ```
-shield-cli lib 暴露：
+shield-core 暴露：
   protect_apk(opts, on_progress: impl Fn(ProgressEvent), cancel: Arc<AtomicBool>)
   sign_apk(opts) -> Result<(), ShieldError>
 
@@ -196,4 +202,4 @@ React 前端：
   listen("protect-done" / "protect-error") → 完成/失败状态
 ```
 
-子进程调用（`java`、`keytool` 等）在 Windows 上统一复用 `shield_cli::utils::no_window_command()`，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。
+子进程调用（`java`、`keytool` 等）在 Windows 上统一复用 `shield_core::utils::no_window_command()`，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。

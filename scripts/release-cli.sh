@@ -27,11 +27,11 @@ echo "=> 构建 shield-stub..."
 SHIELD_VERSION="$VERSION" "$PROJECT_ROOT/scripts/build-stub.sh"
 echo "✓ shield-stub 构建完成"
 
-# 3. 编译shield-cli
-echo "=> 编译shield-cli..."
-cd "$PROJECT_ROOT/shield-cli"
-cargo build --release
-echo "✓ shield-cli编译完成"
+# 3. 编译 CLI
+echo "=> 编译 CLI..."
+cd "$PROJECT_ROOT"
+cargo build --release -p shield-cli
+echo "✓ CLI 编译完成"
 
 # 4. 复制shield可执行文件
 echo "=> 复制可执行文件..."

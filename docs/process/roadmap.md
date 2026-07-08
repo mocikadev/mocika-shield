@@ -20,7 +20,7 @@
 |----|------|
 | **优先级** | 高 |
 | **状态** | 已完成 |
-| **涉及文件** | `shield-cli/src/main.rs`、`shield-gui/src-tauri/src/main.rs` |
+| **涉及文件** | `apps/shield-cli/src/main.rs`、`apps/shield-gui/src-tauri/src/main.rs` |
 
 **现象**：用 V2/V3 签名（无 V1）的 APK 拖入 GUI，预检会显示"未签名"，阻止后续流程。
 
@@ -28,7 +28,7 @@
 
 **最终修复方案**：
 
-**CLI 层（`shield-cli/src/main.rs`）**：
+**CLI 层（`apps/shield-cli/src/main.rs`）**：
 1. 新增 `has_v2_v3_signature()`：读取 APK 末尾 64KB，扫描 `"APK Sig Block 42"` magic（16 字节），命中即判定 V2/V3 已签名
 2. `check_apk_json()` 在 V1 未检到时 fallback 调用 `has_v2_v3_signature()`
 3. `extract_apk_cert_fingerprint()` 先试 `keytool -jarfile`（V1），失败则 fallback `apksigner verify --print-certs`（V2/V3），新增 `parse_sha256_from_apksigner()` 解析输出格式
@@ -43,7 +43,7 @@
 |----|------|
 | **优先级** | 中 |
 | **状态** | 已完成 |
-| **涉及文件** | `shield-gui/src-tauri/src/main.rs` → `compare_cert_fingerprints` |
+| **涉及文件** | `apps/shield-gui/src-tauri/src/main.rs` → `compare_cert_fingerprints` |
 
 **现象**：正常路径无问题；若 `spawn_blocking` 内部 panic（极少见），返回值为 `matches: true` + `error: Some(...)`，若前端只判断 `matches` 字段则会误判为"证书匹配"。
 
@@ -66,7 +66,7 @@
 |----|------|
 | **优先级** | 中 |
 | **状态** | 已完成 |
-| **涉及文件** | `shield-cli/src/commands/protect.rs`、`shield-cli/src/dex_packer/packer.rs`、`shield-stub/src/main/rust/src/lib.rs`、`shield-stub/src/main/rust/src/crypto.rs`、`shield-stub/src/main/java/dev/mocika/shield/loader/Ld.java` |
+| **涉及文件** | `crates/shield-core/src/protect_api.rs`、`crates/shield-core/src/dex_packer/packer.rs`、`shield-stub/src/main/rust/src/lib.rs`、`shield-stub/src/main/rust/src/crypto.rs`、`shield-stub/src/main/java/dev/mocika/shield/loader/Ld.java` |
 
 **现象**：所有加固产物使用同一套根密钥材料（IKM），攻击者逆向 CLI 或 stub 拿到 `MocikaShield123!`，配合 DEXB 头部明文存储的 nonce，可完整重建解密密钥，解密任意加固 APK。
 
@@ -193,10 +193,10 @@ remote(1.1.2) vs local(1.1.1) → patch 不同 → "patch"
 | `dismissed_version` | 用户已关闭提示的版本号，major 升级不受此控制 |
 
 **涉及改动**：
-- `shield-gui/src-tauri/src/main.rs`：新增 `check_update` Tauri command，含缓存逻辑
-- `shield-gui/src/App.tsx`：顶部提示条、关于页检查更新入口与结果展示
-- `shield-gui/src-tauri/Cargo.toml`：新增 `reqwest`（`rustls-tls` feature）、`tauri-plugin-shell`
-- `shield-gui/src/lib/i18n.ts`：新增更新相关文案 key
+- `apps/shield-gui/src-tauri/src/main.rs`：新增 `check_update` Tauri command，含缓存逻辑
+- `apps/shield-gui/src/App.tsx`：顶部提示条、关于页检查更新入口与结果展示
+- `apps/shield-gui/src-tauri/Cargo.toml`：新增 `reqwest`（`rustls-tls` feature）、`tauri-plugin-shell`
+- `apps/shield-gui/src/lib/i18n.ts`：新增更新相关文案 key
 
 **`reqwest` 请求注意事项**：
 - 必须设置 `User-Agent` header，否则 GitHub API 返回 403：`User-Agent: mocika-shield/{CARGO_PKG_VERSION}`
@@ -331,7 +331,7 @@ shield sign    -i input.apk -o output.apk --ks keystore.jks --ks-pass <pass> --k
 
 **已实现**：
 
-- 以 `shield-cli/Cargo.toml` 为单一来源，发布脚本（`release-linux.sh` / `release-macos.sh` / `release-windows.ps1`）自动读取版本号并同步到其他位置
+- 以 `scripts/bump-version.sh` 统一同步 `shield-core`、CLI、stub、GUI 的版本号，避免多 crate / 多端版本漂移
 - 新增 `scripts/bump-version.sh`，一条命令统一更新所有 Cargo.toml 和 `tauri.conf.json` 中的版本号，避免手工同步漏改
 
 ---
@@ -380,7 +380,7 @@ shield sign    -i input.apk -o output.apk --ks keystore.jks --ks-pass <pass> --k
 
 **已实现**：
 
-- 后端 `shield-gui/src-tauri/build.rs` 与前端 `shield-gui/build.rs` 在编译期分别注入 `GIT_HASH`、`BUILD_DATE`
+- 后端 `apps/shield-gui/src-tauri/build.rs` 与前端 `apps/shield-gui/build.rs` 在编译期分别注入 `GIT_HASH`、`BUILD_DATE`
 - 关于页展示版本号、git commit hash（8位）、构建日期，以及运行时检测到的 apktool / apksigner 版本
 - 手动检查更新按钮（复用版本更新提示的 `check_update` command）
 

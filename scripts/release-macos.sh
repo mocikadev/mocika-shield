@@ -93,10 +93,8 @@ build_cli() {
   cd "$ROOT"
 
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
-    cargo build --release --manifest-path shield-cli/Cargo.toml \
-      --target aarch64-apple-darwin
-    cargo build --release --manifest-path shield-cli/Cargo.toml \
-      --target x86_64-apple-darwin
+    cargo build --release -p shield-cli --target aarch64-apple-darwin
+    cargo build --release -p shield-cli --target x86_64-apple-darwin
 
     mkdir -p "$ROOT/target/universal/release"
     lipo -create \
@@ -106,7 +104,7 @@ build_cli() {
     CLI_BIN="$ROOT/target/universal/release/shield"
     success "CLI universal binary 构建完成"
   else
-    cargo build --release --manifest-path shield-cli/Cargo.toml
+    cargo build --release -p shield-cli
     CLI_BIN="$ROOT/target/release/shield"
     success "CLI 构建完成（$(uname -m)）"
   fi
@@ -116,7 +114,7 @@ build_cli() {
 # ========== 构建 GUI（Tauri bundle：.app + .dmg）==========
 build_gui() {
   info "构建 GUI（cargo tauri build --bundles app,dmg）..."
-  cd "$ROOT/shield-gui"
+  cd "$ROOT/apps/shield-gui"
 
   npm ci
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
@@ -217,7 +215,7 @@ READMEEOF
 collect_gui() {
   info "收集 GUI 产物..."
 
-  local TAURI_TARGET="$ROOT/shield-gui/src-tauri/target"
+  local TAURI_TARGET="$ROOT/target"
   local BUNDLE_BASE
 
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then

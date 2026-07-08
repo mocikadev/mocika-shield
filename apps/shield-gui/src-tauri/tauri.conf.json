@@ -38,9 +38,9 @@
       "icons/icon.icns"
     ],
     "resources": {
-      "../../tools/apktool_3.0.1.jar": "tools/apktool.jar",
-      "../../tools/apksigner.jar": "tools/apksigner.jar",
-      "../../shield-stub/build/outputs/resources/resources.zip": "resources/resources.zip"
+      "../../../tools/apktool_3.0.1.jar": "tools/apktool.jar",
+      "../../../tools/apksigner.jar": "tools/apksigner.jar",
+      "../../../shield-stub/build/outputs/resources/resources.zip": "resources/resources.zip"
     },
     "linux": {
       "deb": {

@@ -1,6 +1,6 @@
 use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
-use shield_cli::{
+use shield_core::{
     sign_apk as shield_sign_apk,
     utils::{find_keytool, no_window_command},
     KeystoreType, SignOptions, SigningVersions,

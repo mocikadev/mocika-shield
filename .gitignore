@@ -34,9 +34,9 @@ local.properties
 .DS_Store
 
 # Tauri 生成的平台相关 JSON Schema（构建产物，IDE 类型提示用）
-shield-gui/src-tauri/gen/schemas/*-schema.json
+apps/shield-gui/src-tauri/gen/schemas/*-schema.json
 # Tauri ACL 清单（构建产物，自动生成）
-shield-gui/src-tauri/gen/schemas/acl-manifests.json
+apps/shield-gui/src-tauri/gen/schemas/acl-manifests.json
 
 # Native build
 test-input.apk

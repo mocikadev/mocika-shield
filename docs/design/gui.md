@@ -1,16 +1,16 @@
 # GUI 设计文档
 
-> 当前唯一正式桌面 GUI：`shield-gui`（Tauri v2 + React + TypeScript）
+> 当前唯一正式桌面 GUI：`apps/shield-gui`（Tauri v2 + React + TypeScript）
 > 最后更新：2026-07-08
 
 ## 1. 定位
 
-`shield-gui` 是面向桌面环境的 APK 加固工具界面，目标是把“选择 APK、执行加固、自动签名、查看结果”这条链路收敛到一个稳定的跨平台应用里。
+`apps/shield-gui` 是面向桌面环境的 APK 加固工具界面，目标是把“选择 APK、执行加固、自动签名、查看结果”这条链路收敛到一个稳定的跨平台应用里。
 
 维护约束只有两条：
 
 - 正式版本只维护这一套 Tauri GUI，不再保留第二套桌面实现
-- GUI 后端继续直接链接 `shield-cli` 库，不通过额外子进程包装业务逻辑
+- GUI 后端继续直接链接 `shield-core` 库，不通过额外子进程包装业务逻辑
 
 ## 2. 技术栈
 
@@ -77,7 +77,7 @@ GUI 固定四个页面：
 选择 APK
   → 预检文件类型、签名状态、是否已加固
   → 检查 Java / apktool / resources.zip
-  → 调用 shield-cli::protect_apk
+  → 调用 shield-core::protect_apk
   → 接收分步进度事件
   → 可选自动签名
   → 输出 protected.apk 或 protected_signed.apk
@@ -101,7 +101,7 @@ GUI 固定四个页面：
 选择 APK
   → 读取设置页中的正式签名配置
   → 必要时做证书指纹对比
-  → 调用 shield-cli::sign_apk
+  → 调用 shield-core::sign_apk
   → 输出 signed.apk
 ```
 
@@ -109,24 +109,24 @@ GUI 固定四个页面：
 
 ## 7. 后端集成
 
-Tauri command 和 `shield-cli` 的关系如下：
+Tauri command 和 `shield-core` 的关系如下：
 
 ```text
 protect_apk
   → spawn_blocking
-  → shield_cli::protect_apk(...)
+  → shield_core::protect_apk(...)
   → emit("protect-progress")
 
 sign_apk
   → spawn_blocking
-  → shield_cli::sign_apk(...)
+  → shield_core::sign_apk(...)
 
 check_apk / check_update / 配置读写
   → main.rs 只做 command 装配
   → 具体实现分别落在 apk_check.rs / updates.rs / app_config.rs
 ```
 
-Windows 下调用 `java`、`keytool`、`apksigner` 等子进程时，统一复用 `shield_cli::utils::no_window_command()`，避免弹出控制台窗口。
+Windows 下调用 `java`、`keytool`、`apksigner` 等子进程时，统一复用 `shield_core::utils::no_window_command()`，避免弹出控制台窗口。
 
 ## 8. 配置与持久化
 
