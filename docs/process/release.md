@@ -221,11 +221,12 @@ Release Notes 生成规则：
 ## 发布检查清单
 
 1. 更新版本号（见上方"版本号同步"）
-2. 确认 CI 通过
-3. 打 tag 并推送：`git tag vx.y.z && git push origin main vx.y.z`
-4. 等待 Release workflow 完成
-5. 检查 GitHub Release 的产物、校验和和 Release Notes
-6. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
+2. 运行发布前轻量检查：`bash scripts/check-release-ready.sh`
+3. 确认 CI 通过
+4. 打 tag 并推送：`git tag vx.y.z && git push origin main vx.y.z`
+5. 等待 Release workflow 完成
+6. 检查 GitHub Release 的产物、校验和和 Release Notes
+7. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
 
 ### 正式版前产物检查
 
