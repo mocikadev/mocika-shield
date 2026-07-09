@@ -2,6 +2,8 @@ mod apk_check;
 mod app_config;
 mod app_paths;
 mod build_info;
+mod cert_service;
+mod cert_store;
 mod file_ops;
 mod protect_runner;
 mod signing;
@@ -16,13 +18,20 @@ use app_paths::find_apksigner_path;
 use build_info::{
     get_app_info as get_app_info_impl, get_build_info as get_build_info_impl, AppInfo, BuildInfo,
 };
+use cert_service::{
+    create_managed_certificate, save_certificate_profile, validate_certificate_input,
+    verify_saved_certificate,
+};
+use cert_store::{
+    initialize_certificate_store, CertificateRecord, CertificateStoreState, CertificateUpsertInput,
+    CertificateValidationInput, CertificateValidationResult, CreateManagedCertificateInput,
+};
 use file_ops::{
     check_file_exists as check_file_exists_impl, delete_file as delete_file_impl,
     open_url as open_url_impl, show_in_folder as show_in_folder_impl,
 };
 use protect_runner::{execute_protect_apk, CancelHandle};
 use signing::{execute_sign_apk, query_keystore_aliases};
-use std::fs;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -114,31 +123,25 @@ fn save_app_config(
     state.mutate(move |current| {
         current.locale = normalize_locale(&config.locale);
         current.theme_mode = normalize_theme_mode(&config.theme_mode);
-        current.signing.apply_sign_config(config.sign_config);
-        current.signing.keystore_password = config.keystore_password;
-        current.signing.key_password = config.key_password;
     })
 }
 
 #[tauri::command]
 async fn sign_apk(
     app: tauri::AppHandle,
-    state: tauri::State<'_, AppConfigState>,
     apk_path: String,
     output_path: Option<String>,
     apksigner_path: Option<String>,
     keystore_path: String,
+    keystore_password: String,
     key_alias: String,
+    key_password: String,
     ks_type: Option<String>,
     sign_v1: bool,
     sign_v2: bool,
     sign_v3: bool,
     sign_v4: bool,
 ) -> Result<(), String> {
-    let config = state.read()?;
-    let keystore_password = config.signing.keystore_password;
-    let key_password = config.signing.key_password;
-
     tokio::task::spawn_blocking(move || {
         execute_sign_apk(
             &app,
@@ -169,6 +172,63 @@ async fn list_keystore_aliases(
     tokio::task::spawn_blocking(move || query_keystore_aliases(keystore_path, ks_pass, ks_type))
         .await
         .map_err(|err| format!("后台任务执行失败: {err}"))?
+}
+
+#[tauri::command]
+fn list_certificates(
+    state: tauri::State<'_, CertificateStoreState>,
+) -> Result<Vec<CertificateRecord>, String> {
+    state.list_certificates()
+}
+
+#[tauri::command]
+fn save_certificate(
+    state: tauri::State<'_, CertificateStoreState>,
+    input: CertificateUpsertInput,
+) -> Result<CertificateRecord, String> {
+    save_certificate_profile(&state, input)
+}
+
+#[tauri::command]
+fn validate_certificate(
+    input: CertificateValidationInput,
+) -> Result<CertificateValidationResult, String> {
+    validate_certificate_input(input)
+}
+
+#[tauri::command]
+fn set_default_certificate(
+    state: tauri::State<'_, CertificateStoreState>,
+    id: String,
+) -> Result<Vec<CertificateRecord>, String> {
+    state.set_default_certificate(Some(&id))?;
+    state.list_certificates()
+}
+
+#[tauri::command]
+fn delete_certificate(
+    state: tauri::State<'_, CertificateStoreState>,
+    id: String,
+    remove_keystore_file: bool,
+) -> Result<Vec<CertificateRecord>, String> {
+    state.delete_certificate(&id, remove_keystore_file)?;
+    state.list_certificates()
+}
+
+#[tauri::command]
+fn verify_certificate(
+    state: tauri::State<'_, CertificateStoreState>,
+    id: String,
+) -> Result<CertificateRecord, String> {
+    verify_saved_certificate(&state, &id)
+}
+
+#[tauri::command]
+fn create_managed_certificate_command(
+    state: tauri::State<'_, CertificateStoreState>,
+    input: CreateManagedCertificateInput,
+) -> Result<CertificateRecord, String> {
+    create_managed_certificate(&state, input)
 }
 
 #[tauri::command]
@@ -217,12 +277,11 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(CancelHandle(Arc::new(AtomicBool::new(false))))
         .setup(|app| {
-            let (path, config, legacy_path) = load_app_config(app.handle())?;
-            save_app_config_file(&path, &config)?;
-            if let Some(legacy) = legacy_path {
-                let _ = fs::remove_file(legacy);
-            }
-            app.manage(AppConfigState::new(path, config));
+            let loaded = load_app_config(app.handle())?;
+            save_app_config_file(&loaded.path, &loaded.config)?;
+            let cert_store = initialize_certificate_store(app.handle())?;
+            app.manage(AppConfigState::new(loaded.path, loaded.config));
+            app.manage(cert_store);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -236,6 +295,13 @@ fn main() {
             get_app_config,
             save_app_config,
             sign_apk,
+            list_certificates,
+            save_certificate,
+            validate_certificate,
+            set_default_certificate,
+            delete_certificate,
+            verify_certificate,
+            create_managed_certificate_command,
             list_keystore_aliases,
             check_update,
             open_url,

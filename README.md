@@ -48,10 +48,11 @@
 > xattr -rd com.apple.quarantine /Applications/MocikaShield.app
 > ```
 
-界面包含四个页面：
+界面包含五个页面：
 - **加固**：拖入或选择 APK → 预检验证（非 APK 文件立即提示）→ 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
-- **签名**：拖入或选择 APK → 使用设置页保存的签名配置 → 点击签名 → 生成 `{name}_signed.apk`
-- **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）、维护唯一正式签名配置
+- **签名**：拖入或选择 APK → 选择证书页维护的证书 → 点击签名 → 生成 `{name}_signed.apk`
+- **证书**：统一管理签名证书，支持导入、新建、校验、设为默认、删除
+- **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）
 - **关于**：显示当前版本号、构建 git hash、构建日期、Java 环境状态，并支持手动重新检测环境
 
 界面预览：
@@ -60,9 +61,13 @@
 
 更多界面：
 
-| 签名页 | 关于页 |
+| 签名页 | 证书页 |
 |--------|--------|
-| ![Mocika Shield 签名页](docs/assets/screenshots/readme-sign-main.png) | ![Mocika Shield 关于页](docs/assets/screenshots/readme-about.png) |
+| ![Mocika Shield 签名页](docs/assets/screenshots/readme-sign-main.png) | ![Mocika Shield 证书页](docs/assets/screenshots/readme-certificates.png) |
+
+| 设置页 | 关于页 |
+|--------|--------|
+| ![Mocika Shield 设置页](docs/assets/screenshots/readme-settings.png) | ![Mocika Shield 关于页](docs/assets/screenshots/readme-about.png) |
 
 ### 支持矩阵
 
@@ -76,9 +81,10 @@
 ### 首次使用最短路径
 
 1. 从 [Releases](../../releases) 下载对应平台的 GUI 安装包并安装
-2. 在 **设置** 页面填写签名配置，先点击 **校验**，通过后再点击 **保存**
-3. 回到 **加固** 页面选择已签名 APK，按需开启“加固后自动签名”
-4. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
+2. 在 **证书** 页面导入已有证书，或创建新的 PKCS12 证书
+3. 将常用证书设为默认；加固页会在自动签名时使用默认证书
+4. 回到 **加固** 页面选择已签名 APK，按需使用自动签名
+5. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
 
 ### 签名材料准备
 
@@ -90,20 +96,18 @@
 - `keystore` 密码
 - `key` 密码（与 `keystore` 密码相同可留空）
 
-如果原 APK 与设置页中保存的证书指纹不一致，GUI 会提示重新签名后可能无法覆盖安装。
+如果原 APK 与当前选中的证书指纹不一致，GUI 会提示重新签名后可能无法覆盖安装。
 
-### 配置文件
+### 配置与证书数据
 
-GUI 只维护一份正式配置，默认文件名为 `config.toml`，启动时一次性载入，签名页和加固页自动签名共用同一份数据。设置页中的签名信息必须先校验通过，之后才能保存到这份配置文件。
+GUI 启动时一次性加载应用级配置与证书数据库，运行期间使用全局内存状态，不会在页面切换时反复从磁盘读取。应用级配置保存到 `config.toml`；证书列表、默认证书、签名密码、校验状态保存到本地 SQLite 数据库 `shield.db`。应用内新建或托管的 keystore 文件放在同级 `keystores/` 目录。
 Java 运行环境同样会在应用启动时检测一次，并缓存到全局状态中；关于页提供“重新检测环境”入口，用于用户安装或切换 JDK 后手动刷新。
 
-| 平台 | 默认位置 |
-|------|----------|
-| Linux | `~/.config/dev.mocika.shield-gui/config.toml` |
-| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
-| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
-
-旧版本遗留的 `tool_config.json` 会在新版本首次启动时自动迁移到 `config.toml`。
+| 平台 | 应用配置 | 证书数据库 |
+|------|----------|------------|
+| Linux | `~/.config/dev.mocika.shield-gui/config.toml` | `~/.local/share/dev.mocika.shield-gui/shield.db` |
+| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` | `~/Library/Application Support/dev.mocika.shield-gui/shield.db` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` | `%APPDATA%\\dev.mocika.shield-gui\\shield.db` |
 
 ### 方式二：命令行（CLI）
 
@@ -115,7 +119,7 @@ cd mocika-shield-x.y.z
 ./bin/shield protect -i input.apk -o protected.apk
 
 # 签名（加固后必须重新签名；无需额外执行 zipalign）
-apksigner sign --ks keystore.jks protected.apk
+java -jar lib/apksigner.jar sign --ks keystore.jks protected.apk
 
 # 安装
 adb install -r protected.apk

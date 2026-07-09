@@ -7,10 +7,10 @@ import {
   onTauriEvent,
   openFileDialog,
   type ApkCheckResult,
+  type BuildInfo,
+  type CertificateRecord,
   type DragDropPayload,
   type ProtectProgress,
-  type BuildInfo,
-  type SignConfig,
 } from "@/lib/tauri";
 
 export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
@@ -30,15 +30,11 @@ function precheckMessage(locale: Locale, result: ApkCheckResult) {
 
 export function useProtectWorkflow({
   locale,
-  signConfig,
-  keystorePassword,
-  signConfigLoaded,
+  certificate,
   buildInfo,
 }: {
   locale: Locale;
-  signConfig: SignConfig;
-  keystorePassword: string;
-  signConfigLoaded: boolean;
+  certificate: CertificateRecord | null;
   buildInfo: BuildInfo | null;
 }) {
   const [input, setInput] = useState("");
@@ -51,12 +47,7 @@ export function useProtectWorkflow({
   const [currentStep, setCurrentStep] = useState("");
   const [messages, setMessages] = useState<string[]>([]);
 
-  const autoSignReady = Boolean(
-    signConfigLoaded &&
-      signConfig.auto_sign_enabled &&
-      signConfig.keystore_path &&
-      signConfig.key_alias,
-  );
+  const autoSignReady = Boolean(certificate?.auto_sign_enabled);
 
   const computedOutput = useMemo(() => {
     const protectedPath = protectedOutputPath(input);
@@ -163,15 +154,15 @@ export function useProtectWorkflow({
 
       const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
       await api.protectApk(input, unsignedOutput);
-      if (autoSignReady && signConfig.keystore_path && signConfig.key_alias) {
+      if (autoSignReady && certificate) {
         setCurrentStep("Sign");
         appendMessage(t(locale, "autoSignStarted"));
         const compare = await api.compareCertFingerprints({
           apkPath: input,
-          keystorePath: signConfig.keystore_path,
-          ksPass: keystorePassword,
-          ksType: signConfig.ks_type ?? "JKS",
-          keyAlias: signConfig.key_alias,
+          keystorePath: certificate.keystore_path,
+          ksPass: certificate.keystore_password,
+          ksType: certificate.ks_type,
+          keyAlias: certificate.key_alias,
         });
         if (!compare.matches && !compare.error) {
           setWarning(t(locale, "signMismatch"));
@@ -180,13 +171,15 @@ export function useProtectWorkflow({
           apkPath: unsignedOutput,
           outputPath: output,
           apksignerPath: null,
-          keystorePath: signConfig.keystore_path,
-          keyAlias: signConfig.key_alias,
-          ksType: signConfig.ks_type ?? "JKS",
-          signV1: signConfig.sign_v1,
-          signV2: signConfig.sign_v2,
-          signV3: signConfig.sign_v3,
-          signV4: signConfig.sign_v4,
+          keystorePath: certificate.keystore_path,
+          keystorePassword: certificate.keystore_password,
+          keyAlias: certificate.key_alias,
+          keyPassword: certificate.key_password,
+          ksType: certificate.ks_type,
+          signV1: certificate.sign_v1,
+          signV2: certificate.sign_v2,
+          signV3: certificate.sign_v3,
+          signV4: certificate.sign_v4,
         });
         await api.deleteFile(`${output}.idsig`).catch(() => undefined);
         appendMessage(t(locale, "autoSignCompleted"));
@@ -200,17 +193,7 @@ export function useProtectWorkflow({
       setError(String(err));
       setState("failed");
     }
-  }, [
-    appendMessage,
-    autoSignReady,
-    buildInfo,
-    input,
-    keystorePassword,
-    locale,
-    output,
-    precheck,
-    signConfig,
-  ]);
+  }, [appendMessage, autoSignReady, buildInfo, certificate, input, locale, output, precheck]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);

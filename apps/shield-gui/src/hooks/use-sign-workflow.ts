@@ -7,21 +7,19 @@ import {
   onTauriEvent,
   openFileDialog,
   type BuildInfo,
+  type CertificateRecord,
   type DragDropPayload,
-  type SignConfig,
 } from "@/lib/tauri";
 
 export type SignState = "idle" | "signing" | "done" | "failed";
 
 export function useSignWorkflow({
   locale,
-  signConfig,
-  signConfigLoaded,
+  certificate,
   buildInfo,
 }: {
   locale: Locale;
-  signConfig: SignConfig;
-  signConfigLoaded: boolean;
+  certificate: CertificateRecord | null;
   buildInfo: BuildInfo | null;
 }) {
   const [apkPath, setApkPath] = useState("");
@@ -63,15 +61,7 @@ export function useSignWorkflow({
   }, []);
 
   const sign = useCallback(async () => {
-    if (!apkPath) {
-      return;
-    }
-    if (!signConfig.keystore_path) {
-      setError(t(locale, "missingKeystore"));
-      return;
-    }
-    if (!signConfig.key_alias) {
-      setError(t(locale, "missingAlias"));
+    if (!apkPath || !certificate) {
       return;
     }
     try {
@@ -88,13 +78,15 @@ export function useSignWorkflow({
         apkPath,
         outputPath: outputPath || null,
         apksignerPath: null,
-        keystorePath: signConfig.keystore_path,
-        keyAlias: signConfig.key_alias,
-        ksType: signConfig.ks_type ?? "JKS",
-        signV1: signConfig.sign_v1,
-        signV2: signConfig.sign_v2,
-        signV3: signConfig.sign_v3,
-        signV4: signConfig.sign_v4,
+        keystorePath: certificate.keystore_path,
+        keystorePassword: certificate.keystore_password,
+        keyAlias: certificate.key_alias,
+        keyPassword: certificate.key_password,
+        ksType: certificate.ks_type,
+        signV1: certificate.sign_v1,
+        signV2: certificate.sign_v2,
+        signV3: certificate.sign_v3,
+        signV4: certificate.sign_v4,
       });
       await api.deleteFile(`${outputPath}.idsig`).catch(() => undefined);
       setState("done");
@@ -102,7 +94,7 @@ export function useSignWorkflow({
       setError(String(err));
       setState("failed");
     }
-  }, [apkPath, buildInfo, locale, outputPath, signConfig]);
+  }, [apkPath, buildInfo, certificate, locale, outputPath]);
 
   const reset = useCallback(() => {
     setApkPath("");
@@ -111,20 +103,19 @@ export function useSignWorkflow({
     setError("");
   }, []);
 
-  const savedReady = Boolean(
-    signConfigLoaded && signConfig.keystore_path && signConfig.key_alias,
-  );
   const enabledVersions = useMemo(
     () =>
-      [
-        signConfig.sign_v1 && "V1",
-        signConfig.sign_v2 && "V2",
-        signConfig.sign_v3 && "V3",
-        signConfig.sign_v4 && "V4",
-      ]
-        .filter(Boolean)
-        .join(" / "),
-    [signConfig],
+      certificate
+        ? [
+            certificate.sign_v1 && "V1",
+            certificate.sign_v2 && "V2",
+            certificate.sign_v3 && "V3",
+            certificate.sign_v4 && "V4",
+          ]
+            .filter(Boolean)
+            .join(" / ")
+        : "",
+    [certificate],
   );
 
   return {
@@ -134,7 +125,6 @@ export function useSignWorkflow({
     state,
     error,
     dragActive,
-    savedReady,
     enabledVersions,
     hasApk: Boolean(apkPath),
     browseApk,

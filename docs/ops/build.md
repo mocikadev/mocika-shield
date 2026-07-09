@@ -76,6 +76,8 @@ Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md
 
 如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等正式 bundle，请使用下方发布脚本，而不是 `make build-gui`。
 
+> **本机测试规则**：如果目的是在本机实际验证 GUI 效果、签名、加固等完整桌面流程，不要只使用 `make build-gui` 产出的裸二进制。应构建对应平台的正式应用包；在 macOS 上默认使用 `.app` / `.dmg` 产物进行测试。
+
 ## 发布包构建
 
 ### Linux / macOS

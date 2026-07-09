@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
-import { defaultSignConfig } from "@/components/app/branding";
 import { detectSystemLocale, type Locale } from "@/lib/i18n";
-import { api, type AppConfig, type SignConfig, type ThemeMode, type UpdateCheckResult } from "@/lib/tauri";
+import { api, type AppConfig, type ThemeMode, type UpdateCheckResult } from "@/lib/tauri";
 import { normalizeThemeMode } from "@/hooks/use-applied-theme-mode";
 
 export function useAppConfigState() {
   const [locale, setLocale] = useState<Locale>(detectSystemLocale);
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
-  const [signConfig, setSignConfig] = useState<SignConfig>(defaultSignConfig);
-  const [keystorePassword, setKeystorePassword] = useState("");
-  const [keyPassword, setKeyPassword] = useState("");
-  const [signConfigLoaded, setSignConfigLoaded] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -21,18 +17,11 @@ export function useAppConfigState() {
         }
         setLocale(value.locale === "en" ? "en" : "zh");
         setThemeMode(normalizeThemeMode(value.theme_mode));
-        setSignConfig({
-          ...defaultSignConfig,
-          ...value.sign_config,
-          ks_type: value.sign_config.ks_type || "JKS",
-        });
-        setKeystorePassword(value.keystore_password ?? "");
-        setKeyPassword(value.key_password ?? "");
       })
       .catch(() => undefined)
       .finally(() => {
         if (!disposed) {
-          setSignConfigLoaded(true);
+          setConfigLoaded(true);
         }
       });
     return () => {
@@ -45,13 +34,7 @@ export function useAppConfigState() {
     setLocale,
     themeMode,
     setThemeMode,
-    signConfig,
-    setSignConfig,
-    keystorePassword,
-    setKeystorePassword,
-    keyPassword,
-    setKeyPassword,
-    signConfigLoaded,
+    configLoaded,
   };
 }
 

@@ -361,6 +361,6 @@ GUI 相关阶段完成后，建议再实际验证：
 - `ProtectPage` 的事件监听、自动签名收尾、拖拽状态已收口到 `use-protect-workflow.ts`
 - `SignPage` 的签名流程、拖拽状态已收口到 `use-sign-workflow.ts`
 - `AboutPage` 的数据加载与手动检查更新已收口到 `use-about-page.ts`
-- `SettingsPage` 的表单状态与保存逻辑已收口到 `use-settings-form.ts`
-- 设置页签名配置区已拆为 `settings-signing-panel.tsx`
+- 设置页现已缩减为应用级配置入口，签名资料迁移到独立证书页
+- 证书管理改由 `certificates-page.tsx` 与 `use-certificates.ts` 统一承载
 - 加固页进度侧栏、签名页摘要卡、关于页信息卡已拆到 `components/app/*` 下独立组件

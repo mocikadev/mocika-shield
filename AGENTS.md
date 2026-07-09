@@ -86,8 +86,25 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 ### GUI 维护策略
 正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
 
+### 本机测试交付规则
+凡是面向用户本机直接测试 GUI 效果、交互、签名、加固流程的构建，默认必须提供 **macOS `.app` 应用包**（如当前在 macOS 环境）。不要只交付裸二进制 `target/release/mocika-shield`，因为其运行时资源不完整，不能代表真实桌面应用形态。
+
 ### 配置文件命名
-GUI 自动维护的用户配置固定使用 `config.toml`，不要改成 `tool_config.json`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
+GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
+
+### 证书与密码持久化策略
+本工具定位为**本地离线桌面工具**，证书管理以“省事、减少重复输入”为优先目标。GUI 允许在本机持久化保存签名证书相关数据，包括 `keystore_password` 与 `key_password`；默认不引入系统 Keychain 作为前置依赖。
+
+约束如下：
+
+- 应用级配置放 `config.toml`
+- 证书与签名资料放 `shield.db`
+- 应用内新建 keystore 默认放应用数据目录下的 `keystores/`
+- 导入已有 keystore 默认只记录原始路径，不强制复制
+- 证书材料保存后视为不可变：`keystore` 文件、类型、Alias、密码不得通过“编辑证书”修改；如需更换材料，应重新导入或创建证书
+- “编辑证书”只允许修改显示名称、备注、签名版本、自动签名偏好和默认项
+- 任何日志、错误信息、调试输出都不得打印密码明文
+- 涉及密码落盘的文件应尽量收紧权限
 
 ### 前端路径拼接
 前端构造输出路径时必须通过 `src/lib/path.ts` 的路径辅助函数处理 Windows 反斜杠，不要用裸 `format!("{}/{}", parent, stem)` 或字符串拼接散落在页面里。

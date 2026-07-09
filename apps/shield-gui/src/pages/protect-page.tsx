@@ -1,26 +1,26 @@
-import { Clipboard, FolderOpen, Loader2, Play, RotateCcw, Square } from "lucide-react";
+import { Clipboard, FolderKey, FolderOpen, Loader2, Play, RotateCcw, Square } from "lucide-react";
 import { AppButton, DropZone, SelectedApkCard, StatusMessage } from "@/components/app/common";
 import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
 import { basename } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
-import { api, type BuildInfo, type SignConfig } from "@/lib/tauri";
+import { api, type BuildInfo, type CertificateRecord } from "@/lib/tauri";
 
 export function ProtectPage({
   locale,
-  signConfig,
-  keystorePassword,
-  signConfigLoaded,
+  defaultCertificate,
+  certificatesLoaded,
   buildInfo,
   runtimeInfoLoaded,
+  onOpenCertificates,
 }: {
   locale: Locale;
-  signConfig: SignConfig;
-  keystorePassword: string;
-  signConfigLoaded: boolean;
+  defaultCertificate: CertificateRecord | null;
+  certificatesLoaded: boolean;
   buildInfo: BuildInfo | null;
   runtimeInfoLoaded: boolean;
+  onOpenCertificates: () => void;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
   const {
@@ -43,9 +43,7 @@ export function ProtectPage({
     resetSelection,
   } = useProtectWorkflow({
     locale,
-    signConfig,
-    keystorePassword,
-    signConfigLoaded,
+    certificate: defaultCertificate,
     buildInfo,
   });
 
@@ -63,6 +61,21 @@ export function ProtectPage({
               onBrowse={browse}
             />
           </div>
+          {certificatesLoaded && !defaultCertificate && (
+            <div className="mt-5">
+              <StatusMessage
+                kind="info"
+                action={
+                  <AppButton size="sm" variant="secondary" onClick={onOpenCertificates}>
+                    <FolderKey className="h-4 w-4" />
+                    {t(locale, "navCertificates")}
+                  </AppButton>
+                }
+              >
+                {t(locale, "noDefaultCertificate")}
+              </StatusMessage>
+            </div>
+          )}
           {warning && (
             <div className="mt-5">
               <StatusMessage kind="warning">{warning}</StatusMessage>
@@ -77,17 +90,21 @@ export function ProtectPage({
               <p className="mt-1 truncate text-sm text-muted-foreground">{basename(input)}</p>
             </div>
             {state === "running" ? (
-              <AppButton variant="danger" onClick={cancel}>
+              <AppButton className="min-w-[136px]" variant="danger" onClick={cancel}>
                 <Square className="h-4 w-4" />
                 {t(locale, "cancel")}
               </AppButton>
             ) : state === "done" || state === "failed" ? (
-              <AppButton variant="secondary" onClick={resetSelection}>
+              <AppButton className="min-w-[136px]" variant="secondary" onClick={resetSelection}>
                 <RotateCcw className="h-4 w-4" />
                 {t(locale, "protectAnother")}
               </AppButton>
             ) : (
-              <AppButton disabled={!input || !signConfigLoaded || !runtimeInfoLoaded || Boolean(precheck) || state === "prechecking"} onClick={start}>
+              <AppButton
+                className="min-w-[136px]"
+                disabled={!input || !runtimeInfoLoaded || Boolean(precheck) || state === "prechecking"}
+                onClick={start}
+              >
                 {state === "prechecking" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 {state === "prechecking" ? t(locale, "prechecking") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startProtect")}
               </AppButton>
@@ -104,10 +121,23 @@ export function ProtectPage({
                 onChange={browse}
               />
               {warning && <StatusMessage kind="warning">{warning}</StatusMessage>}
-              {hasInput && autoSignReady && (
+              {hasInput && autoSignReady && defaultCertificate && (
                 <StatusMessage kind="info">
-                  <b>{t(locale, "autoSignConfigured")}</b>
-                  <span className="ml-1">{t(locale, "autoSignWillRun")}</span>
+                  <b>{defaultCertificate.name}</b>
+                  <span className="ml-1">{t(locale, "certificateWillAutoSign")}</span>
+                </StatusMessage>
+              )}
+              {hasInput && !autoSignReady && (
+                <StatusMessage
+                  kind="info"
+                  action={
+                    <AppButton size="sm" variant="secondary" onClick={onOpenCertificates}>
+                      <FolderKey className="h-4 w-4" />
+                      {t(locale, "navCertificates")}
+                    </AppButton>
+                  }
+                >
+                  {t(locale, "noDefaultCertificate")}
                 </StatusMessage>
               )}
               {precheck && (

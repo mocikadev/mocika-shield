@@ -18,9 +18,82 @@ export type ThemeMode = "system" | "light" | "dark";
 export type AppConfig = {
   locale: "zh" | "en" | string;
   theme_mode: ThemeMode | string;
-  sign_config: SignConfig;
+};
+
+export type CertificateRecord = {
+  id: string;
+  name: string;
+  source_type: "managed" | "external" | string;
+  keystore_path: string;
+  keystore_password: string;
+  key_alias: string;
+  key_password: string;
+  ks_type: "JKS" | "PKCS12" | string;
+  sign_v1: boolean;
+  sign_v2: boolean;
+  sign_v3: boolean;
+  sign_v4: boolean;
+  auto_sign_enabled: boolean;
+  note: string;
+  is_default: boolean;
+  created_at: number;
+  updated_at: number;
+  last_verified_at?: number | null;
+  last_verify_status: "unknown" | "success" | "failed" | string;
+  last_verify_message?: string | null;
+};
+
+export type CertificateUpsertInput = {
+  id?: string | null;
+  name: string;
+  source_type: "managed" | "external" | string;
+  keystore_path: string;
+  keystore_password: string;
+  key_alias: string;
+  key_password: string;
+  ks_type?: "JKS" | "PKCS12" | string | null;
+  sign_v1: boolean;
+  sign_v2: boolean;
+  sign_v3: boolean;
+  sign_v4: boolean;
+  auto_sign_enabled: boolean;
+  note: string;
+  set_as_default: boolean;
+  copy_keystore_to_managed: boolean;
+  managed_file_name?: string | null;
+};
+
+export type CertificateValidationInput = {
+  keystore_path: string;
+  keystore_password: string;
+  key_alias: string;
+  ks_type?: "JKS" | "PKCS12" | string | null;
+};
+
+export type CertificateValidationResult = {
+  valid: boolean;
+  aliases: string[];
+  resolved_alias?: string | null;
+  message?: string | null;
+};
+
+export type CreateManagedCertificateInput = {
+  name: string;
+  file_name: string;
+  key_alias: string;
   keystore_password: string;
   key_password: string;
+  ks_type?: "JKS" | "PKCS12" | string | null;
+  sign_v1: boolean;
+  sign_v2: boolean;
+  sign_v3: boolean;
+  sign_v4: boolean;
+  auto_sign_enabled: boolean;
+  note: string;
+  set_as_default: boolean;
+  dname: string;
+  validity_days: number;
+  key_size: number;
 };
 
 export type ApkCheckResult = {
@@ -83,12 +156,27 @@ export const api = {
   deleteFile: (path: string) => invoke<void>("delete_file", { path }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   saveAppConfig: (config: AppConfig) => invoke<void>("save_app_config", { config }),
+  listCertificates: () => invoke<CertificateRecord[]>("list_certificates"),
+  saveCertificate: (input: CertificateUpsertInput) =>
+    invoke<CertificateRecord>("save_certificate", { input }),
+  validateCertificate: (input: CertificateValidationInput) =>
+    invoke<CertificateValidationResult>("validate_certificate", { input }),
+  setDefaultCertificate: (id: string) =>
+    invoke<CertificateRecord[]>("set_default_certificate", { id }),
+  deleteCertificate: (id: string, removeKeystoreFile: boolean) =>
+    invoke<CertificateRecord[]>("delete_certificate", { id, removeKeystoreFile }),
+  verifyCertificate: (id: string) =>
+    invoke<CertificateRecord>("verify_certificate", { id }),
+  createManagedCertificate: (input: CreateManagedCertificateInput) =>
+    invoke<CertificateRecord>("create_managed_certificate_command", { input }),
   signApk: (args: {
     apkPath: string;
     outputPath?: string | null;
     apksignerPath?: string | null;
     keystorePath: string;
+    keystorePassword: string;
     keyAlias: string;
+    keyPassword: string;
     ksType?: string | null;
     signV1: boolean;
     signV2: boolean;

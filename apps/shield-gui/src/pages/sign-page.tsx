@@ -1,28 +1,48 @@
-import { Clipboard, FolderOpen, KeyRound, Loader2, RotateCcw, Settings } from "lucide-react";
-import { AppButton, DropZone, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
-import { SignConfigSummaryCard } from "@/components/app/sign-config-summary-card";
+import { useEffect, useMemo, useState } from "react";
+import { Clipboard, FolderKey, FolderOpen, KeyRound, Loader2, RotateCcw } from "lucide-react";
+import { AppButton, DropZone, SelectInput, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useSignWorkflow } from "@/hooks/use-sign-workflow";
 import { basename } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
-import { api, type BuildInfo, type SignConfig } from "@/lib/tauri";
+import { api, type BuildInfo, type CertificateRecord } from "@/lib/tauri";
 
 export function SignPage({
   locale,
-  signConfig,
-  signConfigLoaded,
+  certificates,
+  certificatesLoaded,
   buildInfo,
   runtimeInfoLoaded,
-  onOpenSettings,
+  onOpenCertificates,
 }: {
   locale: Locale;
-  signConfig: SignConfig;
-  signConfigLoaded: boolean;
+  certificates: CertificateRecord[];
+  certificatesLoaded: boolean;
   buildInfo: BuildInfo | null;
   runtimeInfoLoaded: boolean;
-  onOpenSettings: () => void;
+  onOpenCertificates: () => void;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
+  const [selectedCertificateId, setSelectedCertificateId] = useState<string>("");
+
+  useEffect(() => {
+    if (!certificates.length) {
+      setSelectedCertificateId("");
+      return;
+    }
+    if (selectedCertificateId && certificates.some((item) => item.id === selectedCertificateId)) {
+      return;
+    }
+    setSelectedCertificateId(
+      certificates.find((item) => item.is_default)?.id ?? certificates[0].id,
+    );
+  }, [certificates, selectedCertificateId]);
+
+  const selectedCertificate = useMemo(
+    () => certificates.find((item) => item.id === selectedCertificateId) ?? null,
+    [certificates, selectedCertificateId],
+  );
+
   const {
     apkPath,
     outputPath,
@@ -30,16 +50,13 @@ export function SignPage({
     state,
     error,
     dragActive,
-    savedReady,
-    enabledVersions,
     hasApk,
     browseApk,
     sign,
     reset,
   } = useSignWorkflow({
     locale,
-    signConfig,
-    signConfigLoaded,
+    certificate: selectedCertificate,
     buildInfo,
   });
 
@@ -57,18 +74,18 @@ export function SignPage({
               onBrowse={browseApk}
             />
           </div>
-          {signConfigLoaded && !savedReady && (
+          {certificatesLoaded && certificates.length === 0 && (
             <div className="mt-5">
               <StatusMessage
                 kind="warning"
                 action={
-                  <AppButton size="sm" variant="secondary" onClick={onOpenSettings}>
-                    <Settings className="h-4 w-4" />
-                    {t(locale, "navSettings")}
+                  <AppButton size="sm" variant="secondary" onClick={onOpenCertificates}>
+                    <FolderKey className="h-4 w-4" />
+                    {t(locale, "navCertificates")}
                   </AppButton>
                 }
               >
-                {t(locale, "noSavedConfig")}
+                {t(locale, "noCertificates")}
               </StatusMessage>
             </div>
           )}
@@ -86,12 +103,16 @@ export function SignPage({
               <p className="mt-1 truncate text-sm text-muted-foreground">{basename(apkPath)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <AppButton disabled={!apkPath || !signConfigLoaded || !runtimeInfoLoaded || !savedReady || state === "signing"} onClick={sign}>
+              <AppButton
+                className="min-w-[136px]"
+                disabled={!apkPath || !runtimeInfoLoaded || !selectedCertificate || state === "signing"}
+                onClick={sign}
+              >
                 {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
                 {state === "signing" ? t(locale, "signing") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startSign")}
               </AppButton>
               {(state === "done" || state === "failed") && (
-                <AppButton variant="secondary" onClick={reset}>
+                <AppButton className="min-w-[136px]" variant="secondary" onClick={reset}>
                   <RotateCcw className="h-4 w-4" />
                   {t(locale, "signAnother")}
                 </AppButton>
@@ -99,53 +120,77 @@ export function SignPage({
             </div>
           </div>
 
-          <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-4">
-              <SelectedApkCard locale={locale} path={apkPath} disabled={state === "signing"} onChange={browseApk} />
-              <div className="rounded-[14px] border bg-card p-4">
-                <label className="field-label" htmlFor="sign-output">{t(locale, "outputPath")}</label>
-                <TextInput
-                  id="sign-output"
-                  className="mt-2 font-mono text-xs"
-                  value={outputPath}
-                  onChange={(e) => setOutputPath(e.target.value)}
-                />
-              </div>
-              {state === "done" && (
-                <StatusMessage
-                  kind="success"
-                  action={
-                    <AppButton size="sm" variant="secondary" onClick={() => void api.showInFolder(outputPath)}>
-                      <FolderOpen className="h-4 w-4" />
-                      {t(locale, "showInFolder")}
-                    </AppButton>
-                  }
-                >
-                  {t(locale, "signDone")}
-                </StatusMessage>
-              )}
-              {error && (
-                <StatusMessage
-                  kind="error"
-                  action={
-                    <AppButton size="sm" variant="secondary" onClick={() => void copy(error)}>
-                      <Clipboard className="h-4 w-4" />
-                      {copiedLabel}
-                    </AppButton>
-                  }
-                >
-                  {error}
-                </StatusMessage>
+          <div className="mt-8 space-y-4">
+            <SelectedApkCard locale={locale} path={apkPath} disabled={state === "signing"} onChange={browseApk} />
+            <div className="rounded-[14px] border bg-card p-4">
+              <label className="field-label" htmlFor="sign-certificate">{t(locale, "selectCertificate")}</label>
+              <SelectInput
+                id="sign-certificate"
+                className="mt-2"
+                value={selectedCertificateId}
+                onChange={(e) => setSelectedCertificateId(e.target.value)}
+              >
+                {certificates.length === 0 ? (
+                  <option value="">{t(locale, "noCertificates")}</option>
+                ) : (
+                  certificates.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.is_default ? `${item.name} · ${t(locale, "defaultCertificate")}` : item.name}
+                    </option>
+                  ))
+                )}
+              </SelectInput>
+              {!selectedCertificate && (
+                <div className="mt-3">
+                  <StatusMessage
+                    kind="warning"
+                    action={
+                      <AppButton size="sm" variant="secondary" onClick={onOpenCertificates}>
+                        <FolderKey className="h-4 w-4" />
+                        {t(locale, "navCertificates")}
+                      </AppButton>
+                    }
+                  >
+                    {t(locale, "noCertificates")}
+                  </StatusMessage>
+                </div>
               )}
             </div>
-            <SignConfigSummaryCard
-              locale={locale}
-              signConfig={signConfig}
-              signConfigLoaded={signConfigLoaded}
-              savedReady={savedReady}
-              enabledVersions={enabledVersions}
-              onOpenSettings={onOpenSettings}
-            />
+            <div className="rounded-[14px] border bg-card p-4">
+              <label className="field-label" htmlFor="sign-output">{t(locale, "outputPath")}</label>
+              <TextInput
+                id="sign-output"
+                className="mt-2 font-mono text-xs"
+                value={outputPath}
+                onChange={(e) => setOutputPath(e.target.value)}
+              />
+            </div>
+            {state === "done" && (
+              <StatusMessage
+                kind="success"
+                action={
+                  <AppButton size="sm" variant="secondary" onClick={() => void api.showInFolder(outputPath)}>
+                    <FolderOpen className="h-4 w-4" />
+                    {t(locale, "showInFolder")}
+                  </AppButton>
+                }
+              >
+                {t(locale, "signDone")}
+              </StatusMessage>
+            )}
+            {error && (
+              <StatusMessage
+                kind="error"
+                action={
+                  <AppButton size="sm" variant="secondary" onClick={() => void copy(error)}>
+                    <Clipboard className="h-4 w-4" />
+                    {copiedLabel}
+                  </AppButton>
+                }
+              >
+                {error}
+              </StatusMessage>
+            )}
           </div>
         </div>
       )}

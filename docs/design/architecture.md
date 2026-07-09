@@ -68,9 +68,11 @@ mocika-shield/
 │       │   ├── tauri.conf.json       # Tauri 配置（窗口、bundle、资源嵌入）
 │       │   └── src/
 │       │       ├── main.rs           # Tauri 启动入口、state 注入、command 注册
-│       │       ├── app_config.rs     # config.toml 读写、旧配置迁移、内存状态
+│       │       ├── app_config.rs     # config.toml 读写、应用级配置内存状态
 │       │       ├── app_paths.rs      # apktool/resources/apksigner 路径查找
 │       │       ├── apk_check.rs      # APK 预检、签名检测、证书指纹比对
+│       │       ├── cert_store.rs     # shield.db 初始化、schema 与迁移
+│       │       ├── cert_service.rs   # 证书增删改查、默认项、校验、创建/导入
 │       │       ├── signing.rs        # APK 签名、keystore alias 解析
 │       │       ├── protect_runner.rs # 加固任务桥接、取消、进度事件
 │       │       ├── updates.rs        # GitHub Releases 更新检查与缓存
@@ -80,33 +82,32 @@ mocika-shield/
 │           ├── main.tsx              # React 入口
 │           ├── App.tsx               # 应用壳：侧边栏、页面切换、全局配置状态
 │           ├── pages/
-│       │   ├── protect-page.tsx      # 加固页
-│       │   ├── sign-page.tsx         # 签名页
-│       │   ├── settings-page.tsx     # 设置页
-│       │   └── about-page.tsx        # 关于页
-│       ├── components/app/
-│       │   ├── branding.ts           # Logo、默认签名配置、步骤文案
-│       │   ├── common.tsx            # 应用级共享控件
-│       │   ├── about-info-card.tsx   # 关于页信息卡
-│       │   ├── protect-progress-panel.tsx # 加固页进度侧栏
-│       │   ├── settings-signing-panel.tsx # 设置页签名配置面板
-│       │   └── sign-config-summary-card.tsx # 签名页配置摘要卡
-│       ├── styles.css                # Tailwind 与主题变量
-│       ├── components/ui/            # Sidebar、Switch、Input 等基础组件
-│       ├── hooks/
-│       │   ├── use-app-config.ts     # 配置加载、更新检查
-│       │   ├── use-applied-theme-mode.ts # 主题应用
-│       │   ├── use-about-page.ts     # 关于页数据加载与更新检查
-│       │   ├── use-clipboard.ts      # 复制反馈
-│       │   ├── use-protect-workflow.ts # 加固页工作流状态与事件监听
-│       │   ├── use-sign-workflow.ts  # 签名页工作流状态与拖拽处理
-│       │   ├── use-settings-form.ts  # 设置页表单状态与保存逻辑
-│       │   └── use-mobile.tsx        # 响应式辅助 hook
-│       └── lib/
-│           ├── i18n.ts               # 中英双语
-│           ├── path.ts               # 跨平台输出路径生成
-│           ├── tauri.ts              # Tauri invoke 与事件封装
-│           └── utils.ts              # className 合并工具
+│           │   ├── protect-page.tsx      # 加固页
+│           │   ├── sign-page.tsx         # 签名页
+│           │   ├── certificates-page.tsx # 证书管理页
+│           │   ├── settings-page.tsx     # 设置页
+│           │   └── about-page.tsx        # 关于页
+│           ├── components/app/
+│           │   ├── branding.ts           # Logo、步骤文案
+│           │   ├── common.tsx            # 应用级共享控件
+│           │   ├── about-info-card.tsx   # 关于页信息卡
+│           │   └── protect-progress-panel.tsx # 加固页进度侧栏
+│           ├── styles.css                # Tailwind 与主题变量
+│           ├── components/ui/            # Sidebar、Switch、Input 等基础组件
+│           ├── hooks/
+│           │   ├── use-app-config.ts     # 配置加载、更新检查
+│           │   ├── use-applied-theme-mode.ts # 主题应用
+│           │   ├── use-about-page.ts     # 关于页数据加载与更新检查
+│           │   ├── use-clipboard.ts      # 复制反馈
+│           │   ├── use-protect-workflow.ts # 加固页工作流状态与事件监听
+│           │   ├── use-sign-workflow.ts  # 签名页工作流状态与拖拽处理
+│           │   ├── use-certificates.ts   # 证书列表、保存、校验、默认项
+│           │   └── use-mobile.tsx        # 响应式辅助 hook
+│           └── lib/
+│               ├── i18n.ts               # 中英双语
+│               ├── path.ts               # 跨平台输出路径生成
+│               ├── tauri.ts              # Tauri invoke 与事件封装
+│               └── utils.ts              # className 合并工具
 │
 ├── tools/                            # 外部工具 JAR（开发环境）
 │   ├── apktool_3.0.1.jar
@@ -146,6 +147,21 @@ mocika-shield/
 项目根通过 `exe_dir()` / `dev_project_root()` 从 CWD 或可执行文件所在目录向上逐层查找，直到找到同时含有 `shield-stub/` 和 `apps/` 的目录。
 
 ---
+
+## GUI 本地数据目录
+
+GUI 本地数据建议拆分为三类：
+
+| 文件/目录 | 作用 |
+|-----------|------|
+| `config.toml` | 主题、语言、更新检查等应用级配置 |
+| `shield.db` | 证书列表、默认证书、签名密码、校验状态 |
+| `keystores/` | 应用内新建并托管的 keystore 文件 |
+
+证书存储约束：
+
+- `managed`：应用内创建或用户选择“导入并托管”的 keystore，文件落在 `keystores/`
+- `external`：仅记录用户原始路径，不复制文件
 
 ## 构建产物路径
 

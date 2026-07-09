@@ -232,6 +232,7 @@ export function PasswordControl({
   onChange,
   show,
   setShow,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -239,10 +240,18 @@ export function PasswordControl({
   onChange: (value: string) => void;
   show: boolean;
   setShow: (show: boolean) => void;
+  placeholder?: string;
 }) {
   return (
     <div className="flex min-w-0 gap-2">
-      <TextInput id={id} className="flex-1" type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} />
+      <TextInput
+        id={id}
+        className="flex-1"
+        type={show ? "text" : "password"}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
       <button type="button" className="icon-button shrink-0" onClick={() => setShow(!show)} aria-label={label}>
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>

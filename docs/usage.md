@@ -11,30 +11,35 @@
 > xattr -rd com.apple.quarantine /Applications/MocikaShield.app
 > ```
 
-正式 GUI 为 Tauri 版，Linux / macOS / Windows 使用同一套界面。界面包含四个页面：
+正式 GUI 为 Tauri 版，Linux / macOS / Windows 使用同一套界面。当前界面以加固、签名、证书、设置、关于为主，签名证书已从设置页拆出，由证书页统一管理。
 
 - **加固**：拖入或选择 APK → 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`
-- **签名**：拖入或选择 APK → 使用设置页保存的签名配置 → 点击签名
-- **设置**：配置唯一正式签名信息（keystore / alias / 密码 / 签名版本）、主题、语言；签名信息需先校验再保存
+- **签名**：拖入或选择 APK → 选择证书 → 点击签名
+- **证书**：导入已有 keystore / p12，或创建新的 PKCS12 证书；可设置默认证书
+- **设置**：配置主题、语言与应用级选项
 - **关于**：显示版本号、构建信息、Java 环境状态、检查更新，并支持手动重新检测环境
 
 ### 适用场景
 
-- **优先使用 GUI**：日常加固、重新签名、保存正式签名配置
+- **优先使用 GUI**：日常加固、重新签名、管理签名证书
 - **使用 CLI**：批处理脚本、CI 流水线、本地调试加固过程
 
 ### 首次使用建议流程
 
-1. 先在 **设置** 页面填写签名配置，点击 **校验**，通过后再点击 **保存**
-2. 返回 **加固** 页面选择已签名 APK
-3. 需要直接得到可安装产物时，开启“加固后自动签名”
-4. 只做重签名时，使用 **签名** 页面
+1. 先在 **证书** 页面导入已有 keystore / p12，或创建新的 PKCS12 证书
+2. 将常用证书设为默认
+3. 返回 **加固** 页面选择已签名 APK
+4. 需要直接得到可安装产物时，使用默认启用自动签名的证书
+5. 只做重签名时，使用 **签名** 页面并选择证书
 
-签名配置只有一份，保存在设置页中：
+当前版本签名资料由证书页统一维护：
 
-- 设置页不会对签名信息做静默自动保存，必须先校验通过后才能保存
-- 加固页开启“自动签名”后，会在加固完成后直接使用这份配置继续签名
-- 签名页不会再单独维护临时配置，只读取设置页中保存的正式配置
+- 导入证书保存前会校验 keystore 密码、alias 与证书可用性
+- 创建证书默认生成 PKCS12 keystore，并保存到应用数据目录 `keystores/`
+- 已保存证书的材料不可直接编辑；编辑入口只用于修改名称、备注、签名版本和自动签名偏好
+- 如需更换 keystore 文件、Alias、类型或密码，请重新导入或创建一条证书记录
+- 加固页会在加固完成后使用默认证书自动签名
+- 签名页不会维护临时签名配置，只从证书列表中选择
 - 最终产物为 `{name}_protected_signed.apk`
 - GUI 内部会在输出前自动完成 APK ZIP 对齐，无需手动运行 `zipalign`
 
@@ -48,21 +53,24 @@
 - `keystore` 密码
 - `key` 密码（相同可留空）
 
-GUI 会在自动签名前比对原 APK 与当前配置的证书指纹。不一致时会给出提示，避免覆盖安装失败。
+GUI 会在自动签名前比对原 APK 与当前证书的指纹。不一致时会给出提示，避免覆盖安装失败。
 GUI 会在应用启动时检测一次本机 Java 环境，并将结果缓存到全局状态中；若未检测到完整 JDK 17+，加固、签名、Alias 识别会直接阻断并给出明确提示。
 如果应用启动后你又安装或切换了 JDK，可在关于页手动点击“重新检测环境”刷新状态。
 
-### 配置文件位置
+### 配置与证书数据位置
 
-GUI 启动时会一次性加载 `config.toml`，运行期间使用同一份内存状态，不会在页面切换时反复从磁盘读取。设置页只有在签名配置校验通过并点击保存后，才会更新磁盘上的正式配置。
+GUI 启动时会一次性加载应用配置与证书数据库，运行期间使用同一份内存状态，不会在页面切换时反复从磁盘读取。应用级配置写入 `config.toml`；证书列表、默认证书、签名密码与校验状态写入本地 SQLite 数据库 `shield.db`。
 
-| 平台 | 默认位置 |
-|------|----------|
-| Linux | `~/.config/dev.mocika.shield-gui/config.toml` |
-| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` |
-| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` |
+| 平台 | 应用配置 | 证书数据库 |
+|------|----------|------------|
+| Linux | `~/.config/dev.mocika.shield-gui/config.toml` | `~/.local/share/dev.mocika.shield-gui/shield.db` |
+| macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml` | `~/Library/Application Support/dev.mocika.shield-gui/shield.db` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml` | `%APPDATA%\\dev.mocika.shield-gui\\shield.db` |
 
-旧版本 `tool_config.json` 会在首次启动时自动迁移到新路径。
+应用数据目录还会新增：
+
+- `shield.db`：证书列表、默认证书、签名密码、校验状态
+- `keystores/`：应用内新建或托管的 keystore 文件
 
 ---
 
@@ -90,8 +98,8 @@ shield protect -v -i input.apk -o protected.apk
 # 1. 加固
 shield protect -i input.apk -o protected.apk
 
-# 2. 签名（使用 apksigner；无需额外执行 zipalign）
-java -jar apksigner.jar sign \
+# 2. 签名（使用发布包内置 apksigner；无需额外执行 zipalign）
+java -jar lib/apksigner.jar sign \
   --ks keystore.jks \
   --ks-key-alias alias \
   --out protected-signed.apk \
@@ -163,9 +171,9 @@ ls -lh input.apk protected.apk
 
 不可以。GUI 和 CLI 均会检测已加固的 APK 并阻止重复操作。请始终使用原始未加固的 APK。
 
-### 为什么设置页保存后其他页面会立即生效？
+### 为什么证书页保存后其他页面会立即生效？
 
-GUI 现在只维护一份全局正式配置。设置页在签名配置校验通过并保存后，会同时更新内存中的全局状态和磁盘上的 `config.toml`，加固页、签名页会立即复用这份配置。
+GUI 只维护一份全局证书状态。证书页保存、删除或切换默认证书后，会同时更新内存状态和本地 `shield.db`，加固页、签名页会立即复用最新证书列表。
 
 ### 加固后为什么体积反而变小？
 

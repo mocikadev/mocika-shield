@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
-import { defaultSignConfig } from "@/components/app/branding";
+import { FolderKey, Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
 import {
   Sidebar,
@@ -17,31 +16,22 @@ import {
 } from "@/components/ui/sidebar";
 import { useAppConfigState, useAutoUpdateNotice } from "@/hooks/use-app-config";
 import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
+import { useCertificatesState } from "@/hooks/use-certificates";
 import { useRuntimeInfo } from "@/hooks/use-runtime-info";
 import { t } from "@/lib/i18n";
 import { api, type BuildInfo } from "@/lib/tauri";
 import { AboutPage } from "@/pages/about-page";
+import { CertificatesPage } from "@/pages/certificates-page";
 import { ProtectPage } from "@/pages/protect-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { SignPage } from "@/pages/sign-page";
 
-type Page = "protect" | "sign" | "settings" | "about";
+type Page = "protect" | "sign" | "certificates" | "settings" | "about";
 
 export function App() {
   const [page, setPage] = useState<Page>("protect");
-  const {
-    locale,
-    setLocale,
-    themeMode,
-    setThemeMode,
-    signConfig,
-    setSignConfig,
-    keystorePassword,
-    setKeystorePassword,
-    keyPassword,
-    setKeyPassword,
-    signConfigLoaded,
-  } = useAppConfigState();
+  const { locale, setLocale, themeMode, setThemeMode } = useAppConfigState();
+  const certificatesState = useCertificatesState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
   const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
 
@@ -50,6 +40,7 @@ export function App() {
   const primaryNavItems = [
     { key: "protect" as const, icon: ShieldCheck, label: t(locale, "navProtect") },
     { key: "sign" as const, icon: PencilLine, label: t(locale, "navSign") },
+    { key: "certificates" as const, icon: FolderKey, label: t(locale, "navCertificates") },
   ];
   const utilityNavItems = [
     { key: "settings" as const, icon: Settings, label: t(locale, "navSettings") },
@@ -119,21 +110,28 @@ export function App() {
             {page === "protect" && (
               <ProtectPage
                 locale={locale}
-                signConfig={signConfig}
-                keystorePassword={keystorePassword}
-                signConfigLoaded={signConfigLoaded}
+                defaultCertificate={certificatesState.defaultCertificate}
+                certificatesLoaded={certificatesState.loaded}
                 buildInfo={buildInfo}
                 runtimeInfoLoaded={runtimeInfoLoaded}
+                onOpenCertificates={() => setPage("certificates")}
               />
             )}
             {page === "sign" && (
               <SignPage
                 locale={locale}
-                signConfig={signConfig}
-                signConfigLoaded={signConfigLoaded}
+                certificates={certificatesState.certificates}
+                certificatesLoaded={certificatesState.loaded}
                 buildInfo={buildInfo}
                 runtimeInfoLoaded={runtimeInfoLoaded}
-                onOpenSettings={() => setPage("settings")}
+                onOpenCertificates={() => setPage("certificates")}
+              />
+            )}
+            {page === "certificates" && (
+              <CertificatesPage
+                locale={locale}
+                runtimeInfoLoaded={runtimeInfoLoaded}
+                certificatesState={certificatesState}
               />
             )}
             {page === "settings" && (
@@ -142,22 +140,6 @@ export function App() {
                 setLocale={setLocale}
                 themeMode={themeMode}
                 setThemeMode={setThemeMode}
-                signConfig={signConfig}
-                keystorePassword={keystorePassword}
-                keyPassword={keyPassword}
-                buildInfo={buildInfo}
-                runtimeInfoLoaded={runtimeInfoLoaded}
-                onConfigSaved={(value) => {
-                  setLocale(value.locale);
-                  setThemeMode(value.themeMode);
-                  setSignConfig({
-                    ...defaultSignConfig,
-                    ...value.signConfig,
-                    ks_type: value.signConfig.ks_type || "JKS",
-                  });
-                  setKeystorePassword(value.keystorePassword);
-                  setKeyPassword(value.keyPassword);
-                }}
               />
             )}
             {page === "about" && (

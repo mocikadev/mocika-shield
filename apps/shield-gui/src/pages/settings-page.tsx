@@ -1,74 +1,65 @@
-import { SettingsSigningPanel } from "@/components/app/settings-signing-panel";
-import {
-  PillSegment,
-  SettingsFieldRow,
-  SettingsGroup,
-} from "@/components/app/common";
-import { useSettingsForm, type SettingsSavePayload } from "@/hooks/use-settings-form";
-import { Switch } from "@/components/ui/switch";
+import { useEffect, useRef, useState } from "react";
+import { PillSegment, SettingsFieldRow, SettingsGroup, StatusMessage } from "@/components/app/common";
 import { t, type Locale } from "@/lib/i18n";
-import type { BuildInfo, SignConfig, ThemeMode } from "@/lib/tauri";
+import { api, type ThemeMode } from "@/lib/tauri";
 
 export function SettingsPage({
   locale,
   setLocale,
   themeMode,
   setThemeMode,
-  signConfig,
-  keystorePassword,
-  keyPassword,
-  buildInfo,
-  runtimeInfoLoaded,
-  onConfigSaved,
 }: {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  signConfig: SignConfig;
-  keystorePassword: string;
-  keyPassword: string;
-  buildInfo: BuildInfo | null;
-  runtimeInfoLoaded: boolean;
-  onConfigSaved: (config: SettingsSavePayload) => void;
 }) {
-  const {
-    selectedLocale,
-    selectedThemeMode,
-    config,
-    setConfig,
-    ksPass,
-    setKsPass,
-    keyPass,
-    setKeyPass,
-    showPass,
-    setShowPass,
-    aliases,
-    saving,
-    autoSignSaving,
-    detecting,
-    status,
-    error,
-    updateLocale,
-    updateThemeMode,
-    browseKeystore,
-    detectAlias,
-    validateSigningConfig,
-    saveSigningConfig,
-    toggleAutoSign,
-    signingValidated,
-    signingConfigured,
-  } = useSettingsForm({
-    locale,
-    setLocale,
-    themeMode,
-    setThemeMode,
-    signConfig,
-    keystorePassword,
-    keyPassword,
-    buildInfo,
-    onConfigSaved,
-  });
+  const [selectedLocale, setSelectedLocale] = useState<Locale>(locale);
+  const [selectedThemeMode, setSelectedThemeMode] = useState<ThemeMode>(themeMode);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<"idle" | "saved" | "failed">("idle");
+  const [error, setError] = useState("");
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setSelectedLocale(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    setSelectedThemeMode(themeMode);
+  }, [themeMode]);
+
+  useEffect(() => () => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+    }
+  }, []);
+
+  async function persist(nextLocale: Locale, nextThemeMode: ThemeMode) {
+    setSaving(true);
+    setError("");
+    try {
+      await api.saveAppConfig({
+        locale: nextLocale,
+        theme_mode: nextThemeMode,
+      });
+      setLocale(nextLocale);
+      setThemeMode(nextThemeMode);
+      setStatus("saved");
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+      }
+      timerRef.current = window.setTimeout(() => {
+        setStatus("idle");
+        timerRef.current = null;
+      }, 1400);
+    } catch (err) {
+      setStatus("failed");
+      setError(String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="mx-auto max-w-[920px] px-8 py-10">
@@ -82,7 +73,10 @@ export function SettingsPage({
             <div className="flex flex-wrap justify-end">
               <PillSegment
                 value={selectedThemeMode}
-                onChange={updateThemeMode}
+                onChange={(value) => {
+                  setSelectedThemeMode(value);
+                  void persist(selectedLocale, value);
+                }}
                 options={[
                   { value: "system", label: t(locale, "system") },
                   { value: "light", label: t(locale, "light") },
@@ -95,7 +89,10 @@ export function SettingsPage({
             <div className="flex flex-wrap justify-end">
               <PillSegment
                 value={selectedLocale}
-                onChange={updateLocale}
+                onChange={(value) => {
+                  setSelectedLocale(value);
+                  void persist(value, selectedThemeMode);
+                }}
                 options={[
                   { value: "zh", label: "中文" },
                   { value: "en", label: "English" },
@@ -104,49 +101,12 @@ export function SettingsPage({
             </div>
           </SettingsFieldRow>
         </SettingsGroup>
-
-        <SettingsSigningPanel
-          locale={locale}
-          config={config}
-          setConfig={setConfig}
-          ksPass={ksPass}
-          setKsPass={setKsPass}
-          keyPass={keyPass}
-          setKeyPass={setKeyPass}
-          showPass={showPass}
-          setShowPass={setShowPass}
-          aliases={aliases}
-          saving={saving}
-          detecting={detecting}
-          runtimeInfoLoaded={runtimeInfoLoaded}
-          status={status}
-          error={error}
-          signingValidated={signingValidated}
-          signingConfigured={signingConfigured}
-          onBrowseKeystore={browseKeystore}
-          onDetectAlias={detectAlias}
-          onValidate={() => void validateSigningConfig()}
-          onSave={() => void saveSigningConfig()}
-        />
-
-        <SettingsGroup title={t(locale, "protectSection")}>
-          <SettingsFieldRow
-            label={t(locale, "autoSignAfterProtect")}
-            hint={!signingConfigured ? t(locale, "noSavedConfig") : undefined}
-          >
-            <div className="flex items-center justify-end gap-3">
-              <span className="text-sm text-muted-foreground">
-                {config.auto_sign_enabled ? t(locale, "enabled") : t(locale, "disabled")}
-              </span>
-              <Switch
-                checked={Boolean(config.auto_sign_enabled)}
-                disabled={!signingConfigured || autoSignSaving || !runtimeInfoLoaded}
-                onCheckedChange={(checked) => void toggleAutoSign(checked)}
-                aria-label={t(locale, "autoSignAfterProtect")}
-              />
-            </div>
-          </SettingsFieldRow>
-        </SettingsGroup>
+        {status === "saved" && (
+          <StatusMessage kind="success">
+            {saving ? t(locale, "saving") : t(locale, "saved")}
+          </StatusMessage>
+        )}
+        {status === "failed" && error && <StatusMessage kind="error">{error}</StatusMessage>}
       </div>
     </section>
   );
