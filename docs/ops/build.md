@@ -83,23 +83,23 @@ Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md
 ### Linux / macOS
 
 ```bash
-# 旧版 CLI-only 发布包（向后兼容）
+# CLI-only 发布包（维护者本地使用）
 make release VERSION=x.y.z
 
-# 仅 CLI 发布包
+# 仅 CLI 发布包（本地生成，不由 GitHub Release 上传）
 bash scripts/release-cli.sh x.y.z
 
-# Linux Tauri GUI 全量发布（AppImage + deb + CLI tar.gz）
+# Linux 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 VERSION=x.y.z make release-linux
 
-# macOS Tauri GUI 全量发布（dmg + CLI tar.gz）
+# macOS 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 VERSION=x.y.z make release-macos
 ```
 
 ### Windows（必须在 Windows 原生环境执行）
 
 ```powershell
-# 完整发布包（build-all + NSIS 安装包 + CLI zip）
+# Windows 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 .\scripts\release-windows.ps1 -Version x.y.z
 ```
 
@@ -107,7 +107,7 @@ VERSION=x.y.z make release-macos
 
 ## 发布包结构
 
-### CLI 发布包（`mocika-shield-x.y.z.tar.gz`）
+### CLI 本地发布包
 
 ```
 mocika-shield-x.y.z/

@@ -20,7 +20,7 @@ impl KeystoreType {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_uppercase().as_str() {
             "PKCS12" | "P12" => KeystoreType::Pkcs12,
             _ => KeystoreType::Jks,
@@ -198,17 +198,17 @@ mod tests {
 
     #[test]
     fn keystore_type_from_str_jks_is_default() {
-        assert_eq!(KeystoreType::from_str("JKS"), KeystoreType::Jks);
-        assert_eq!(KeystoreType::from_str("jks"), KeystoreType::Jks);
-        assert_eq!(KeystoreType::from_str("unknown"), KeystoreType::Jks);
+        assert_eq!(KeystoreType::parse("JKS"), KeystoreType::Jks);
+        assert_eq!(KeystoreType::parse("jks"), KeystoreType::Jks);
+        assert_eq!(KeystoreType::parse("unknown"), KeystoreType::Jks);
     }
 
     #[test]
     fn keystore_type_from_str_pkcs12_variants() {
-        assert_eq!(KeystoreType::from_str("PKCS12"), KeystoreType::Pkcs12);
-        assert_eq!(KeystoreType::from_str("pkcs12"), KeystoreType::Pkcs12);
-        assert_eq!(KeystoreType::from_str("P12"), KeystoreType::Pkcs12);
-        assert_eq!(KeystoreType::from_str("p12"), KeystoreType::Pkcs12);
+        assert_eq!(KeystoreType::parse("PKCS12"), KeystoreType::Pkcs12);
+        assert_eq!(KeystoreType::parse("pkcs12"), KeystoreType::Pkcs12);
+        assert_eq!(KeystoreType::parse("P12"), KeystoreType::Pkcs12);
+        assert_eq!(KeystoreType::parse("p12"), KeystoreType::Pkcs12);
     }
 
     #[test]

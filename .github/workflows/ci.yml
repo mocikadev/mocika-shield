@@ -44,6 +44,9 @@ jobs:
       - name: 检查 Rust 格式
         run: cargo fmt --all --check
 
+      - name: 检查 Rust Clippy
+        run: cargo clippy -p shield-core --all-targets -- -D warnings
+
       - name: 运行核心单元测试
         run: cargo test -p shield-core
 

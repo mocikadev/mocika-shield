@@ -30,7 +30,7 @@ make build-stub             # 构建 Android 壳（必须最先执行，输出 r
 make build-cli              # 编译 shield 二进制
 make build-gui              # 构建桌面 GUI Tauri 版（需先 build-stub）
 make build-all              # build-stub + build-cli + build-gui
-make release VERSION=x.y.z  # 旧版 CLI-only 发布包（向后兼容）
+make release VERSION=x.y.z  # CLI-only 发布包（维护者本地使用）
 VERSION=x.y.z make release-linux        # Linux Tauri 发布包
 VERSION=x.y.z make release-macos        # macOS Tauri 发布包
 make test                   # 运行 shield-core + shield-cli 单元测试
@@ -98,11 +98,14 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 约束如下：
 
 - 应用级配置放 `config.toml`
-- 证书与签名资料放 `shield.db`
+- 证书与签名资料放 `shield.db`，密码字段必须以 `enc:v1` 格式加密落盘，不兼容旧明文记录
 - 应用内新建 keystore 默认放应用数据目录下的 `keystores/`
 - 导入已有 keystore 默认只记录原始路径，不强制复制
+- 创建证书时 Keystore 密码至少 6 位；Key 密码可留空，填写时同样至少 6 位
+- PKCS12 Alias 可能被 `keytool` 规范为小写，后端校验必须大小写不敏感，并保存 keystore 实际返回的 Alias
 - 证书材料保存后视为不可变：`keystore` 文件、类型、Alias、密码不得通过“编辑证书”修改；如需更换材料，应重新导入或创建证书
 - “编辑证书”只允许修改显示名称、备注、签名版本、自动签名偏好和默认项
+- Tauri 前端证书列表不得持有密码明文；签名、自动签名、证书指纹比对只传证书 ID，由后端读取并解密
 - 任何日志、错误信息、调试输出都不得打印密码明文
 - 涉及密码落盘的文件应尽量收紧权限
 

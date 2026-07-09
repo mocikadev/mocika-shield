@@ -25,7 +25,7 @@ pub(crate) fn inject_runtime(
         }
 
         if !supported_abis.is_empty() && file_name.starts_with("lib/") {
-            let abi = file_name.splitn(3, '/').nth(1).unwrap_or("");
+            let abi = file_name.split('/').nth(1).unwrap_or("");
             if !abi.is_empty() && !supported_abis.contains(abi) {
                 continue;
             }
@@ -155,7 +155,7 @@ fn collect_apk_abis(apk_path: &Path) -> HashSet<String> {
         };
         let name = entry.name();
         if name.starts_with("lib/") && name.len() > 4 {
-            if let Some(abi) = name.splitn(3, '/').nth(1) {
+            if let Some(abi) = name.split('/').nth(1) {
                 if !abi.is_empty() {
                     abis.insert(abi.to_string());
                 }

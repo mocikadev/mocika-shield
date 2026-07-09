@@ -3,7 +3,7 @@ name = "mocika-shield"
 version = "1.2.0-rc.3"
 edition = "2021"
 publish = false
-description = "Mocika Shield APK 加固工具 GUI 骨架"
+description = "Mocika Shield APK 加固工具桌面 GUI"
 default-run = "mocika-shield"
 build = "build.rs"
 
@@ -26,6 +26,9 @@ dunce = "1"
 toml = "0.8"
 rusqlite = { version = "0.37", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
+chacha20poly1305 = { workspace = true }
+sha2 = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

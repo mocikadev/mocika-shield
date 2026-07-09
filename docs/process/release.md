@@ -61,16 +61,16 @@ bash scripts/bump-version.sh x.y.z-rc.1
 ### Linux / macOS
 
 ```bash
-# 旧版 CLI-only 发布包（向后兼容）
+# CLI-only 发布包（维护者本地使用）
 make release VERSION=x.y.z
 
-# 仅 CLI 发布包（tar.gz）
+# 仅 CLI 发布包（tar.gz，本地生成，不由 GitHub Release 上传）
 bash scripts/release-cli.sh x.y.z
 
-# Linux 全量发布（AppImage + deb + CLI tar.gz）
+# Linux 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 VERSION=x.y.z make release-linux
 
-# macOS Tauri GUI 全量发布（dmg + CLI tar.gz）
+# macOS 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 VERSION=x.y.z make release-macos
 
 ```
@@ -78,7 +78,7 @@ VERSION=x.y.z make release-macos
 ### Windows（必须在 Windows 原生环境执行）
 
 ```powershell
-# 完整发布包（build-all + NSIS 安装包 + CLI zip + 校验和）
+# Windows 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
 .\scripts\release-windows.ps1 -Version x.y.z
 ```
 
@@ -90,7 +90,7 @@ VERSION=x.y.z make release-macos
 
 本地发布脚本默认仍会生成 CLI 与 GUI 产物，便于维护者离线分发或调试；GitHub Actions 的 Release workflow 会设置 `SKIP_CLI_RELEASE=1`，只构建并上传 GUI 安装包。
 
-### CLI 发布包（`mocika-shield-x.y.z.tar.gz`）
+### CLI 本地发布包
 
 ```
 mocika-shield-x.y.z/
@@ -115,12 +115,12 @@ mocika-shield-x.y.z/
 
 GUI 发布包已内置 apktool.jar、apksigner.jar、resources.zip，用户无需额外配置工具路径。
 
-### Windows 发布产物（`dist/` 目录）
+### Windows 本地发布产物（`dist/` 目录）
 
 ```
 dist/windows/
 ├── MocikaShield_x.y.z_windows_x64_setup.exe    # GUI NSIS 安装包
-├── mocika-shield-cli-x.y.z-windows-x86_64.zip  # CLI 发布包
+├── mocika-shield-cli-x.y.z-windows-x86_64.zip  # CLI 本地发布包；CI 不上传
 └── checksums-sha256.txt
 ```
 
@@ -134,7 +134,7 @@ dist/windows/
 make build-stub  →  make build-cli / make build-gui / make release / make release-linux / make release-macos
 ```
 
-`make release` 是旧版 CLI-only 发布包；各平台 GUI 发布脚本均已内置必要构建顺序，无需手动保证。
+`make release` 是 CLI-only 本地发布包；各平台 GUI 发布脚本均已内置必要构建顺序，无需手动保证。
 
 ---
 

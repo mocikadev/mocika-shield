@@ -42,28 +42,32 @@ pub(crate) fn validate_certificate_input(
     } else {
         Some(alias.to_string())
     };
-    if let Some(resolved_alias) = resolved_alias.as_deref() {
-        if !aliases.iter().any(|item| item == resolved_alias) {
-            return Ok(CertificateValidationResult {
-                valid: false,
-                aliases,
-                resolved_alias: None,
-                message: Some("未在 keystore 中找到指定 alias".to_string()),
-            });
-        }
-    } else {
+    let Some(resolved_alias) = resolved_alias.as_deref() else {
         return Ok(CertificateValidationResult {
             valid: false,
             aliases,
             resolved_alias: None,
             message: Some("请输入 Key Alias，或只保留一个 alias 后再自动识别".to_string()),
         });
-    }
+    };
+
+    let Some(actual_alias) = aliases
+        .iter()
+        .find(|item| item.eq_ignore_ascii_case(resolved_alias))
+        .cloned()
+    else {
+        return Ok(CertificateValidationResult {
+            valid: false,
+            aliases,
+            resolved_alias: None,
+            message: Some("未在 keystore 中找到指定 alias".to_string()),
+        });
+    };
 
     Ok(CertificateValidationResult {
         valid: true,
         aliases,
-        resolved_alias,
+        resolved_alias: Some(actual_alias),
         message: None,
     })
 }

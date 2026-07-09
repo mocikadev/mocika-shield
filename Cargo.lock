@@ -2145,12 +2145,15 @@ dependencies = [
 name = "mocika-shield"
 version = "1.2.0-rc.3"
 dependencies = [
+ "chacha20poly1305",
  "dunce",
+ "rand 0.9.4",
  "reqwest 0.12.28",
  "rusqlite",
  "semver",
  "serde",
  "serde_json",
+ "sha2",
  "shield-core",
  "tauri",
  "tauri-build",

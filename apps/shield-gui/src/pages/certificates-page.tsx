@@ -188,6 +188,7 @@ export function CertificatesPage({
   const [modalError, setModalError] = useState("");
   const [modalStatus, setModalStatus] = useState("");
   const [modalSaved, setModalSaved] = useState(false);
+  const [pageError, setPageError] = useState("");
   const [importAliases, setImportAliases] = useState<string[]>([]);
   const [detectingAlias, setDetectingAlias] = useState(false);
 
@@ -203,6 +204,7 @@ export function CertificatesPage({
   }
 
   function openImportModal() {
+    setPageError("");
     resetModalState();
     setImportDraft(emptyImportDraft());
     setModalMode("import");
@@ -210,6 +212,7 @@ export function CertificatesPage({
   }
 
   function openCreateModal() {
+    setPageError("");
     resetModalState();
     setCreateDraft(emptyCreateDraft());
     setModalMode("create");
@@ -218,6 +221,7 @@ export function CertificatesPage({
 
   function openEditModal() {
     if (!selectedCertificate) return;
+    setPageError("");
     resetModalState();
     setEditDraft({
       id: selectedCertificate.id,
@@ -367,6 +371,15 @@ export function CertificatesPage({
     }
   }
 
+  async function makeDefault(id: string) {
+    setPageError("");
+    try {
+      await setDefaultCertificate(id);
+    } catch (err) {
+      setPageError(String(err));
+    }
+  }
+
   const modalTitle =
     modalMode === "import"
       ? t(locale, "importCertificate")
@@ -390,6 +403,8 @@ export function CertificatesPage({
             </AppButton>
           </div>
         </header>
+
+        {pageError || error ? <StatusMessage kind="error">{pageError || error}</StatusMessage> : null}
 
         <div className="app-panel overflow-hidden">
           {loading ? (
@@ -439,7 +454,7 @@ export function CertificatesPage({
                               aria-label={t(locale, "setDefaultCertificate")}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void setDefaultCertificate(item.id);
+                                void makeDefault(item.id);
                               }}
                             >
                               <Star className="h-4 w-4" />
@@ -577,10 +592,10 @@ export function CertificatesPage({
                   </Field>
                 </div>
                 <Field label={t(locale, "keystorePassword")}>
-                  <PasswordControl id="create-kspass" label={t(locale, "keystorePassword")} value={createDraft.keystore_password} placeholder={t(locale, "keystorePasswordHint")} onChange={(value) => setCreateDraft((old) => ({ ...old, keystore_password: value }))} show={showPass} setShow={setShowPass} />
+                  <PasswordControl id="create-kspass" label={t(locale, "keystorePassword")} value={createDraft.keystore_password} placeholder={t(locale, "createKeystorePasswordHint")} onChange={(value) => setCreateDraft((old) => ({ ...old, keystore_password: value }))} show={showPass} setShow={setShowPass} />
                 </Field>
                 <Field label={t(locale, "keyPassword")}>
-                  <PasswordControl id="create-keypass" label={t(locale, "keyPassword")} value={createDraft.key_password} placeholder={t(locale, "keyPasswordHint")} onChange={(value) => setCreateDraft((old) => ({ ...old, key_password: value }))} show={showPass} setShow={setShowPass} />
+                  <PasswordControl id="create-keypass" label={t(locale, "keyPassword")} value={createDraft.key_password} placeholder={t(locale, "createKeyPasswordHint")} onChange={(value) => setCreateDraft((old) => ({ ...old, key_password: value }))} show={showPass} setShow={setShowPass} />
                 </Field>
                 <Field label={t(locale, "distinguishedName")} hint={t(locale, "distinguishedNameHint")}>
                   <TextInput value={createDraft.dname} onChange={(e) => setCreateDraft((old) => ({ ...old, dname: e.target.value }))} />

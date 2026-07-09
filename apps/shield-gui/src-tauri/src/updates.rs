@@ -127,7 +127,7 @@ pub(crate) async fn check_update_impl(
 
     let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
     let tag = json["tag_name"].as_str().unwrap_or("");
-    let latest = tag.trim_start_matches(|c: char| c == 'v' || c == 'V');
+    let latest = tag.trim_start_matches(['v', 'V']);
     let release_url = json["html_url"].as_str();
 
     save_update_to_cache(state, latest, release_url);
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn v_prefix_stripped_before_compare() {
-        let stripped = "v1.0.1".trim_start_matches(|c: char| c == 'v' || c == 'V');
+        let stripped = "v1.0.1".trim_start_matches(['v', 'V']);
         let r = compare_semver("1.0.0", stripped, None);
         assert!(r.has_update);
         assert_eq!(r.update_level.as_deref(), Some("patch"));

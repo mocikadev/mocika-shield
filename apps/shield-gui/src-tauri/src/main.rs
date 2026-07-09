@@ -42,19 +42,20 @@ use updates::{check_update_impl, UpdateCheckResult};
 #[tauri::command]
 async fn compare_cert_fingerprints(
     app: tauri::AppHandle,
+    state: tauri::State<'_, CertificateStoreState>,
     apk_path: String,
-    keystore_path: String,
-    ks_pass: String,
-    ks_type: Option<String>,
-    key_alias: String,
+    certificate_id: String,
 ) -> Result<CertCompareResult, String> {
+    let certificate = state
+        .get_certificate(&certificate_id)?
+        .ok_or_else(|| "未找到签名证书".to_string())?;
     tokio::task::spawn_blocking(move || {
         Ok(do_compare_cert_fingerprints(
             apk_path,
-            keystore_path,
-            ks_pass,
-            ks_type,
-            key_alias,
+            certificate.keystore_path,
+            certificate.keystore_password,
+            Some(certificate.ks_type),
+            certificate.key_alias,
             find_apksigner_path(&app),
         ))
     })
@@ -129,35 +130,17 @@ fn save_app_config(
 #[tauri::command]
 async fn sign_apk(
     app: tauri::AppHandle,
+    state: tauri::State<'_, CertificateStoreState>,
     apk_path: String,
     output_path: Option<String>,
     apksigner_path: Option<String>,
-    keystore_path: String,
-    keystore_password: String,
-    key_alias: String,
-    key_password: String,
-    ks_type: Option<String>,
-    sign_v1: bool,
-    sign_v2: bool,
-    sign_v3: bool,
-    sign_v4: bool,
+    certificate_id: String,
 ) -> Result<(), String> {
+    let certificate = state
+        .get_certificate(&certificate_id)?
+        .ok_or_else(|| "未找到签名证书".to_string())?;
     tokio::task::spawn_blocking(move || {
-        execute_sign_apk(
-            &app,
-            keystore_password,
-            key_password,
-            apk_path,
-            output_path,
-            apksigner_path,
-            keystore_path,
-            key_alias,
-            ks_type,
-            sign_v1,
-            sign_v2,
-            sign_v3,
-            sign_v4,
-        )
+        execute_sign_apk(&app, apk_path, output_path, apksigner_path, certificate)
     })
     .await
     .map_err(|err| format!("后台任务执行失败: {err}"))?
@@ -178,7 +161,9 @@ async fn list_keystore_aliases(
 fn list_certificates(
     state: tauri::State<'_, CertificateStoreState>,
 ) -> Result<Vec<CertificateRecord>, String> {
-    state.list_certificates()
+    state
+        .list_certificates()
+        .map(|items| items.into_iter().map(redact_certificate).collect())
 }
 
 #[tauri::command]
@@ -186,7 +171,7 @@ fn save_certificate(
     state: tauri::State<'_, CertificateStoreState>,
     input: CertificateUpsertInput,
 ) -> Result<CertificateRecord, String> {
-    save_certificate_profile(&state, input)
+    save_certificate_profile(&state, input).map(redact_certificate)
 }
 
 #[tauri::command]
@@ -200,9 +185,8 @@ fn validate_certificate(
 fn set_default_certificate(
     state: tauri::State<'_, CertificateStoreState>,
     id: String,
-) -> Result<Vec<CertificateRecord>, String> {
-    state.set_default_certificate(Some(&id))?;
-    state.list_certificates()
+) -> Result<(), String> {
+    state.set_default_certificate(Some(&id))
 }
 
 #[tauri::command]
@@ -212,7 +196,9 @@ fn delete_certificate(
     remove_keystore_file: bool,
 ) -> Result<Vec<CertificateRecord>, String> {
     state.delete_certificate(&id, remove_keystore_file)?;
-    state.list_certificates()
+    state
+        .list_certificates()
+        .map(|items| items.into_iter().map(redact_certificate).collect())
 }
 
 #[tauri::command]
@@ -220,7 +206,7 @@ fn verify_certificate(
     state: tauri::State<'_, CertificateStoreState>,
     id: String,
 ) -> Result<CertificateRecord, String> {
-    verify_saved_certificate(&state, &id)
+    verify_saved_certificate(&state, &id).map(redact_certificate)
 }
 
 #[tauri::command]
@@ -228,7 +214,13 @@ fn create_managed_certificate_command(
     state: tauri::State<'_, CertificateStoreState>,
     input: CreateManagedCertificateInput,
 ) -> Result<CertificateRecord, String> {
-    create_managed_certificate(&state, input)
+    create_managed_certificate(&state, input).map(redact_certificate)
+}
+
+fn redact_certificate(mut record: CertificateRecord) -> CertificateRecord {
+    record.keystore_password.clear();
+    record.key_password.clear();
+    record
 }
 
 #[tauri::command]

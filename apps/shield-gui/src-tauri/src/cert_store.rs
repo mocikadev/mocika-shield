@@ -1,7 +1,14 @@
 use crate::app_config::normalize_keystore_type;
 use crate::app_paths::strip_unc_prefix;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Nonce,
+};
+use rand::RngCore;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,6 +17,8 @@ use uuid::Uuid;
 
 const DB_FILE: &str = "shield.db";
 const APP_STATE_DEFAULT_CERTIFICATE_ID: &str = "default_certificate_id";
+const SECRET_PREFIX: &str = "enc:v1:";
+type VerifyState = (String, Option<String>, Option<i64>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CertificateRecord {
@@ -95,13 +104,16 @@ pub(crate) struct CreateManagedCertificateInput {
 pub(crate) struct CertificateStoreState {
     db_path: PathBuf,
     keystore_dir: PathBuf,
+    crypto_key: [u8; 32],
 }
 
 impl CertificateStoreState {
     pub(crate) fn new(db_path: PathBuf, keystore_dir: PathBuf) -> Self {
+        let crypto_key = derive_crypto_key(&db_path, &keystore_dir);
         Self {
             db_path,
             keystore_dir,
+            crypto_key,
         }
     }
 
@@ -154,6 +166,7 @@ impl CertificateStoreState {
         let mut items = Vec::new();
         for row in rows {
             let mut item = row.map_err(|e| format!("解析证书记录失败: {e}"))?;
+            decrypt_record_secrets(&self.crypto_key, &mut item)?;
             item.is_default = default_id
                 .as_deref()
                 .is_some_and(|default_id| default_id == item.id);
@@ -201,7 +214,11 @@ impl CertificateStoreState {
             .optional()
             .map_err(|e| format!("读取证书详情失败: {e}"))?;
 
-        Ok(result.map(|mut item| {
+        let Some(mut item) = result else {
+            return Ok(None);
+        };
+        decrypt_record_secrets(&self.crypto_key, &mut item)?;
+        Ok(Some({
             item.is_default = default_id
                 .as_deref()
                 .is_some_and(|default_id| default_id == item.id);
@@ -229,6 +246,9 @@ impl CertificateStoreState {
             .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let created_at = select_created_at(&tx, &id)?.unwrap_or(now);
+        let encrypted_keystore_password =
+            encrypt_secret(&self.crypto_key, &input.keystore_password)?;
+        let encrypted_key_password = encrypt_secret(&self.crypto_key, &input.key_password)?;
 
         let (last_verified_status, last_verified_message, last_verified_at) =
             if let Some((status, message, verified_at)) = verify_status {
@@ -274,9 +294,9 @@ impl CertificateStoreState {
                 normalize_name(&input.name, resolved_alias),
                 source_type,
                 keystore_path,
-                input.keystore_password,
+                encrypted_keystore_password,
                 resolved_alias,
-                input.key_password,
+                encrypted_key_password,
                 ks_type,
                 bool_to_int(input.sign_v1),
                 bool_to_int(input.sign_v2),
@@ -434,12 +454,15 @@ pub(crate) fn initialize_certificate_store(
         .app_data_dir()
         .map_err(|e| format!("无法定位应用数据目录: {e}"))?;
     fs::create_dir_all(&data_dir).map_err(|e| format!("创建应用数据目录失败: {e}"))?;
+    tighten_dir_permissions(&data_dir)?;
     let db_path = strip_unc_prefix(data_dir.join(DB_FILE));
     let keystore_dir = strip_unc_prefix(data_dir.join("keystores"));
     fs::create_dir_all(&keystore_dir).map_err(|e| format!("创建 keystore 目录失败: {e}"))?;
+    tighten_dir_permissions(&keystore_dir)?;
     let state = CertificateStoreState::new(db_path, keystore_dir);
     let conn = state.open()?;
     initialize_schema(&conn)?;
+    tighten_file_permissions(&state.db_path)?;
     Ok(state)
 }
 
@@ -522,10 +545,7 @@ fn select_created_at(conn: &Connection, id: &str) -> Result<Option<i64>, String>
     .map_err(|e| format!("读取证书创建时间失败: {e}"))
 }
 
-fn select_verify_state(
-    conn: &Connection,
-    id: &str,
-) -> Result<Option<(String, Option<String>, Option<i64>)>, String> {
+fn select_verify_state(conn: &Connection, id: &str) -> Result<Option<VerifyState>, String> {
     conn.query_row(
         "SELECT last_verify_status, last_verify_message, last_verified_at
          FROM certificates WHERE id = ?1",
@@ -541,6 +561,122 @@ fn now_timestamp() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+fn derive_crypto_key(db_path: &Path, keystore_dir: &Path) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"mocika-shield-gui-cert-store-v1");
+    hasher.update(db_path.to_string_lossy().as_bytes());
+    hasher.update(keystore_dir.to_string_lossy().as_bytes());
+    if let Some(home) = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE")) {
+        hasher.update(home.to_string_lossy().as_bytes());
+    }
+    if let Some(user) = env::var_os("USER").or_else(|| env::var_os("USERNAME")) {
+        hasher.update(user.to_string_lossy().as_bytes());
+    }
+    hasher.finalize().into()
+}
+
+fn encrypt_secret(key: &[u8; 32], value: &str) -> Result<String, String> {
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| "初始化证书密码加密器失败".to_string())?;
+    let mut nonce = [0u8; 12];
+    rand::rng().fill_bytes(&mut nonce);
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce), value.as_bytes())
+        .map_err(|_| "加密证书密码失败".to_string())?;
+    Ok(format!(
+        "{}{}:{}",
+        SECRET_PREFIX,
+        encode_hex(&nonce),
+        encode_hex(&ciphertext)
+    ))
+}
+
+fn decrypt_secret(key: &[u8; 32], value: &str) -> Result<String, String> {
+    let rest = value
+        .strip_prefix(SECRET_PREFIX)
+        .ok_or_else(|| "证书数据库包含未加密密码，请重新导入或创建证书".to_string())?;
+    let (nonce_hex, cipher_hex) = rest
+        .split_once(':')
+        .ok_or_else(|| "证书数据库密码字段格式无效".to_string())?;
+    let nonce = decode_hex(nonce_hex)?;
+    if nonce.len() != 12 {
+        return Err("证书数据库密码 nonce 长度无效".to_string());
+    }
+    let ciphertext = decode_hex(cipher_hex)?;
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| "初始化证书密码解密器失败".to_string())?;
+    let plaintext = cipher
+        .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
+        .map_err(|_| "解密证书密码失败，请重新导入或创建证书".to_string())?;
+    String::from_utf8(plaintext).map_err(|_| "证书密码不是合法 UTF-8".to_string())
+}
+
+fn decrypt_record_secrets(key: &[u8; 32], item: &mut CertificateRecord) -> Result<(), String> {
+    item.keystore_password = decrypt_secret(key, &item.keystore_password)?;
+    item.key_password = decrypt_secret(key, &item.key_password)?;
+    Ok(())
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+fn decode_hex(value: &str) -> Result<Vec<u8>, String> {
+    if !value.len().is_multiple_of(2) {
+        return Err("证书数据库密码字段 hex 长度无效".to_string());
+    }
+    let mut out = Vec::with_capacity(value.len() / 2);
+    let bytes = value.as_bytes();
+    for pair in bytes.chunks_exact(2) {
+        let hi = decode_hex_nibble(pair[0])?;
+        let lo = decode_hex_nibble(pair[1])?;
+        out.push((hi << 4) | lo);
+    }
+    Ok(out)
+}
+
+fn decode_hex_nibble(byte: u8) -> Result<u8, String> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err("证书数据库密码字段包含非法 hex 字符".to_string()),
+    }
+}
+
+#[cfg(unix)]
+fn tighten_dir_permissions(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+        .map_err(|e| format!("收紧目录权限失败: {e}"))
+}
+
+#[cfg(not(unix))]
+fn tighten_dir_permissions(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn tighten_file_permissions(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("收紧数据库权限失败: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn tighten_file_permissions(_path: &Path) -> Result<(), String> {
+    Ok(())
 }
 
 fn bool_to_int(value: bool) -> i64 {
@@ -639,13 +775,13 @@ mod tests {
             .expect("更新证书偏好失败");
 
         assert_eq!(updated.name, "生产证书");
-        assert_eq!(updated.sign_v1, false);
-        assert_eq!(updated.sign_v2, true);
-        assert_eq!(updated.sign_v3, false);
-        assert_eq!(updated.sign_v4, true);
-        assert_eq!(updated.auto_sign_enabled, false);
+        assert!(!updated.sign_v1);
+        assert!(updated.sign_v2);
+        assert!(!updated.sign_v3);
+        assert!(updated.sign_v4);
+        assert!(!updated.auto_sign_enabled);
         assert_eq!(updated.note, "仅更新偏好");
-        assert_eq!(updated.is_default, true);
+        assert!(updated.is_default);
 
         assert_eq!(updated.source_type, "managed");
         assert_eq!(updated.keystore_path, "/old/release.p12");

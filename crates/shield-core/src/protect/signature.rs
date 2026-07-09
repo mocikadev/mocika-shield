@@ -141,7 +141,7 @@ fn extract_signature_via_keytool(apk_path: &Path) -> Result<String> {
             for line in stdout.lines() {
                 if line.trim().starts_with("SHA256:") {
                     let fingerprint = line.split(':').skip(1).collect::<String>();
-                    let clean = fingerprint.replace(':', "").replace(' ', "").to_uppercase();
+                    let clean = fingerprint.replace([':', ' '], "").to_uppercase();
                     if clean.len() == 64 {
                         print_success(&format!("原始APK签名(V2/V3证书): {}...", &clean[..16]));
                         return Ok(clean);

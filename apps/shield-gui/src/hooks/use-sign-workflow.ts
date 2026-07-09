@@ -74,20 +74,12 @@ export function useSignWorkflow({
 
       setState("signing");
       setError("");
-      await api.signApk({
-        apkPath,
-        outputPath: outputPath || null,
-        apksignerPath: null,
-        keystorePath: certificate.keystore_path,
-        keystorePassword: certificate.keystore_password,
-        keyAlias: certificate.key_alias,
-        keyPassword: certificate.key_password,
-        ksType: certificate.ks_type,
-        signV1: certificate.sign_v1,
-        signV2: certificate.sign_v2,
-        signV3: certificate.sign_v3,
-        signV4: certificate.sign_v4,
-      });
+	      await api.signApk({
+	        apkPath,
+	        outputPath: outputPath || null,
+	        apksignerPath: null,
+	        certificateId: certificate.id,
+	      });
       await api.deleteFile(`${outputPath}.idsig`).catch(() => undefined);
       setState("done");
     } catch (err) {

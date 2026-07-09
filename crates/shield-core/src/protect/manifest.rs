@@ -75,7 +75,7 @@ fn find_tag_end(content: &str, start: usize) -> Option<usize> {
 }
 
 fn extract_xml_attr(tag: &str, attr: &str) -> Option<String> {
-    for &q in &[b'"', b'\''] {
+    for &q in b"\"'" {
         let needle = format!("{}={}", attr, q as char);
         if let Some(p) = tag.find(&needle) {
             let val_start = p + needle.len();
@@ -87,7 +87,7 @@ fn extract_xml_attr(tag: &str, attr: &str) -> Option<String> {
 }
 
 fn set_xml_attr(tag: &str, attr: &str, value: &str) -> String {
-    for &q in &[b'"', b'\''] {
+    for &q in b"\"'" {
         let needle = format!("{}={}", attr, q as char);
         if let Some(p) = tag.find(&needle) {
             let val_start = p + needle.len();
@@ -116,7 +116,7 @@ fn set_xml_attr(tag: &str, attr: &str, value: &str) -> String {
 }
 
 fn remove_xml_attr(tag: &str, attr: &str) -> String {
-    for &q in &[b'"', b'\''] {
+    for &q in b"\"'" {
         let needle = format!("{}={}", attr, q as char);
         if let Some(attr_start) = tag.find(&needle) {
             let val_start = attr_start + needle.len();

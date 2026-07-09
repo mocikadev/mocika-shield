@@ -79,10 +79,15 @@ export function useCertificatesState() {
   );
 
   const setDefaultCertificate = useCallback(async (id: string) => {
-    const next = await api.setDefaultCertificate(id);
-    setCertificates(next);
-    setSelectedId(id);
-    return next;
+    setError("");
+    try {
+      await api.setDefaultCertificate(id);
+      setCertificates((items) => items.map((item) => ({ ...item, is_default: item.id === id })));
+      setSelectedId(id);
+    } catch (err) {
+      setError(String(err));
+      throw err;
+    }
   }, []);
 
   const deleteCertificate = useCallback(async (id: string, removeKeystoreFile: boolean) => {

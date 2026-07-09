@@ -78,7 +78,7 @@ mod tests {
             "classes.dex".to_string(),
             "classes2.dex".to_string(),
         ];
-        names.sort_by(|a, b| dex_natural_key(a).cmp(&dex_natural_key(b)));
+        names.sort_by_key(|a| dex_natural_key(a));
         assert_eq!(names, vec!["classes.dex", "classes2.dex", "classes3.dex"]);
     }
 
@@ -89,7 +89,7 @@ mod tests {
             "classes2.dex".to_string(),
             "classes.dex".to_string(),
         ];
-        names.sort_by(|a, b| dex_natural_key(a).cmp(&dex_natural_key(b)));
+        names.sort_by_key(|a| dex_natural_key(a));
         assert_eq!(names, vec!["classes.dex", "classes2.dex", "classes10.dex"]);
     }
 }

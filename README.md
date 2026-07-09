@@ -50,8 +50,8 @@
 
 界面包含五个页面：
 - **加固**：拖入或选择 APK → 预检验证（非 APK 文件立即提示）→ 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
-- **签名**：拖入或选择 APK → 选择证书页维护的证书 → 点击签名 → 生成 `{name}_signed.apk`
-- **证书**：统一管理签名证书，支持导入、新建、校验、设为默认、删除
+- **签名**：拖入或选择 APK → 选择证书页维护的证书 → 点击签名 → 生成 `{name}_signed.apk`；签名成功后只保留“继续签名”入口
+- **证书**：统一管理签名证书，支持导入、新建、校验、设为默认、删除；创建证书时 Keystore 密码至少 6 位，Key 密码可留空
 - **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）
 - **关于**：显示当前版本号、构建 git hash、构建日期、Java 环境状态，并支持手动重新检测环境
 
@@ -96,11 +96,13 @@
 - `keystore` 密码
 - `key` 密码（与 `keystore` 密码相同可留空）
 
+使用 PKCS12 证书时，`keytool` 可能会把输入的 Alias 规范为小写。GUI 会按大小写不敏感方式校验，并保存 keystore 中实际返回的 Alias。
+
 如果原 APK 与当前选中的证书指纹不一致，GUI 会提示重新签名后可能无法覆盖安装。
 
 ### 配置与证书数据
 
-GUI 启动时一次性加载应用级配置与证书数据库，运行期间使用全局内存状态，不会在页面切换时反复从磁盘读取。应用级配置保存到 `config.toml`；证书列表、默认证书、签名密码、校验状态保存到本地 SQLite 数据库 `shield.db`。应用内新建或托管的 keystore 文件放在同级 `keystores/` 目录。
+GUI 启动时一次性加载应用级配置与证书数据库，运行期间使用全局内存状态，不会在页面切换时反复从磁盘读取。应用级配置保存到 `config.toml`；证书列表、默认证书、签名密码、校验状态保存到本地 SQLite 数据库 `shield.db`。密码字段会以本机派生密钥加密保存；证书列表返回前端时不包含密码明文，签名和自动签名只传证书 ID，由后端读取并解密。应用内新建或托管的 keystore 文件放在同级 `keystores/` 目录。
 Java 运行环境同样会在应用启动时检测一次，并缓存到全局状态中；关于页提供“重新检测环境”入口，用于用户安装或切换 JDK 后手动刷新。
 
 | 平台 | 应用配置 | 证书数据库 |
@@ -111,12 +113,15 @@ Java 运行环境同样会在应用启动时检测一次，并缓存到全局状
 
 ### 方式二：命令行（CLI）
 
+当前 GitHub Release 面向普通用户只提供桌面 GUI 安装包。CLI 仍保留给脚本化、本地调试和维护者使用，可从源码编译，或由维护者使用本地发布脚本生成离线包。
+
 ```bash
-tar -xzf mocika-shield-x.y.z.tar.gz
-cd mocika-shield-x.y.z
+# 从源码编译
+make build-stub
+make build-cli
 
 # 加固
-./bin/shield protect -i input.apk -o protected.apk
+./target/release/shield protect -i input.apk -o protected.apk
 
 # 签名（加固后必须重新签名；无需额外执行 zipalign）
 java -jar lib/apksigner.jar sign --ks keystore.jks protected.apk

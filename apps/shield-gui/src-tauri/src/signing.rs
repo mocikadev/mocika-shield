@@ -1,5 +1,6 @@
 use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
+use crate::cert_store::CertificateRecord;
 use shield_core::{
     sign_apk as shield_sign_apk,
     utils::{find_keytool, no_window_command},
@@ -9,25 +10,17 @@ use std::path::PathBuf;
 
 pub(crate) fn execute_sign_apk(
     app: &tauri::AppHandle,
-    keystore_password: String,
-    key_password: String,
     apk_path: String,
     output_path: Option<String>,
     apksigner_path: Option<String>,
-    keystore_path: String,
-    key_alias: String,
-    ks_type: Option<String>,
-    sign_v1: bool,
-    sign_v2: bool,
-    sign_v3: bool,
-    sign_v4: bool,
+    certificate: CertificateRecord,
 ) -> Result<(), String> {
     let resolved_apksigner = apksigner_path
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| find_apksigner_path(app));
-    let ks_pass = keystore_password;
-    let key_pass = key_password;
+    let ks_pass = certificate.keystore_password;
+    let key_pass = certificate.key_password;
     let effective_key_pass = if key_pass.is_empty() {
         ks_pass.clone()
     } else {
@@ -36,21 +29,21 @@ pub(crate) fn execute_sign_apk(
     let opts = SignOptions {
         apk_path: PathBuf::from(apk_path),
         output_path: output_path.filter(|s| !s.is_empty()).map(PathBuf::from),
-        keystore_path: PathBuf::from(keystore_path),
-        key_alias,
+        keystore_path: PathBuf::from(certificate.keystore_path),
+        key_alias: certificate.key_alias,
         keystore_password: ks_pass,
         key_password: effective_key_pass,
         apksigner_path: resolved_apksigner,
-        keystore_type: KeystoreType::from_str(
-            normalize_keystore_type(ks_type.as_deref())
+        keystore_type: KeystoreType::parse(
+            normalize_keystore_type(Some(certificate.ks_type.as_str()))
                 .as_deref()
                 .unwrap_or("JKS"),
         ),
         signing_versions: SigningVersions {
-            v1: sign_v1,
-            v2: sign_v2,
-            v3: sign_v3,
-            v4: sign_v4,
+            v1: certificate.sign_v1,
+            v2: certificate.sign_v2,
+            v3: certificate.sign_v3,
+            v4: certificate.sign_v4,
         },
     };
     shield_sign_apk(&opts).map_err(|e| e.to_string())

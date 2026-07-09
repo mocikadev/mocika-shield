@@ -157,30 +157,19 @@ export function useProtectWorkflow({
       if (autoSignReady && certificate) {
         setCurrentStep("Sign");
         appendMessage(t(locale, "autoSignStarted"));
-        const compare = await api.compareCertFingerprints({
-          apkPath: input,
-          keystorePath: certificate.keystore_path,
-          ksPass: certificate.keystore_password,
-          ksType: certificate.ks_type,
-          keyAlias: certificate.key_alias,
-        });
+	        const compare = await api.compareCertFingerprints({
+	          apkPath: input,
+	          certificateId: certificate.id,
+	        });
         if (!compare.matches && !compare.error) {
           setWarning(t(locale, "signMismatch"));
         }
-        await api.signApk({
-          apkPath: unsignedOutput,
-          outputPath: output,
-          apksignerPath: null,
-          keystorePath: certificate.keystore_path,
-          keystorePassword: certificate.keystore_password,
-          keyAlias: certificate.key_alias,
-          keyPassword: certificate.key_password,
-          ksType: certificate.ks_type,
-          signV1: certificate.sign_v1,
-          signV2: certificate.sign_v2,
-          signV3: certificate.sign_v3,
-          signV4: certificate.sign_v4,
-        });
+	        await api.signApk({
+	          apkPath: unsignedOutput,
+	          outputPath: output,
+	          apksignerPath: null,
+	          certificateId: certificate.id,
+	        });
         await api.deleteFile(`${output}.idsig`).catch(() => undefined);
         appendMessage(t(locale, "autoSignCompleted"));
         await api.deleteFile(unsignedOutput)

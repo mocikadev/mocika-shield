@@ -138,7 +138,7 @@ pub fn extract_keystore_cert_fingerprint(
 }
 
 pub fn normalize_fingerprint(fp: &str) -> String {
-    fp.to_uppercase().replace(':', "").replace(' ', "")
+    fp.to_uppercase().replace([':', ' '], "")
 }
 
 fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bool> {
@@ -208,7 +208,7 @@ fn parse_sha256_from_keytool(output: &str) -> Option<String> {
         let trimmed = line.trim();
         if trimmed.to_uppercase().contains("SHA256") && trimmed.contains(':') {
             let after_label = trimmed.split_once(':')?.1;
-            let clean = after_label.replace(':', "").replace(' ', "").to_uppercase();
+            let clean = after_label.replace([':', ' '], "").to_uppercase();
             if clean.len() == 64 && clean.chars().all(|c| c.is_ascii_hexdigit()) {
                 return Some(clean);
             }

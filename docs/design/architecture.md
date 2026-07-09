@@ -118,9 +118,9 @@ mocika-shield/
     ├── build-stub.ps1                # Windows：shield-stub 构建脚本
     ├── setup-windows-dev.ps1         # Windows 开发环境一键配置（Scoop）
     ├── release-cli.sh                # CLI 发布打包（Linux/macOS）
-    ├── release-linux.sh              # Linux Tauri GUI 全量发布（AppImage + deb + CLI tar.gz）
-    ├── release-macos.sh              # macOS Tauri GUI 全量发布（dmg + CLI tar.gz）
-    ├── release-windows.ps1           # Windows 平台全量发布（NSIS .exe + zip）
+    ├── release-linux.sh              # Linux 本地发布（默认 GUI + CLI；CI 只上传 GUI）
+    ├── release-macos.sh              # macOS 本地发布（默认 GUI + CLI；CI 只上传 GUI）
+    ├── release-windows.ps1           # Windows 本地发布（默认 GUI + CLI；CI 只上传 GUI）
     └── tools/                        # 下载的构建工具（不进版本库，见 .gitignore）
         └── appimagetool-x86_64.AppImage
 ```
@@ -155,13 +155,17 @@ GUI 本地数据建议拆分为三类：
 | 文件/目录 | 作用 |
 |-----------|------|
 | `config.toml` | 主题、语言、更新检查等应用级配置 |
-| `shield.db` | 证书列表、默认证书、签名密码、校验状态 |
+| `shield.db` | 证书列表、默认证书、加密后的签名密码、校验状态 |
 | `keystores/` | 应用内新建并托管的 keystore 文件 |
 
 证书存储约束：
 
 - `managed`：应用内创建或用户选择“导入并托管”的 keystore，文件落在 `keystores/`
 - `external`：仅记录用户原始路径，不复制文件
+- 创建证书时 Keystore 密码至少 6 位；Key 密码可留空，填写时同样至少 6 位
+- PKCS12 Alias 可能被 `keytool` 规范为小写，后端校验按大小写不敏感匹配，并保存 keystore 实际返回的 Alias
+- 密码字段使用本机派生密钥加密落盘，格式为 `enc:v1:<nonce>:<ciphertext>`；不兼容旧明文记录
+- Tauri 前端只持有证书元数据，签名、自动签名、证书指纹比对通过证书 ID 交给后端完成
 
 ## 构建产物路径
 
@@ -175,7 +179,7 @@ GUI 本地数据建议拆分为三类：
 | Tauri GUI deb | `target/release/bundle/deb/` |
 | Tauri GUI dmg | `target/release/bundle/dmg/` |
 | Tauri GUI NSIS 安装包 | `target/release/bundle/nsis/` |
-| 发布压缩包 | `dist/mocika-shield-x.y.z.tar.gz` |
+| CLI 本地发布压缩包 | `dist/*/cli/mocika-shield-cli-x.y.z-*` |
 
 ---
 

@@ -138,7 +138,7 @@ pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
 pub fn exe_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|p| strip_unc_prefix(p)))
+        .and_then(|p| p.parent().map(strip_unc_prefix))
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
@@ -219,7 +219,7 @@ fn system_data_hint() -> &'static str {
 fn install_java_hint() -> String {
     #[cfg(target_os = "macos")]
     {
-        return "建议安装：brew install --cask temurin17".to_string();
+        "建议安装：brew install --cask temurin17".to_string()
     }
 
     #[cfg(target_os = "windows")]

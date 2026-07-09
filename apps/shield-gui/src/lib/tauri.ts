@@ -162,36 +162,25 @@ export const api = {
   validateCertificate: (input: CertificateValidationInput) =>
     invoke<CertificateValidationResult>("validate_certificate", { input }),
   setDefaultCertificate: (id: string) =>
-    invoke<CertificateRecord[]>("set_default_certificate", { id }),
+    invoke<void>("set_default_certificate", { id }),
   deleteCertificate: (id: string, removeKeystoreFile: boolean) =>
     invoke<CertificateRecord[]>("delete_certificate", { id, removeKeystoreFile }),
   verifyCertificate: (id: string) =>
     invoke<CertificateRecord>("verify_certificate", { id }),
   createManagedCertificate: (input: CreateManagedCertificateInput) =>
     invoke<CertificateRecord>("create_managed_certificate_command", { input }),
-  signApk: (args: {
-    apkPath: string;
-    outputPath?: string | null;
-    apksignerPath?: string | null;
-    keystorePath: string;
-    keystorePassword: string;
-    keyAlias: string;
-    keyPassword: string;
-    ksType?: string | null;
-    signV1: boolean;
-    signV2: boolean;
-    signV3: boolean;
-    signV4: boolean;
-  }) => invoke<void>("sign_apk", args),
+	  signApk: (args: {
+	    apkPath: string;
+	    outputPath?: string | null;
+	    apksignerPath?: string | null;
+	    certificateId: string;
+	  }) => invoke<void>("sign_apk", args),
   listKeystoreAliases: (keystorePath: string, ksPass: string, ksType: string) =>
     invoke<string[]>("list_keystore_aliases", { keystorePath, ksPass, ksType }),
-  compareCertFingerprints: (args: {
-    apkPath: string;
-    keystorePath: string;
-    ksPass: string;
-    ksType?: string | null;
-    keyAlias: string;
-  }) => invoke<CertCompareResult>("compare_cert_fingerprints", args),
+	  compareCertFingerprints: (args: {
+	    apkPath: string;
+	    certificateId: string;
+	  }) => invoke<CertCompareResult>("compare_cert_fingerprints", args),
   checkUpdate: (force: boolean) => invoke<UpdateCheckResult>("check_update", { force }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   dismissUpdate: (version: string) => invoke<void>("dismiss_update", { version }),

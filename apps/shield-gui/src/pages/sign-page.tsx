@@ -103,14 +103,16 @@ export function SignPage({
               <p className="mt-1 truncate text-sm text-muted-foreground">{basename(apkPath)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <AppButton
-                className="min-w-[136px]"
-                disabled={!apkPath || !runtimeInfoLoaded || !selectedCertificate || state === "signing"}
-                onClick={sign}
-              >
-                {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                {state === "signing" ? t(locale, "signing") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startSign")}
-              </AppButton>
+              {state !== "done" && (
+                <AppButton
+                  className="min-w-[136px]"
+                  disabled={!apkPath || !runtimeInfoLoaded || !selectedCertificate || state === "signing"}
+                  onClick={sign}
+                >
+                  {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  {state === "signing" ? t(locale, "signing") : !runtimeInfoLoaded ? t(locale, "checkingEnvironment") : t(locale, "startSign")}
+                </AppButton>
+              )}
               {(state === "done" || state === "failed") && (
                 <AppButton className="min-w-[136px]" variant="secondary" onClick={reset}>
                   <RotateCcw className="h-4 w-4" />
