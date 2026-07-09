@@ -191,7 +191,7 @@ pub(crate) fn create_managed_certificate(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("创建 keystore 失败: {}", stderr.trim()));
+        return Err(classify_create_keystore_error(&stderr));
     }
 
     let upsert = CertificateUpsertInput {
@@ -325,9 +325,55 @@ fn current_timestamp() -> i64 {
         .as_secs() as i64
 }
 
+fn classify_create_keystore_error(stderr: &str) -> String {
+    let raw = stderr.trim();
+    let lower = raw.to_lowercase();
+
+    let reason = if lower.contains("alias") && lower.contains("already exists")
+        || raw.contains("别名") && raw.contains("已经存在")
+        || raw.contains("别名") && raw.contains("已存在")
+    {
+        "证书 Alias 已存在，请换一个 Alias 或文件名"
+    } else if lower.contains("key password must be at least 6 characters")
+        || lower.contains("password must be at least 6 characters")
+        || lower.contains("password is too short")
+        || raw.contains("密码至少")
+        || raw.contains("口令至少")
+    {
+        "证书密码不符合 keytool 要求，Keystore 密码和 Key 密码至少需要 6 个字符"
+    } else if lower.contains("incorrect avas format")
+        || lower.contains("invalid name")
+        || lower.contains("distinguished name")
+        || raw.contains("专有名称")
+        || raw.contains("名称无效")
+    {
+        "证书主题信息格式不正确，请检查 CN、OU、O、L、ST、C 等字段"
+    } else if lower.contains("permission denied")
+        || lower.contains("access is denied")
+        || raw.contains("权限")
+        || raw.contains("拒绝访问")
+    {
+        "没有权限写入证书文件，请检查应用数据目录权限"
+    } else if lower.contains("no such file")
+        || lower.contains("cannot find")
+        || raw.contains("没有那个文件")
+        || raw.contains("系统找不到")
+    {
+        "证书保存目录不存在或不可访问"
+    } else {
+        "创建证书失败，请检查证书名称、Alias、密码和主题信息"
+    };
+
+    if raw.is_empty() {
+        reason.to_string()
+    } else {
+        format!("{reason}。keytool 输出：{raw}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve_alias;
+    use super::{classify_create_keystore_error, resolve_alias};
 
     fn aliases(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
@@ -365,5 +411,44 @@ mod tests {
     #[test]
     fn alias_不存在时返回空() {
         assert_eq!(resolve_alias(&aliases(&["release"]), "debug"), None);
+    }
+
+    #[test]
+    fn 创建证书_alias_已存在提示更明确() {
+        let message = classify_create_keystore_error(
+            "keytool error: java.lang.Exception: Alias <release> already exists",
+        );
+        assert!(message.starts_with("证书 Alias 已存在"));
+    }
+
+    #[test]
+    fn 创建证书_密码过短提示更明确() {
+        let message = classify_create_keystore_error(
+            "keytool error: Key password must be at least 6 characters",
+        );
+        assert!(message.starts_with("证书密码不符合 keytool 要求"));
+    }
+
+    #[test]
+    fn 创建证书_dname_非法提示更明确() {
+        let message = classify_create_keystore_error(
+            "keytool error: java.io.IOException: Incorrect AVAs format",
+        );
+        assert!(message.starts_with("证书主题信息格式不正确"));
+    }
+
+    #[test]
+    fn 创建证书_目录权限错误提示更明确() {
+        let message = classify_create_keystore_error(
+            "keytool error: java.io.FileNotFoundException: Permission denied",
+        );
+        assert!(message.starts_with("没有权限写入证书文件"));
+    }
+
+    #[test]
+    fn 创建证书_未知错误保留原始输出摘要() {
+        let message = classify_create_keystore_error("keytool error: unknown failure");
+        assert!(message.starts_with("创建证书失败"));
+        assert!(message.contains("unknown failure"));
     }
 }
