@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { isApk, protectedOutputPath, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getProtectJavaError } from "@/lib/java";
+import { notifyError, notifySuccess, notifyWarning } from "@/lib/notify";
 import {
   api,
   onTauriEvent,
@@ -81,7 +82,9 @@ export function useProtectWorkflow({
       setMessages([]);
       setCurrentStep("");
       if (!isApk(path)) {
-        setWarning(t(locale, "onlyApk"));
+        const message = t(locale, "onlyApk");
+        setWarning(message);
+        notifyError(message);
         return;
       }
       setInput(path);
@@ -92,10 +95,13 @@ export function useProtectWorkflow({
         const message = precheckMessage(locale, result);
         if (message) {
           setPrecheck(message);
+          notifyError(message);
         }
         setState("idle");
       } catch {
-        setPrecheck(t(locale, "apkCheckFailed"));
+        const message = t(locale, "apkCheckFailed");
+        setPrecheck(message);
+        notifyError(message);
         setState("idle");
       }
     },
@@ -110,6 +116,7 @@ export function useProtectWorkflow({
       }),
       onTauriEvent<string>("protect-error", (payload) => {
         setError(payload);
+        notifyError(payload);
         setState("failed");
       }),
       onTauriEvent<void>("protect-done", () => setState("done")),
@@ -143,6 +150,7 @@ export function useProtectWorkflow({
       const javaError = getProtectJavaError(locale, buildInfo);
       if (javaError) {
         setError(javaError);
+        notifyError(javaError);
         setState("failed");
         return;
       }
@@ -157,19 +165,21 @@ export function useProtectWorkflow({
       if (autoSignReady && certificate) {
         setCurrentStep("Sign");
         appendMessage(t(locale, "autoSignStarted"));
-	        const compare = await api.compareCertFingerprints({
-	          apkPath: input,
-	          certificateId: certificate.id,
-	        });
+        const compare = await api.compareCertFingerprints({
+          apkPath: input,
+          certificateId: certificate.id,
+        });
         if (!compare.matches && !compare.error) {
-          setWarning(t(locale, "signMismatch"));
+          const message = t(locale, "signMismatch");
+          setWarning(message);
+          notifyWarning(message);
         }
-	        await api.signApk({
-	          apkPath: unsignedOutput,
-	          outputPath: output,
-	          apksignerPath: null,
-	          certificateId: certificate.id,
-	        });
+        await api.signApk({
+          apkPath: unsignedOutput,
+          outputPath: output,
+          apksignerPath: null,
+          certificateId: certificate.id,
+        });
         await api.deleteFile(`${output}.idsig`).catch(() => undefined);
         appendMessage(t(locale, "autoSignCompleted"));
         await api.deleteFile(unsignedOutput)
@@ -178,8 +188,11 @@ export function useProtectWorkflow({
       }
       appendMessage(t(locale, "protectCompleted"));
       setState("done");
+      notifySuccess(t(locale, "protectCompleted"));
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      notifyError(message);
       setState("failed");
     }
   }, [appendMessage, autoSignReady, buildInfo, certificate, input, locale, output, precheck]);

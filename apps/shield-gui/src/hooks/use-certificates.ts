@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { notifyError } from "@/lib/notify";
 import {
   api,
   type CertificateRecord,
@@ -43,7 +44,9 @@ export function useCertificatesState() {
       setCertificates(next);
       setSelectedId((current) => pickNextSelectedId(next, current));
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      notifyError(message);
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -85,7 +88,9 @@ export function useCertificatesState() {
       setCertificates((items) => items.map((item) => ({ ...item, is_default: item.id === id })));
       setSelectedId(id);
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      notifyError(message);
       throw err;
     }
   }, []);

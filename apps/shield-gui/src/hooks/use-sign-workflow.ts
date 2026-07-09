@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { isApk, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getSignJavaError } from "@/lib/java";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   api,
   onTauriEvent,
@@ -39,7 +40,9 @@ export function useSignWorkflow({
           setState("idle");
           setError("");
         } else if (first) {
-          setError(t(locale, "onlyApk"));
+          const message = t(locale, "onlyApk");
+          setError(message);
+          notifyError(message);
         }
       }),
       onTauriEvent<void>("tauri://drag-enter", () => setDragActive(true)),
@@ -68,22 +71,26 @@ export function useSignWorkflow({
       const javaError = getSignJavaError(locale, buildInfo);
       if (javaError) {
         setError(javaError);
+        notifyError(javaError);
         setState("failed");
         return;
       }
 
       setState("signing");
       setError("");
-	      await api.signApk({
-	        apkPath,
-	        outputPath: outputPath || null,
-	        apksignerPath: null,
-	        certificateId: certificate.id,
-	      });
+      await api.signApk({
+        apkPath,
+        outputPath: outputPath || null,
+        apksignerPath: null,
+        certificateId: certificate.id,
+      });
       await api.deleteFile(`${outputPath}.idsig`).catch(() => undefined);
       setState("done");
+      notifySuccess(t(locale, "signDone"));
     } catch (err) {
-      setError(String(err));
+      const message = String(err);
+      setError(message);
+      notifyError(message);
       setState("failed");
     }
   }, [apkPath, buildInfo, certificate, locale, outputPath]);

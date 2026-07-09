@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PillSegment, SettingsFieldRow, SettingsGroup, StatusMessage } from "@/components/app/common";
 import { t, type Locale } from "@/lib/i18n";
+import { notifyError } from "@/lib/notify";
 import { api, type ThemeMode } from "@/lib/tauri";
 
 export function SettingsPage({
@@ -54,8 +55,10 @@ export function SettingsPage({
         timerRef.current = null;
       }, 1400);
     } catch (err) {
+      const message = String(err);
       setStatus("failed");
-      setError(String(err));
+      setError(message);
+      notifyError(message);
     } finally {
       setSaving(false);
     }

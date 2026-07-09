@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FolderKey, Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
+import { Toaster } from "sonner";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
 import {
   Sidebar,
@@ -161,6 +162,18 @@ export function App() {
           releaseUrl={updateInfo?.release_url}
           onClose={() => setMajorDialogOpen(false)}
           onViewRelease={openRelease}
+        />
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: "font-sans",
+              title: "text-sm font-medium",
+              description: "text-xs",
+            },
+          }}
         />
       </div>
     </SidebarProvider>

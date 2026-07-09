@@ -9,6 +9,7 @@ import {
 } from "@/components/app/common";
 import { Switch } from "@/components/ui/switch";
 import type { CertificatesState } from "@/hooks/use-certificates";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { basename } from "@/lib/path";
 import { api, openFileDialog, type CertificateUpsertInput, type CreateManagedCertificateInput } from "@/lib/tauri";
 import { t, type Locale } from "@/lib/i18n";
@@ -203,6 +204,12 @@ export function CertificatesPage({
     setImportAliases([]);
   }
 
+  function showModalError(message: unknown) {
+    const text = String(message);
+    setModalError(text);
+    notifyError(text);
+  }
+
   function openImportModal() {
     setPageError("");
     resetModalState();
@@ -262,7 +269,7 @@ export function CertificatesPage({
   async function detectAliases() {
     const draft = importDraft;
     if (!draft.keystore_path || !draft.keystore_password) {
-      setModalError(t(locale, "missingPassword"));
+      showModalError(t(locale, "missingPassword"));
       return;
     }
     setDetectingAlias(true);
@@ -282,7 +289,7 @@ export function CertificatesPage({
         setModalStatus(`${t(locale, "detectAlias")}：${aliases.length}`);
       }
     } catch (err) {
-      setModalError(`${t(locale, "aliasFailed")}: ${String(err)}`);
+      showModalError(`${t(locale, "aliasFailed")}: ${String(err)}`);
     } finally {
       setDetectingAlias(false);
     }
@@ -302,15 +309,16 @@ export function CertificatesPage({
       });
       setImportAliases(result.aliases);
       if (!result.valid) {
-        setModalError(result.message || t(locale, "verificationFailed"));
+        showModalError(result.message || t(locale, "verificationFailed"));
         return;
       }
       if (result.resolved_alias) {
         setImportDraft((old) => ({ ...old, key_alias: result.resolved_alias || old.key_alias }));
       }
       setModalStatus(t(locale, "validatePassed"));
+      notifySuccess(t(locale, "validatePassed"));
     } catch (err) {
-      setModalError(String(err));
+      showModalError(err);
     } finally {
       setVerifying(false);
     }
@@ -324,9 +332,10 @@ export function CertificatesPage({
       setModalSaved(true);
       setSelectedId(saved.id);
       setModalOpen(false);
+      notifySuccess(t(locale, "saved"));
     } catch (err) {
       setModalSaved(false);
-      setModalError(String(err));
+      showModalError(err);
     } finally {
       setSaving(false);
     }
@@ -341,9 +350,10 @@ export function CertificatesPage({
       setModalSaved(true);
       setSelectedId(saved.id);
       setModalOpen(false);
+      notifySuccess(t(locale, "saved"));
     } catch (err) {
       setModalSaved(false);
-      setModalError(String(err));
+      showModalError(err);
     } finally {
       setSaving(false);
     }
@@ -353,7 +363,7 @@ export function CertificatesPage({
     const validationError = validateCreateDraft(createDraft, locale);
     if (validationError) {
       setModalSaved(false);
-      setModalError(validationError);
+      showModalError(validationError);
       return;
     }
     setSaving(true);
@@ -363,9 +373,10 @@ export function CertificatesPage({
       setModalSaved(true);
       setSelectedId(saved.id);
       setModalOpen(false);
+      notifySuccess(t(locale, "saved"));
     } catch (err) {
       setModalSaved(false);
-      setModalError(String(err));
+      showModalError(err);
     } finally {
       setSaving(false);
     }
@@ -375,8 +386,23 @@ export function CertificatesPage({
     setPageError("");
     try {
       await setDefaultCertificate(id);
+      notifySuccess(t(locale, "defaultCertificateUpdated"));
     } catch (err) {
-      setPageError(String(err));
+      const message = String(err);
+      setPageError(message);
+      notifyError(message);
+    }
+  }
+
+  async function removeCertificate(id: string, removeKeystoreFile: boolean) {
+    setPageError("");
+    try {
+      await deleteCertificate(id, removeKeystoreFile);
+      notifySuccess(t(locale, "certificateDeleted"));
+    } catch (err) {
+      const message = String(err);
+      setPageError(message);
+      notifyError(message);
     }
   }
 
@@ -479,7 +505,7 @@ export function CertificatesPage({
                             aria-label={t(locale, "deleteCertificate")}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void deleteCertificate(item.id, item.source_type === "managed");
+                              void removeCertificate(item.id, item.source_type === "managed");
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
