@@ -164,4 +164,5 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/gui.md](docs/design/gui.md) | GUI 设计：唯一正式桌面 GUI、页面结构、签名配置与维护约束 |
 | [docs/process/commit-convention.md](docs/process/commit-convention.md) | Commit Message 规范 |
 | [docs/process/release.md](docs/process/release.md) | 发布流程、版本号管理、三平台发布检查清单 |
+| [docs/process/test-checklist.md](docs/process/test-checklist.md) | 发布前与关键改动后的回归测试清单 |
 | [docs/process/roadmap.md](docs/process/roadmap.md) | 功能路线图：待实现功能、进度与优先级 |
