@@ -234,6 +234,24 @@ mod tests {
     }
 
     #[test]
+    fn required_alignment_matches_android_zipalign_rule() {
+        assert_eq!(
+            required_alignment("lib/arm64-v8a/libdemo.so"),
+            SHARED_LIB_ALIGNMENT
+        );
+        assert_eq!(
+            required_alignment("lib/x86_64/libdemo.so"),
+            SHARED_LIB_ALIGNMENT
+        );
+        assert_eq!(required_alignment("classes.dex"), DEFAULT_ALIGNMENT);
+        assert_eq!(required_alignment("assets/libdemo.so"), DEFAULT_ALIGNMENT);
+        assert_eq!(
+            required_alignment("lib/arm64-v8a/libdemo.txt"),
+            DEFAULT_ALIGNMENT
+        );
+    }
+
+    #[test]
     fn verify_detects_unaligned_entries() {
         let dir = tempdir().unwrap();
         let apk = dir.path().join("sample.apk");

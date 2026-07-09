@@ -529,4 +529,31 @@ mod tests {
     fn parse_ea_java_version() {
         assert_eq!(parse_java_major_version("21-ea"), Some(21));
     }
+
+    #[test]
+    fn parse_vendor_java_version_output() {
+        let text = r#"openjdk version "17.0.15" 2025-04-15
+OpenJDK Runtime Environment Temurin-17.0.15+6 (build 17.0.15+6)
+OpenJDK 64-Bit Server VM Temurin-17.0.15+6 (build 17.0.15+6, mixed mode)"#;
+        let (version, major) = parse_java_version_text(text);
+        assert_eq!(version.as_deref(), Some("17.0.15"));
+        assert_eq!(major, Some(17));
+    }
+
+    #[test]
+    fn parse_unquoted_java_version_output() {
+        let text = "openjdk 21.0.7 2025-04-15";
+        let (version, major) = parse_java_version_text(text);
+        assert_eq!(version.as_deref(), Some("21.0.7"));
+        assert_eq!(major, Some(21));
+    }
+
+    #[test]
+    fn ignore_invalid_java_version_output() {
+        let text = "openjdk version unknown";
+        let (version, major) = parse_java_version_text(text);
+        assert_eq!(version, None);
+        assert_eq!(major, None);
+        assert_eq!(parse_java_major_version("ea"), None);
+    }
 }
