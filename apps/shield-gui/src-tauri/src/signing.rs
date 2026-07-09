@@ -71,7 +71,7 @@ pub(crate) fn query_keystore_aliases(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("keytool 执行失败: {}", stderr.trim()));
+        return Err(classify_keytool_error(&stderr));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -101,4 +101,93 @@ fn parse_keytool_aliases(output: &str) -> Vec<String> {
         }
     }
     aliases
+}
+
+fn classify_keytool_error(stderr: &str) -> String {
+    let raw = stderr.trim();
+    let lower = raw.to_lowercase();
+
+    let reason = if lower.contains("password was incorrect")
+        || lower.contains("password is incorrect")
+        || lower.contains("tampered with, or password was incorrect")
+        || raw.contains("密码不正确")
+        || raw.contains("口令不正确")
+        || raw.contains("密码错误")
+    {
+        "Keystore 密码不正确"
+    } else if lower.contains("invalid keystore format")
+        || lower.contains("unrecognized keystore format")
+        || lower.contains("toderinputstream rejects tag type")
+        || lower.contains("derinputstream.getlength")
+        || raw.contains("无效的密钥库格式")
+        || raw.contains("无法识别的密钥库格式")
+    {
+        "证书格式可能不是当前选择的 JKS/PKCS12，或文件已经损坏"
+    } else if lower.contains("no such file")
+        || lower.contains("cannot find")
+        || lower.contains("系统找不到")
+        || raw.contains("没有那个文件")
+    {
+        "找不到 Keystore 文件，请确认文件仍在原路径"
+    } else if lower.contains("permission denied") || raw.contains("权限") {
+        "没有权限读取 Keystore 文件"
+    } else {
+        "无法读取证书文件，请确认它是有效的 JKS 或 PKCS12 keystore"
+    };
+
+    if raw.is_empty() {
+        reason.to_string()
+    } else {
+        format!("{reason}。keytool 输出：{raw}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify_keytool_error, parse_keytool_aliases};
+
+    #[test]
+    fn keytool_密码错误提示更明确() {
+        let message = classify_keytool_error(
+            "keytool error: java.io.IOException: keystore password was incorrect",
+        );
+        assert!(message.starts_with("Keystore 密码不正确"));
+    }
+
+    #[test]
+    fn keytool_旧版密码错误提示更明确() {
+        let message = classify_keytool_error(
+            "keytool error: java.io.IOException: Keystore was tampered with, or password was incorrect",
+        );
+        assert!(message.starts_with("Keystore 密码不正确"));
+    }
+
+    #[test]
+    fn keytool_格式不匹配提示更明确() {
+        let message =
+            classify_keytool_error("keytool error: java.io.IOException: Invalid keystore format");
+        assert!(message.starts_with("证书格式可能不是当前选择的 JKS/PKCS12"));
+    }
+
+    #[test]
+    fn keytool_文件不存在提示更明确() {
+        let message =
+            classify_keytool_error("keytool error: java.io.FileNotFoundException: no such file");
+        assert!(message.starts_with("找不到 Keystore 文件"));
+    }
+
+    #[test]
+    fn keytool_未知错误保留原始输出摘要() {
+        let message = classify_keytool_error("keytool error: unknown failure");
+        assert!(message.starts_with("无法读取证书文件"));
+        assert!(message.contains("unknown failure"));
+    }
+
+    #[test]
+    fn 解析_keytool_alias_保持原有行为() {
+        let output = "\
+release, 2026年7月9日, PrivateKeyEntry,
+trusted, 2026年7月9日, trustedCertEntry,";
+        assert_eq!(parse_keytool_aliases(output), vec!["release", "trusted"]);
+    }
 }
