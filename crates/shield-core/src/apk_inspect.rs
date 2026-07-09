@@ -245,6 +245,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_sha256_from_chinese_keytool_output() {
+        let text = "证书指纹:\n\t SHA256: aa:bb:cc:dd:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc";
+        assert_eq!(
+            parse_sha256_from_keytool(text).as_deref(),
+            Some("AABBCCDD112233445566778899AABBCCDDEEFF00112233445566778899AABBCC")
+        );
+    }
+
+    #[test]
     fn parse_sha256_from_apksigner_returns_hex() {
         let text = "Signer #1 certificate SHA-256 digest: AABBCCDD112233445566778899AABBCCDDEEFF00112233445566778899AABBCC";
         assert_eq!(
@@ -254,7 +263,32 @@ mod tests {
     }
 
     #[test]
+    fn parse_sha256_from_apksigner_returns_first_signer_digest() {
+        let text = "\
+Signer #1 certificate SHA-256 digest: 1111111111111111111111111111111111111111111111111111111111111111
+Signer #2 certificate SHA-256 digest: 2222222222222222222222222222222222222222222222222222222222222222";
+        assert_eq!(
+            parse_sha256_from_apksigner(text).as_deref(),
+            Some("1111111111111111111111111111111111111111111111111111111111111111")
+        );
+    }
+
+    #[test]
     fn normalize_fingerprint_strips_colons_and_spaces() {
         assert_eq!(normalize_fingerprint("aa:bb cc"), "AABBCC");
+    }
+
+    #[test]
+    fn normalize_fingerprint_handles_lowercase_colons_and_spaces() {
+        assert_eq!(normalize_fingerprint("aa:bb:cc dd ee ff"), "AABBCCDDEEFF");
+    }
+
+    #[test]
+    fn parse_returns_none_without_sha256_digest() {
+        assert_eq!(parse_sha256_from_keytool("SHA1: AA:BB"), None);
+        assert_eq!(
+            parse_sha256_from_apksigner("Signer #1 certificate SHA-1 digest: AABB"),
+            None
+        );
     }
 }
