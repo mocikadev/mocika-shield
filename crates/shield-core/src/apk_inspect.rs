@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use std::fs;
+use std::io;
 use std::io::Read;
 use std::path::Path;
 
@@ -12,9 +13,10 @@ pub struct ApkCheckOutcome {
 }
 
 pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckOutcome> {
-    let file =
-        fs::File::open(path).with_context(|| format!("无法打开 APK 文件: {}", path.display()))?;
-    let mut archive = zip::ZipArchive::new(file).context("无法解析 APK（ZIP 格式错误）")?;
+    let file = fs::File::open(path)
+        .map_err(|err| anyhow::anyhow!("{}", classify_apk_open_error(path, &err)))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|err| anyhow::anyhow!("{}", classify_apk_zip_error(path, &err)))?;
 
     let mut already_protected = false;
     const MSHD_MAGIC: &[u8] = b"MSHD";
@@ -52,6 +54,38 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
         already_protected,
         is_signed: check_apk_signed(path, apksigner_path)?,
     })
+}
+
+fn classify_apk_open_error(path: &Path, err: &io::Error) -> String {
+    match err.kind() {
+        io::ErrorKind::NotFound => format!("找不到 APK 文件: {}", path.display()),
+        io::ErrorKind::PermissionDenied => {
+            format!("没有权限读取 APK 文件: {}", path.display())
+        }
+        _ => format!("无法打开 APK 文件: {}: {err}", path.display()),
+    }
+}
+
+fn classify_apk_zip_error(path: &Path, err: &zip::result::ZipError) -> String {
+    let meta_len = fs::metadata(path).map(|meta| meta.len()).ok();
+    let raw = err.to_string();
+    let lower = raw.to_lowercase();
+
+    let reason = if meta_len == Some(0) {
+        "文件为空，不是有效 APK"
+    } else if lower.contains("invalid archive")
+        || lower.contains("invalid zip")
+        || lower.contains("could not find central directory")
+        || lower.contains("eof")
+    {
+        "文件不是有效 APK/ZIP，或 APK 已损坏"
+    } else if lower.contains("unsupported") {
+        "APK ZIP 使用了当前工具暂不支持的压缩结构"
+    } else {
+        "无法解析 APK ZIP 结构"
+    };
+
+    format!("{reason}: {}。ZIP 错误：{raw}", path.display())
 }
 
 pub fn extract_apk_cert_fingerprint(
@@ -233,7 +267,12 @@ fn parse_sha256_from_apksigner(output: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_fingerprint, parse_sha256_from_apksigner, parse_sha256_from_keytool};
+    use super::{
+        classify_apk_open_error, classify_apk_zip_error, normalize_fingerprint,
+        parse_sha256_from_apksigner, parse_sha256_from_keytool,
+    };
+    use std::io;
+    use std::path::Path;
 
     #[test]
     fn parse_sha256_from_keytool_returns_normalized_hex() {
@@ -290,5 +329,23 @@ Signer #2 certificate SHA-256 digest: 222222222222222222222222222222222222222222
             parse_sha256_from_apksigner("Signer #1 certificate SHA-1 digest: AABB"),
             None
         );
+    }
+
+    #[test]
+    fn apk_open_error_文件不存在提示更明确() {
+        let message = classify_apk_open_error(
+            Path::new("/tmp/missing.apk"),
+            &io::ErrorKind::NotFound.into(),
+        );
+        assert!(message.starts_with("找不到 APK 文件"));
+    }
+
+    #[test]
+    fn apk_zip_error_空文件提示更明确() {
+        let dir = tempfile::tempdir().unwrap();
+        let apk = dir.path().join("empty.apk");
+        std::fs::write(&apk, []).unwrap();
+        let message = classify_apk_zip_error(&apk, &zip::result::ZipError::InvalidArchive("eof"));
+        assert!(message.starts_with("文件为空，不是有效 APK"));
     }
 }

@@ -102,7 +102,34 @@ pub fn align_apk(path: &Path) -> Result<()> {
         )
     })?;
 
+    let issues = verify_apk_alignment(path).context("校验 APK 对齐结果失败")?;
+    if !issues.is_empty() {
+        anyhow::bail!(
+            "APK 对齐结果校验失败，仍存在未对齐条目：{}",
+            format_alignment_issues(&issues)
+        );
+    }
+
     Ok(())
+}
+
+fn format_alignment_issues(issues: &[AlignmentIssue]) -> String {
+    let mut parts = issues
+        .iter()
+        .take(5)
+        .map(|issue| {
+            format!(
+                "{} 需要 {} 字节对齐，当前偏移余数 {}",
+                issue.name, issue.required, issue.actual
+            )
+        })
+        .collect::<Vec<_>>();
+
+    if issues.len() > 5 {
+        parts.push(format!("另有 {} 个条目未对齐", issues.len() - 5));
+    }
+
+    parts.join("；")
 }
 
 fn rewrite_aligned(path: &Path, output: &mut fs::File) -> Result<()> {
@@ -315,6 +342,22 @@ mod tests {
             .unwrap();
         assert_eq!(so.len(), 8192);
         assert!(so.iter().all(|b| *b == 0x5A));
+    }
+
+    #[test]
+    fn format_alignment_issues_limits_output() {
+        let issues = (0..7)
+            .map(|index| AlignmentIssue {
+                name: format!("lib/arm64-v8a/libdemo{index}.so"),
+                required: SHARED_LIB_ALIGNMENT as u64,
+                actual: index + 1,
+            })
+            .collect::<Vec<_>>();
+
+        let message = format_alignment_issues(&issues);
+        assert!(message.contains("libdemo0.so"));
+        assert!(message.contains("另有 2 个条目未对齐"));
+        assert!(!message.contains("libdemo6.so 需要"));
     }
 
     #[test]
