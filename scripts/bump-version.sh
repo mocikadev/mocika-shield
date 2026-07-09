@@ -14,6 +14,7 @@
 #   apps/shield-gui/src-tauri/tauri.conf.json
 #   apps/shield-gui/package.json
 #   apps/shield-gui/package-lock.json
+#   apps/shield-gui/src/hooks/use-about-page.ts
 
 set -euo pipefail
 
@@ -63,8 +64,8 @@ echo "  ✓ apps/shield-gui/src-tauri/tauri.conf.json"
 echo "  ✓ apps/shield-gui/package.json"
 echo "  ✓ apps/shield-gui/package-lock.json"
 
-si "s/version: \"[^\"]*\", git_hash: \"dev\"/version: \"$VERSION\", git_hash: \"dev\"/" "$ROOT/apps/shield-gui/src/App.tsx"
-echo "  ✓ apps/shield-gui/src/App.tsx"
+si "s/version: \"[^\"]*\",/version: \"$VERSION\",/" "$ROOT/apps/shield-gui/src/hooks/use-about-page.ts"
+echo "  ✓ apps/shield-gui/src/hooks/use-about-page.ts"
 
 echo ""
 echo "验证结果："

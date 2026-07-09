@@ -208,6 +208,16 @@ Release Notes 生成规则：
 5. 检查 GitHub Release 的产物、校验和和 Release Notes
 6. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
 
+### 正式版前产物检查
+
+正式版发布前需额外确认：
+
+- Release 页面只包含 GUI 安装包与校验和文件，不上传 CLI 包
+- 安装包内包含 `apktool.jar`、`apksigner.jar`、`resources.zip`
+- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`tool_config.json`、`.env` 或本地缓存
+- README、使用文档、Release Notes 已说明 Java 17+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
+- 下载 Release 产物后至少完成一次证书导入/创建、设为默认、签名、加固、自动签名回归
+
 ### 产物与命名规则
 
 | 平台 | 产物文件 |
