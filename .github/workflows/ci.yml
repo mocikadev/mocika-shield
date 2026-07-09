@@ -180,3 +180,43 @@ jobs:
           name: resources-zip
           path: shield-stub/build/outputs/resources/resources.zip
           if-no-files-found: error
+
+  release-readiness:
+    name: 发布前检查
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: 配置 Android 命令行工具
+        uses: android-actions/setup-android@v4
+
+      - name: 配置 Android SDK / NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: 配置 Rust Android target
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          cargo install cargo-ndk --locked
+
+      - name: 构建 shield-stub
+        run: make build-stub
+
+      - name: 运行发布前检查
+        run: bash scripts/check-release-ready.sh
