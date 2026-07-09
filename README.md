@@ -31,7 +31,7 @@
 
 ### 方式一：桌面 GUI（推荐）
 
-从 [Releases](../../releases) 下载对应平台的安装包：
+从 [Releases](https://github.com/mocikadev/mocika-shield/releases/latest) 下载对应平台的安装包：
 
 | 平台 | 安装包 | 实现 |
 |------|--------|------|
@@ -80,7 +80,7 @@
 
 ### 首次使用最短路径
 
-1. 从 [Releases](../../releases) 下载对应平台的 GUI 安装包并安装
+1. 从 [Releases](https://github.com/mocikadev/mocika-shield/releases/latest) 下载对应平台的 GUI 安装包并安装
 2. 在 **证书** 页面导入已有证书，或创建新的 PKCS12 证书
 3. 将常用证书设为默认；加固页会在自动签名时使用默认证书
 4. 回到 **加固** 页面选择已签名 APK，按需使用自动签名
@@ -248,14 +248,14 @@ make build-all
 | 场景 | 要求 |
 |------|------|
 | 使用 CLI（源码构建或维护者本地包） | Java 17+（需完整 JDK，`java` / `keytool` / `javac` 可用） |
-| 使用发布包（GUI） | Linux / macOS / Windows |
+| 使用发布包（GUI） | Linux / macOS / Windows，Java 17+（加固、签名、Alias 识别需要完整 JDK） |
 | 从源码编译 | Rust 1.70+，Node.js 22+，Java 17+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
 
 ## 当前限制
 
 - 输入 APK 必须已经签名；未签名 APK 会在预检阶段被拒绝
 - 不支持对已加固 APK 再次加固
-- GUI 当前以单文件工作流为主，不支持批量队列
+- GUI 当前以单 APK 工作流为主，不支持批量队列
 - Windows 端当前主要提供 GUI 发布产物；CLI 使用建议从源码编译
 - 加固依赖本地 `apktool` / `apksigner` / `resources.zip`，从源码编译前必须先执行 `make build-stub`
 
@@ -271,4 +271,4 @@ make build-all
 
 ## 问题反馈
 
-提交 issue 前建议阅读 [支持与问题反馈](docs/process/support.md)，并在关于页复制诊断信息。请不要在公开 issue 中上传 APK、keystore、证书密码或签名密码。
+提交 issue 前建议阅读 [支持与问题反馈](docs/process/support.md)，本地排障可参考 [本地诊断与排障命令](docs/ops/troubleshooting.md)。反馈时请在关于页复制诊断信息，不要在公开 issue 中上传 APK、keystore、证书密码或签名密码。
