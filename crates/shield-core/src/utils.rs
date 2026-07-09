@@ -224,17 +224,17 @@ fn install_java_hint() -> String {
 
     #[cfg(target_os = "windows")]
     {
-        return "建议安装：scoop install temurin17-jdk".to_string();
+        "建议安装：scoop install temurin17-jdk".to_string()
     }
 
     #[cfg(target_os = "linux")]
     {
-        return "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string();
+        "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string()
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
-        return "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string();
+        "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string()
     }
 }
 
