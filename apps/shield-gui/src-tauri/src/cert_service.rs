@@ -34,33 +34,17 @@ pub(crate) fn validate_certificate_input(
         input.keystore_password.clone(),
         input.ks_type.clone(),
     )?;
-    let alias = input.key_alias.trim();
-    let resolved_alias = if alias.is_empty() && aliases.len() == 1 {
-        Some(aliases[0].clone())
-    } else if alias.is_empty() {
-        None
-    } else {
-        Some(alias.to_string())
-    };
-    let Some(resolved_alias) = resolved_alias.as_deref() else {
+    let Some(actual_alias) = resolve_alias(&aliases, &input.key_alias) else {
+        let message = if input.key_alias.trim().is_empty() {
+            "请输入 Key Alias，或只保留一个 alias 后再自动识别"
+        } else {
+            "未在 keystore 中找到指定 alias"
+        };
         return Ok(CertificateValidationResult {
             valid: false,
             aliases,
             resolved_alias: None,
-            message: Some("请输入 Key Alias，或只保留一个 alias 后再自动识别".to_string()),
-        });
-    };
-
-    let Some(actual_alias) = aliases
-        .iter()
-        .find(|item| item.eq_ignore_ascii_case(resolved_alias))
-        .cloned()
-    else {
-        return Ok(CertificateValidationResult {
-            valid: false,
-            aliases,
-            resolved_alias: None,
-            message: Some("未在 keystore 中找到指定 alias".to_string()),
+            message: Some(message.to_string()),
         });
     };
 
@@ -70,6 +54,18 @@ pub(crate) fn validate_certificate_input(
         resolved_alias: Some(actual_alias),
         message: None,
     })
+}
+
+fn resolve_alias(aliases: &[String], requested_alias: &str) -> Option<String> {
+    let alias = requested_alias.trim();
+    if alias.is_empty() {
+        return (aliases.len() == 1).then(|| aliases[0].clone());
+    }
+
+    aliases
+        .iter()
+        .find(|item| item.eq_ignore_ascii_case(alias))
+        .cloned()
 }
 
 pub(crate) fn save_certificate_profile(
@@ -327,4 +323,47 @@ fn current_timestamp() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_alias;
+
+    fn aliases(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn alias_输入为空且只有一个_alias_时自动识别() {
+        assert_eq!(
+            resolve_alias(&aliases(&["release"]), ""),
+            Some("release".to_string())
+        );
+        assert_eq!(
+            resolve_alias(&aliases(&["release"]), "  "),
+            Some("release".to_string())
+        );
+    }
+
+    #[test]
+    fn alias_输入为空且存在多个_alias_时不自动选择() {
+        assert_eq!(resolve_alias(&aliases(&["debug", "release"]), ""), None);
+    }
+
+    #[test]
+    fn alias_按大小写不敏感匹配并返回实际_alias() {
+        assert_eq!(
+            resolve_alias(&aliases(&["releasealias"]), "ReleaseAlias"),
+            Some("releasealias".to_string())
+        );
+        assert_eq!(
+            resolve_alias(&aliases(&["ReleaseAlias"]), "releasealias"),
+            Some("ReleaseAlias".to_string())
+        );
+    }
+
+    #[test]
+    fn alias_不存在时返回空() {
+        assert_eq!(resolve_alias(&aliases(&["release"]), "debug"), None);
+    }
 }
