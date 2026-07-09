@@ -36,27 +36,6 @@ mocika-shield/
 │   │   └── src/
 │   │       ├── lib.rs                # 兼容层：对外 re-export shield-core
 │   │       └── main.rs               # CLI 入口（clap 参数解析，-i/-o/-v）
-│
-├── shield-stub/                      # Android 壳模块（独立 Gradle 项目）
-│   ├── settings.gradle.kts
-│   ├── build.gradle.kts              # AGP 8.x，NDK 硬编码 29.0.14206865
-│   ├── gradle/                       # Gradle Wrapper + Version Catalog
-│   ├── gradlew / gradlew.bat
-│   ├── gradle.properties
-│   └── src/main/
-│       ├── java/dev/mocika/shield/loader/
-│       │   ├── StubApp.java          # 壳 Application（attachBaseContext / onCreate）
-│       │   ├── Ld.java               # DEX 提取、落地、缓存管理、JNI 接口声明
-│       │   └── ARouterCompat.java    # ARouter 路由表补注册
-│       └── rust/                     # Rust Native 层（libmocikashield.so）
-│           ├── Cargo.toml
-│           ├── .cargo/config.toml    # target-dir 指向 ../../../../build/rust-target
-│           ├── build.sh              # cargo-ndk 交叉编译脚本（Gradle buildRustLibs 调用）
-│           └── src/
-│               ├── lib.rs            # JNI 入口：extractAndDecryptFromDex / nativeInjectDex
-│               ├── bin_loader.rs     # MSHD 扫描、DEXB v5 解析、Zstd 解压
-│               └── crypto.rs        # derive_key（HKDF-SHA256）/ decrypt（ChaCha20-Poly1305）
-│
 │   └── shield-gui/                   # 桌面 GUI（Tauri v2 + React，三平台）
 │       ├── package.json              # React 前端依赖与 npm 脚本
 │       ├── vite.config.ts            # Vite 构建配置
@@ -108,6 +87,26 @@ mocika-shield/
 │               ├── path.ts               # 跨平台输出路径生成
 │               ├── tauri.ts              # Tauri invoke 与事件封装
 │               └── utils.ts              # className 合并工具
+│
+├── shield-stub/                      # Android 壳模块（独立 Gradle 项目）
+│   ├── settings.gradle.kts
+│   ├── build.gradle.kts              # AGP 8.x，NDK 硬编码 29.0.14206865
+│   ├── gradle/                       # Gradle Wrapper + Version Catalog
+│   ├── gradlew / gradlew.bat
+│   ├── gradle.properties
+│   └── src/main/
+│       ├── java/dev/mocika/shield/loader/
+│       │   ├── StubApp.java          # 壳 Application（attachBaseContext / onCreate）
+│       │   ├── Ld.java               # DEX 提取、落地、缓存管理、JNI 接口声明
+│       │   └── ARouterCompat.java    # ARouter 路由表补注册
+│       └── rust/                     # Rust Native 层（libmocikashield.so）
+│           ├── Cargo.toml
+│           ├── .cargo/config.toml    # target-dir 指向 ../../../../build/rust-target
+│           ├── build.sh              # cargo-ndk 交叉编译脚本（Gradle buildRustLibs 调用）
+│           └── src/
+│               ├── lib.rs            # JNI 入口：extractAndDecryptFromDex / nativeInjectDex
+│               ├── bin_loader.rs     # MSHD 扫描、DEXB v5 解析、Zstd 解压
+│               └── crypto.rs        # derive_key（HKDF-SHA256）/ decrypt（ChaCha20-Poly1305）
 │
 ├── tools/                            # 外部工具 JAR（开发环境）
 │   ├── apktool_3.0.1.jar
@@ -185,13 +184,13 @@ GUI 本地数据建议拆分为三类：
 
 ## release profile 配置
 
-两个 Rust 子工程均使用相同的 release 优化配置（体积优先）：
+根 `Cargo.toml` 对整个 Rust workspace 使用统一的 release 优化配置（体积优先）：
 
 ```toml
 [profile.release]
 opt-level = "z"
 lto = true
-strip = true
+strip = "symbols"
 panic = "abort"
 codegen-units = 1
 ```

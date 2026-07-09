@@ -156,14 +156,14 @@ GUI 启动时会同时加载应用级配置与证书数据库：
 |------|------|
 | Linux | `~/.config/dev.mocika.shield-gui/config.toml`、`~/.local/share/dev.mocika.shield-gui/shield.db` |
 | macOS | `~/Library/Application Support/dev.mocika.shield-gui/config.toml`、`~/Library/Application Support/dev.mocika.shield-gui/shield.db` |
-| Windows | `%APPDATA%\\dev.mocika.shield-gui/config.toml`、`%APPDATA%\\dev.mocika.shield-gui\\shield.db` |
+| Windows | `%APPDATA%\\dev.mocika.shield-gui\\config.toml`、`%APPDATA%\\dev.mocika.shield-gui\\shield.db` |
 
 命名约束：
 
 - `config.toml`：GUI 自动读写的应用级配置
 - `shield.db`：证书列表、默认证书、加密后的签名密码、校验状态等结构化数据
 - `keystores/`：应用托管的新建 keystore 文件
-- `mocika-shield.toml`：如未来为 CLI 增加人工配置文件，可使用独立文件名
+- CLI 如未来增加人工配置文件，必须与 GUI 自动维护的 `config.toml` 明确区分
 
 ## 9. 更新检查
 

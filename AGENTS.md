@@ -60,7 +60,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`tauri.conf.json` 和 `package.json`。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。
@@ -80,8 +80,8 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 ### Windows 子进程无控制台窗口
 调用 `java`、`keytool`、`apksigner` 等子进程时，必须通过 `no_window_command(prog)` 辅助函数创建 `Command`，该函数在 `#[cfg(target_os = "windows")]` 下设置 `CREATE_NO_WINDOW` flag（其他平台零开销）。
 
-### shield-gui 纯 binary crate
-`apps/shield-gui/src-tauri` 是纯 binary crate（`main.rs` only），**没有 `lib.rs`**。Tauri commands 和所有后端逻辑均在 `main.rs` 中。
+### shield-gui 后端结构
+`apps/shield-gui/src-tauri` 是 Tauri binary crate，`main.rs` 只做启动、状态注入和 command 注册。后端逻辑按职责拆到 `app_config.rs`、`cert_service.rs`、`signing.rs`、`protect_runner.rs`、`updates.rs` 等模块；不要再把业务逻辑堆回 `main.rs`。
 
 ### GUI 维护策略
 正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
@@ -90,7 +90,7 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 凡是面向用户本机直接测试 GUI 效果、交互、签名、加固流程的构建，默认必须提供 **macOS `.app` 应用包**（如当前在 macOS 环境）。不要只交付裸二进制 `target/release/mocika-shield`，因为其运行时资源不完整，不能代表真实桌面应用形态。
 
 ### 配置文件命名
-GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。TOML 仅用于未来 CLI 的人工配置文件，推荐命名为 `mocika-shield.toml`。
+GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。如未来增加 CLI 人工配置文件，必须与 GUI 自动维护的 `config.toml` 明确区分，不得复用同一个文件。
 
 ### 证书与密码持久化策略
 本工具定位为**本地离线桌面工具**，证书管理以“省事、减少重复输入”为优先目标。GUI 允许在本机持久化保存签名证书相关数据，包括 `keystore_password` 与 `key_password`；默认不引入系统 Keychain 作为前置依赖。

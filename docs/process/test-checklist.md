@@ -74,7 +74,7 @@
 - macOS 产物包含 universal dmg 与校验和
 - Windows 产物包含 NSIS 安装包与校验和
 - 安装包内包含运行必需资源：`apktool.jar`、`apksigner.jar`、`resources.zip`
-- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`tool_config.json`、`.env` 或本地缓存
+- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`.env` 或本地缓存
 - Release Notes 已说明 Java 17+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
 
 ## CLI 与核心库

@@ -233,7 +233,7 @@ Release Notes 生成规则：
 
 - Release 页面只包含 GUI 安装包与校验和文件，不上传 CLI 包
 - 安装包内包含 `apktool.jar`、`apksigner.jar`、`resources.zip`
-- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`tool_config.json`、`.env` 或本地缓存
+- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`.env` 或本地缓存
 - README、使用文档、Release Notes 已说明 Java 17+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
 - 下载 Release 产物后至少完成一次证书导入/创建、设为默认、签名、加固、自动签名回归
 

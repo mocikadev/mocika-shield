@@ -74,7 +74,7 @@
 | 能力 | Linux | macOS | Windows |
 |------|-------|-------|---------|
 | GUI 使用发布包 | 支持 | 支持 | 支持 |
-| CLI 使用发布包 | 支持 | 支持 | 当前 Release 以 GUI 为主 |
+| CLI 本地构建/维护者包 | 支持 | 支持 | 支持 |
 | 从源码编译 GUI | 支持 | 支持 | 支持 |
 | Android 壳构建 | 支持 | 支持 | 支持 |
 
@@ -247,7 +247,7 @@ make build-all
 
 | 场景 | 要求 |
 |------|------|
-| 使用发布包（CLI） | Linux / macOS，Java 17+（需完整 JDK，`java` / `keytool` / `javac` 可用） |
+| 使用 CLI（源码构建或维护者本地包） | Java 17+（需完整 JDK，`java` / `keytool` / `javac` 可用） |
 | 使用发布包（GUI） | Linux / macOS / Windows |
 | 从源码编译 | Rust 1.70+，Node.js 22+，Java 17+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
 
