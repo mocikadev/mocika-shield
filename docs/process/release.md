@@ -88,6 +88,8 @@ VERSION=x.y.z make release-macos
 
 ## 发布包结构
 
+本地发布脚本默认仍会生成 CLI 与 GUI 产物，便于维护者离线分发或调试；GitHub Actions 的 Release workflow 会设置 `SKIP_CLI_RELEASE=1`，只构建并上传 GUI 安装包。
+
 ### CLI 发布包（`mocika-shield-x.y.z.tar.gz`）
 
 ```
@@ -142,8 +144,10 @@ make build-stub  →  make build-cli / make build-gui / make release / make rele
 
 | 工作流 | 文件 | 触发 | 内容 |
 |--------|------|------|------|
-| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、`shield-core`/CLI 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
-| Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows 产物，汇总上传到 GitHub Release |
+| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、`shield-core` 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
+| Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows GUI 产物，汇总上传到 GitHub Release |
+
+> GitHub Release 面向普通开源用户，只上传 GUI 安装包与校验和；CLI 包仍可通过本地发布脚本生成，但不会由 CI 上传到 Release。
 
 Release Notes 相关文件：
 
@@ -169,10 +173,10 @@ git push origin main vx.y.z
 推送 tag 后，`Release` workflow 会自动：
 
 1. 从 tag 提取版本号
-2. 构建各平台产物
+2. 构建各平台 GUI 产物
 3. 上传 workflow artifacts
 4. 根据版本号创建或更新对应的 GitHub Release
-5. 上传所有构建产物和校验和文件
+5. 上传 GUI 安装包和校验和文件
 
 发布可见性规则：
 
@@ -208,8 +212,8 @@ Release Notes 生成规则：
 
 | 平台 | 产物文件 |
 |------|----------|
-| Linux（Tauri） | `MocikaShield_X.Y.Z_linux_amd64.AppImage`、`MocikaShield_X.Y.Z_linux_amd64.deb`、CLI tar.gz |
-| macOS（Tauri） | `MocikaShield_X.Y.Z_macos_universal.dmg`、CLI tar.gz、`macos-tauri-checksums-sha256.txt` |
-| Windows | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、CLI zip、`windows-checksums-sha256.txt` |
+| Linux（Tauri） | `MocikaShield_X.Y.Z_linux_amd64.AppImage`、`MocikaShield_X.Y.Z_linux_amd64.deb`、`linux-tauri-checksums-sha256.txt` |
+| macOS（Tauri） | `MocikaShield_X.Y.Z_macos_universal.dmg`、`macos-tauri-checksums-sha256.txt` |
+| Windows | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、`windows-checksums-sha256.txt` |
 
 > 发布仓库：`mocikadev/mocika-shield`（源码与 Release 包同仓库维护）

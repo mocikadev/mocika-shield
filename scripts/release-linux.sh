@@ -22,6 +22,7 @@ ROOT="$SCRIPT_DIR/.."
 VERSION="${VERSION:-${1:-1.0.0}}"
 ARCH="x86_64"
 DIST_DIR="$ROOT/dist/linux"
+SKIP_CLI_RELEASE="${SKIP_CLI_RELEASE:-0}"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -39,15 +40,17 @@ error()   { echo -e "${RED}✗ $1${NC}" >&2; exit 1; }
 check_deps() {
   info "检查构建依赖..."
 
-  # musl 目标（CLI 静态链接用）
-  if ! rustup target list --installed | grep -q "x86_64-unknown-linux-musl"; then
-    warn "未安装 musl 目标，正在安装..."
-    rustup target add x86_64-unknown-linux-musl
-  fi
+  if [[ "$SKIP_CLI_RELEASE" != "1" ]]; then
+    # musl 目标（CLI 静态链接用）
+    if ! rustup target list --installed | grep -q "x86_64-unknown-linux-musl"; then
+      warn "未安装 musl 目标，正在安装..."
+      rustup target add x86_64-unknown-linux-musl
+    fi
 
-  # musl-gcc
-  if ! command -v musl-gcc &>/dev/null; then
-    error "未安装 musl-tools，请运行: sudo apt install musl-tools"
+    # musl-gcc
+    if ! command -v musl-gcc &>/dev/null; then
+      error "未安装 musl-tools，请运行: sudo apt install musl-tools"
+    fi
   fi
 
   # cargo-deb（deb 打包）
@@ -273,9 +276,15 @@ main() {
   check_deps
   build_stub
   prepare_dirs
-  build_cli
+  if [[ "$SKIP_CLI_RELEASE" == "1" ]]; then
+    info "跳过 CLI 构建与打包（SKIP_CLI_RELEASE=1）"
+  else
+    build_cli
+  fi
   build_gui
-  package_cli
+  if [[ "$SKIP_CLI_RELEASE" != "1" ]]; then
+    package_cli
+  fi
   collect_gui
   generate_checksums
   show_results

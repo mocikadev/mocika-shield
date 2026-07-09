@@ -25,6 +25,7 @@ $Arch      = "x86_64"
 $DistDir   = Join-Path $Root "dist\windows"
 
 if (-not $Version) { $Version = "1.0.0" }
+$SkipCliRelease = $env:SKIP_CLI_RELEASE -eq "1"
 
 # ========== 输出工具 ==========
 function Info($msg)    { Write-Host "==> $msg" -ForegroundColor Blue }
@@ -342,9 +343,15 @@ try {
     Check-Env
     Build-Stub
     Prepare-Dirs
-    Build-Cli
+    if ($SkipCliRelease) {
+        Info "跳过 CLI 构建与打包（SKIP_CLI_RELEASE=1）"
+    } else {
+        Build-Cli
+    }
     Build-Gui
-    Package-Cli
+    if (-not $SkipCliRelease) {
+        Package-Cli
+    }
     Collect-Gui
     Generate-Checksums
     Show-Results

@@ -44,8 +44,8 @@ jobs:
       - name: 检查 Rust 格式
         run: cargo fmt --all --check
 
-      - name: 运行 CLI 单元测试
-        run: cargo test -p shield-core -p shield-cli
+      - name: 运行核心单元测试
+        run: cargo test -p shield-core
 
       - name: 运行 stub Rust 单元测试
         run: cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml

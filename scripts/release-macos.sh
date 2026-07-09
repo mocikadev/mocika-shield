@@ -24,6 +24,7 @@ ROOT="$SCRIPT_DIR/.."
 VERSION="${VERSION:-${1:-1.0.0}}"
 BUILD_UNIVERSAL="${2:-}"
 DIST_DIR="$ROOT/dist/macos"
+SKIP_CLI_RELEASE="${SKIP_CLI_RELEASE:-0}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -305,9 +306,15 @@ main() {
   check_env
   build_stub
   prepare_dirs
-  build_cli
+  if [[ "$SKIP_CLI_RELEASE" == "1" ]]; then
+    info "跳过 CLI 构建与打包（SKIP_CLI_RELEASE=1）"
+  else
+    build_cli
+  fi
   build_gui
-  package_cli
+  if [[ "$SKIP_CLI_RELEASE" != "1" ]]; then
+    package_cli
+  fi
   collect_gui
   generate_checksums
   show_results
