@@ -268,3 +268,7 @@ make build-all
 ## 安全问题
 
 请阅读 [SECURITY.md](SECURITY.md)。不要在公开 issue 中披露可直接复现的攻击细节。
+
+## 问题反馈
+
+提交 issue 前建议阅读 [支持与问题反馈](docs/process/support.md)，并在关于页复制诊断信息。请不要在公开 issue 中上传 APK、keystore、证书密码或签名密码。

@@ -1,0 +1,103 @@
+name: Bug 反馈
+description: 报告加固、签名、证书管理、环境检测或界面交互问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请不要上传 APK、keystore、证书密码、签名密码或其他敏感材料。
+
+        如果是安全漏洞或可直接复现的攻击细节，请不要提交公开 issue，请按 SECURITY.md 使用私下渠道反馈。
+
+  - type: input
+    id: version
+    attributes:
+      label: Mocika Shield 版本
+      description: 可在关于页查看版本号。
+      placeholder: "例如：1.2.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 操作系统
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java / JDK 状态
+      description: 可在关于页查看；签名、Alias 识别和加固需要完整 JDK 17+。
+      placeholder: "例如：Java 17.0.15，keytool 可用，javac 可用"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题模块
+      options:
+        - 加固
+        - 签名
+        - 证书管理
+        - Java 环境检测
+        - 更新检查
+        - 界面交互
+        - 构建 / CI
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请写出从打开应用到问题出现的完整步骤。
+      placeholder: |
+        1. 打开 ...
+        2. 选择 ...
+        3. 点击 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      placeholder: "你认为应该发生什么？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      placeholder: "实际发生了什么？如有错误提示，请粘贴完整文本。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: 诊断信息
+      description: 请在关于页点击“复制诊断信息”，然后粘贴到这里。诊断信息不会包含 APK 路径、证书路径、密码或完整用户目录。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 可粘贴日志、错误详情或截图。请先确认不包含 APK、证书、密码、用户隐私路径等敏感信息。
+    validations:
+      required: false

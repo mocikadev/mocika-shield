@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题 / 漏洞反馈
+    url: https://github.com/mocikadev/mocika-shield/security/advisories/new
+    about: 请不要在公开 issue 中披露可直接复现的攻击细节，请使用 GitHub Security Advisories。
+  - name: 查看最新版本
+    url: https://github.com/mocikadev/mocika-shield/releases/latest
+    about: 下载最新 GUI 安装包，或确认问题是否已在新版本中修复。

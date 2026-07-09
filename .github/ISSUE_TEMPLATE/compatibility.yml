@@ -1,0 +1,97 @@
+name: APK 兼容性问题
+description: 报告 Google Play 16 KB 对齐、安装失败、启动崩溃、设备兼容等问题
+title: "[兼容性] "
+labels:
+  - compatibility
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个模板用于 APK 兼容性问题，例如加固后无法安装、启动崩溃、Google Play 检查未通过、16 KB 对齐异常等。
+
+        请不要上传 APK、keystore、证书密码或其他敏感材料。必要时请先提供脱敏后的结构信息和诊断信息。
+
+  - type: input
+    id: version
+    attributes:
+      label: Mocika Shield 版本
+      placeholder: "例如：1.2.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: 问题类型
+      options:
+        - Google Play 16 KB 对齐检查未通过
+        - 加固后无法安装
+        - 加固后启动崩溃
+        - 覆盖安装失败
+        - 特定设备 / Android 版本异常
+        - 其他兼容性问题
+    validations:
+      required: true
+
+  - type: input
+    id: android_version
+    attributes:
+      label: Android 版本 / 设备信息
+      placeholder: "例如：Android 14，arm64-v8a，Pixel 8"
+    validations:
+      required: false
+
+  - type: input
+    id: apk_signing
+    attributes:
+      label: 原 APK 签名状态
+      description: 原 APK 必须已签名。可说明 V1/V2/V3/V4 签名情况，如不确定可写“不确定”。
+      placeholder: "例如：V2 + V3；或不确定"
+    validations:
+      required: false
+
+  - type: input
+    id: abi
+    attributes:
+      label: APK ABI 信息
+      description: 可填写 APK 内包含的 native ABI。
+      placeholder: "例如：arm64-v8a、armeabi-v7a"
+    validations:
+      required: false
+
+  - type: textarea
+    id: alignment
+    attributes:
+      label: 16 KB 对齐检查结果
+      description: 如果是 Google Play 或 16 KB 对齐问题，请粘贴检查工具输出或平台提示。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: crash_log
+    attributes:
+      label: 安装 / 启动日志
+      description: |
+        如为安装失败或启动崩溃，请提供 `adb install` 输出或 `adb logcat` 关键日志。
+        请先脱敏包名、业务类名、用户信息等敏感内容。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: 诊断信息
+      description: 请在关于页点击“复制诊断信息”，然后粘贴到这里。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他说明
+      placeholder: "例如：是否开启自动签名、是否重签名后覆盖安装、是否只在某个 Android 版本出现。"
+    validations:
+      required: false
