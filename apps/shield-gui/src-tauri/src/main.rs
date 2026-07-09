@@ -16,7 +16,8 @@ use app_config::{
 };
 use app_paths::find_apksigner_path;
 use build_info::{
-    get_app_info as get_app_info_impl, get_build_info as get_build_info_impl, AppInfo, BuildInfo,
+    get_app_info as get_app_info_impl, get_build_info as get_build_info_impl,
+    get_diagnostic_info as get_diagnostic_info_impl, AppInfo, BuildInfo,
 };
 use cert_service::{
     create_managed_certificate, save_certificate_profile, validate_certificate_input,
@@ -264,6 +265,11 @@ fn get_build_info(app: tauri::AppHandle) -> BuildInfo {
     get_build_info_impl(app)
 }
 
+#[tauri::command]
+fn get_diagnostic_info(app: tauri::AppHandle) -> String {
+    get_diagnostic_info_impl(app)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -300,7 +306,8 @@ fn main() {
             dismiss_update,
             get_dismissed_version,
             get_app_info,
-            get_build_info
+            get_build_info,
+            get_diagnostic_info
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| panic!("启动 shield-gui 失败: {err}"));

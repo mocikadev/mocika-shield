@@ -16,7 +16,7 @@ export function AboutPage({
   runtimeInfoRefreshing: boolean;
   onRefreshRuntimeInfo: () => void;
 }) {
-  const { appInfo, checking, message, checkUpdate } = useAboutPage({
+  const { appInfo, checking, copyingDiagnostic, message, checkUpdate, copyDiagnosticInfo } = useAboutPage({
     locale,
     setUpdateInfo,
   });
@@ -30,6 +30,8 @@ export function AboutPage({
         checking={checking}
         message={message}
         onCheckUpdate={checkUpdate}
+        copyingDiagnostic={copyingDiagnostic}
+        onCopyDiagnosticInfo={copyDiagnosticInfo}
         runtimeInfoRefreshing={runtimeInfoRefreshing}
         onRefreshRuntimeInfo={onRefreshRuntimeInfo}
       />

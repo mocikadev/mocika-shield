@@ -187,6 +187,7 @@ export const api = {
   getDismissedVersion: () => invoke<string | null>("get_dismissed_version"),
   getAppInfo: () => invoke<AppInfo>("get_app_info"),
   getBuildInfo: () => invoke<BuildInfo>("get_build_info"),
+  getDiagnosticInfo: () => invoke<string>("get_diagnostic_info"),
 };
 
 export async function openFileDialog(

@@ -1,4 +1,4 @@
-import { Download, Loader2, RotateCcw } from "lucide-react";
+import { ClipboardList, Download, Loader2, RotateCcw } from "lucide-react";
 import { logoSvg } from "@/components/app/branding";
 import { AppButton, SummaryRow } from "@/components/app/common";
 import { t, type Locale } from "@/lib/i18n";
@@ -18,6 +18,8 @@ export function AboutInfoCard({
   checking,
   message,
   onCheckUpdate,
+  copyingDiagnostic,
+  onCopyDiagnosticInfo,
   runtimeInfoRefreshing,
   onRefreshRuntimeInfo,
 }: {
@@ -27,6 +29,8 @@ export function AboutInfoCard({
   checking: boolean;
   message: string;
   onCheckUpdate: () => void;
+  copyingDiagnostic: boolean;
+  onCopyDiagnosticInfo: () => void;
   runtimeInfoRefreshing: boolean;
   onRefreshRuntimeInfo: () => void;
 }) {
@@ -73,6 +77,10 @@ export function AboutInfoCard({
           <AppButton variant="secondary" onClick={onCheckUpdate} disabled={checking}>
             {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {checking ? t(locale, "checkingUpdate") : t(locale, "checkUpdate")}
+          </AppButton>
+          <AppButton variant="secondary" onClick={onCopyDiagnosticInfo} disabled={copyingDiagnostic}>
+            {copyingDiagnostic ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+            {copyingDiagnostic ? t(locale, "copyingDiagnosticInfo") : t(locale, "copyDiagnosticInfo")}
           </AppButton>
         </div>
         {message && <p className="text-sm text-muted-foreground">{message}</p>}

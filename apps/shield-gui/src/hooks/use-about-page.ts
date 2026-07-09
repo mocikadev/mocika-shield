@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { api, type UpdateCheckResult } from "@/lib/tauri";
 
 type AppInfo = {
@@ -23,6 +24,7 @@ export function useAboutPage({
 }) {
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
   const [checking, setChecking] = useState(false);
+  const [copyingDiagnostic, setCopyingDiagnostic] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -47,10 +49,25 @@ export function useAboutPage({
     }
   }, [locale, setUpdateInfo]);
 
+  const copyDiagnosticInfo = useCallback(async () => {
+    setCopyingDiagnostic(true);
+    try {
+      const text = await api.getDiagnosticInfo();
+      await navigator.clipboard.writeText(text);
+      notifySuccess(t(locale, "diagnosticCopied"));
+    } catch {
+      notifyError(t(locale, "diagnosticCopyFailed"));
+    } finally {
+      setCopyingDiagnostic(false);
+    }
+  }, [locale]);
+
   return {
     appInfo,
     checking,
+    copyingDiagnostic,
     message,
     checkUpdate,
+    copyDiagnosticInfo,
   };
 }
