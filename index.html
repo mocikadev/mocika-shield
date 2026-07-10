@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mocika Shield 项目统计</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; background: Canvas; color: CanvasText; }
+    h1 { margin-bottom: 6px; }
+    .note { color: GrayText; margin-top: 0; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 28px 0; }
+    .metric { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 12px; padding: 18px; }
+    .metric span { display: block; color: GrayText; font-size: 14px; }
+    .metric strong { display: block; margin-top: 8px; font-size: 28px; font-weight: 600; }
+    .charts { display: grid; gap: 18px; }
+    .charts img { width: 100%; height: auto; border-radius: 12px; }
+    footer { margin-top: 26px; color: GrayText; font-size: 13px; }
+    a { color: LinkText; }
+  </style>
+</head>
+<body>
+  <h1>Mocika Shield 项目统计</h1>
+  <p class="note">每日自动更新 · 最近采集时间 2026-07-10T07:36:22.130920Z · 下载次数不等于独立用户数</p>
+  <section class="metrics" aria-label="统计摘要"><article class="metric"><span>发布包累计下载</span><strong>179</strong></article><article class="metric"><span>近 14 天独立访客</span><strong>—</strong></article><article class="metric"><span>近 14 天独立克隆</span><strong>—</strong></article><article class="metric"><span>星标</span><strong>13</strong></article></section>
+  <section class="charts" aria-label="趋势图">
+    <img src="charts/platform-downloads.svg" alt="各系统平台累计下载量">
+    <img src="charts/download-trend.svg" alt="发布包累计下载趋势">
+    <img src="charts/traffic-trend.svg" alt="仓库独立访客与独立克隆趋势">
+  </section>
+  <footer>数据来自 <a href="https://github.com/mocikadev/mocika-shield">GitHub 仓库与 Releases</a> 的聚合统计，不包含客户端遥测。</footer>
+</body>
+</html>
