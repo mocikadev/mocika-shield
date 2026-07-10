@@ -4,7 +4,7 @@
   "snapshots": [
     {
       "date": "2026-07-10",
-      "collected_at": "2026-07-10T07:49:06.875679Z",
+      "collected_at": "2026-07-10T08:02:46.120874Z",
       "repository": {
         "stars": 13,
         "forks": 1,
@@ -12,11 +12,11 @@
       },
       "traffic": {
         "window_days": 14,
-        "available": false,
-        "views": null,
-        "unique_visitors": null,
-        "clones": null,
-        "unique_cloners": null
+        "available": true,
+        "views": 280,
+        "unique_visitors": 45,
+        "clones": 295,
+        "unique_cloners": 95
       },
       "release_assets": [
         {
@@ -373,14 +373,14 @@
           "tag": "v1.2.2",
           "published_at": "2026-07-10T07:32:20Z",
           "name": "MocikaShield_1.2.2_windows_x64_setup.exe",
-          "download_count": 1,
+          "download_count": 3,
           "platform": "Windows"
         }
       ],
       "totals": {
-        "downloads": 180,
+        "downloads": 182,
         "platform_downloads": {
-          "Windows": 106,
+          "Windows": 108,
           "macOS": 57,
           "Linux": 17,
           "其他": 0
@@ -388,5 +388,5 @@
       }
     }
   ],
-  "updated_at": "2026-07-10T07:49:06.875679Z"
+  "updated_at": "2026-07-10T08:02:46.120874Z"
 }
