@@ -4,7 +4,7 @@
   "snapshots": [
     {
       "date": "2026-07-10",
-      "collected_at": "2026-07-10T08:08:42.872375Z",
+      "collected_at": "2026-07-10T09:53:37.846876Z",
       "repository": {
         "stars": 13,
         "forks": 1,
@@ -18,6 +18,7 @@
         "clones": 295,
         "unique_cloners": 95
       },
+      "usage": {},
       "release_assets": [
         {
           "tag": "v1.0.0",
@@ -366,27 +367,27 @@
           "tag": "v1.2.2",
           "published_at": "2026-07-10T07:32:20Z",
           "name": "MocikaShield_1.2.2_macos_universal.dmg",
-          "download_count": 0,
+          "download_count": 1,
           "platform": "macOS"
         },
         {
           "tag": "v1.2.2",
           "published_at": "2026-07-10T07:32:20Z",
           "name": "MocikaShield_1.2.2_windows_x64_setup.exe",
-          "download_count": 3,
+          "download_count": 5,
           "platform": "Windows"
         }
       ],
       "totals": {
-        "downloads": 182,
+        "downloads": 185,
         "platform_downloads": {
-          "Windows": 108,
-          "macOS": 57,
+          "Windows": 110,
+          "macOS": 58,
           "Linux": 17,
           "其他": 0
         }
       }
     }
   ],
-  "updated_at": "2026-07-10T08:08:42.872375Z"
+  "updated_at": "2026-07-10T09:53:37.846876Z"
 }
