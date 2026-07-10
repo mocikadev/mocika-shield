@@ -30,6 +30,7 @@ pub(crate) struct DailyTelemetry {
     pub protect_success_count: u32,
     pub protect_failed_count: u32,
     pub sign_success_count: u32,
+    pub sign_failed_count: u32,
     pub uploaded: bool,
 }
 

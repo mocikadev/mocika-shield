@@ -4,6 +4,7 @@ const ALLOWED_EVENTS = new Set([
   "protect_success_count",
   "protect_failed_count",
   "sign_success_count",
+  "sign_failed_count",
 ]);
 
 function corsHeaders() {
@@ -59,8 +60,8 @@ async function saveDailyUsage(request, env) {
     INSERT INTO daily_usage (
       anonymous_id, usage_date, app_version, platform, arch,
       app_start_count, protect_start_count, protect_success_count,
-      protect_failed_count, sign_success_count, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      protect_failed_count, sign_success_count, sign_failed_count, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(anonymous_id, usage_date) DO UPDATE SET
       app_version = excluded.app_version,
       platform = excluded.platform,
@@ -69,7 +70,8 @@ async function saveDailyUsage(request, env) {
       protect_start_count = excluded.protect_start_count,
       protect_success_count = excluded.protect_success_count,
       protect_failed_count = excluded.protect_failed_count,
-      sign_success_count = excluded.sign_success_count
+      sign_success_count = excluded.sign_success_count,
+      sign_failed_count = excluded.sign_failed_count
   `).bind(
     body.anonymous_id,
     body.usage_date,
@@ -81,6 +83,7 @@ async function saveDailyUsage(request, env) {
     values.protect_success_count,
     values.protect_failed_count,
     values.sign_success_count,
+    values.sign_failed_count,
     new Date().toISOString(),
   ).run();
 

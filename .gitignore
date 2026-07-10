@@ -59,3 +59,4 @@ shield-gui-swift/build/
 
 # 下载的构建工具（appimagetool 等），不进版本库
 scripts/tools/
+tools/stats-worker/.wrangler/

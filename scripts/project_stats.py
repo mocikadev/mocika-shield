@@ -425,6 +425,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
         <div class="chart-card"><img src="charts/version-downloads.svg" alt="各版本按系统平台拆分的累计下载量"></div>
         <div class="chart-card"><img src="charts/download-trend.svg" alt="发布包累计下载趋势"></div>
         <div class="chart-card"><img src="charts/traffic-trend.svg" alt="仓库独立访客与独立克隆趋势"></div>
+        <div class="chart-card"><img src="charts/usage-trend.svg" alt="应用启动与加固成功趋势"></div>
       </div>
     </section>
     <section class="section" id="versions">
@@ -488,6 +489,17 @@ def write_outputs(history: dict[str, Any], output_dir: Path) -> None:
         ),
         encoding="utf-8",
     )
+    usage_points = snapshots[-1].get("usage", {}).get("trend", [])
+    (charts / "usage-trend.svg").write_text(
+        line_chart(
+            "应用实际使用趋势",
+            "匿名客户端每日汇总",
+            usage_points,
+            [("启动次数", "app_starts", "#2563eb"), ("加固成功", "protect_successes", "#16a34a")],
+            lambda item, key: item.get(key) or 0,
+        ),
+        encoding="utf-8",
+    )
     (output_dir / "index.html").write_text(
         render_index(history["repository"], snapshots), encoding="utf-8"
     )
@@ -521,6 +533,7 @@ def collect_payload(repository: str, token: str) -> dict[str, Any]:
             "app_starts": sum(int(row.get("app_starts") or 0) for row in rows),
             "protect_successes": sum(int(row.get("protect_successes") or 0) for row in rows),
             "protect_failures": sum(int(row.get("protect_failures") or 0) for row in rows),
+            "trend": rows,
         }
     except (OSError, ValueError, TypeError):
         payload["usage"] = {}

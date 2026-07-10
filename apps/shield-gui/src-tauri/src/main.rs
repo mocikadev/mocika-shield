@@ -161,9 +161,14 @@ async fn sign_apk(
     })
     .await
     .map_err(|err| format!("后台任务执行失败: {err}"))?;
-    if result.is_ok() {
-        telemetry::record_event(&telemetry_state, "sign_success_count");
-    }
+    telemetry::record_event(
+        &telemetry_state,
+        if result.is_ok() {
+            "sign_success_count"
+        } else {
+            "sign_failed_count"
+        },
+    );
     result
 }
 

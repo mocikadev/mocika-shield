@@ -54,6 +54,7 @@ struct DailyPayload {
     protect_success_count: u32,
     protect_failed_count: u32,
     sign_success_count: u32,
+    sign_failed_count: u32,
 }
 
 pub(crate) async fn sync_pending(state: &AppConfigState) {
@@ -91,6 +92,7 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
             protect_success_count: item.protect_success_count,
             protect_failed_count: item.protect_failed_count,
             sign_success_count: item.sign_success_count,
+            sign_failed_count: item.sign_failed_count,
         };
         let Ok(response) = client
             .post("https://mocika-shield-stats-api.xuechao-suo.workers.dev/events/daily")
