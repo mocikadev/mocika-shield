@@ -5,53 +5,108 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mocika Shield 项目统计</title>
   <style>
-    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; background: Canvas; color: CanvasText; }
-    h1 { margin-bottom: 6px; }
-    .note { color: GrayText; margin-top: 0; }
-    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 28px 0; }
-    .metric { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 12px; padding: 18px; }
-    .metric span { display: block; color: GrayText; font-size: 14px; }
-    .metric strong { display: block; margin-top: 8px; font-size: 28px; font-weight: 600; }
-    .charts { display: grid; gap: 18px; }
-    .charts img { width: 100%; height: auto; border-radius: 12px; }
-    h2 { margin-top: 34px; }
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }
+    * { box-sizing: border-box; }
+    body { max-width: 1160px; margin: 0 auto; padding: 24px 20px 72px; background: #f6f8fb; color: #172033; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 0 30px; }
+    .brand { display: flex; align-items: center; gap: 11px; color: #172033; font-weight: 650; letter-spacing: -.02em; }
+    .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; font-weight: 700; }
+    nav { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; }
+    .hero { border-radius: 22px; padding: 36px clamp(24px, 5vw, 56px); background: radial-gradient(circle at 90% 10%, rgba(124, 58, 237, .32), transparent 35%), linear-gradient(135deg, #111827, #1e3a8a); color: #f8fafc; box-shadow: 0 18px 45px rgba(30, 58, 138, .2); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 15px; color: #bfdbfe; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    .pulse { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 5px rgba(74, 222, 128, .16); }
+    h1 { max-width: 680px; margin: 0; font-size: clamp(30px, 5vw, 52px); line-height: 1.05; letter-spacing: -.045em; }
+    .hero-copy { max-width: 650px; margin: 16px 0 0; color: #dbeafe; font-size: 16px; line-height: 1.7; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 16px; margin: 25px 0 0; color: #bfdbfe; font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 24px 0; }
+    .metric { min-height: 126px; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; background: rgba(255, 255, 255, .82); box-shadow: 0 5px 18px rgba(15, 23, 42, .04); }
+    .metric span { display: block; color: #64748b; font-size: 13px; }
+    .metric strong { display: block; margin-top: 11px; font-size: 31px; letter-spacing: -.04em; }
+    .metric small { display: block; margin-top: 8px; color: #94a3b8; font-size: 11px; line-height: 1.4; }
+    .section { margin-top: 34px; }
+    .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
+    .section-heading p { margin: 0; color: #64748b; font-size: 13px; }
+    .charts { display: grid; gap: 16px; }
+    .chart-card { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; box-shadow: 0 5px 18px rgba(15, 23, 42, .04); }
+    .charts img { display: block; width: 100%; height: auto; }
+    .table-card { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; box-shadow: 0 5px 18px rgba(15, 23, 42, .04); }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid color-mix(in srgb, CanvasText 14%, transparent); text-align: left; }
-    th { color: GrayText; font-weight: 500; }
-    details { margin-top: 22px; }
-    summary { cursor: pointer; font-weight: 500; }
-    footer { margin-top: 26px; color: GrayText; font-size: 13px; }
-    a { color: LinkText; }
+    th, td { padding: 13px 16px; border-bottom: 1px solid #eef2f7; text-align: left; white-space: nowrap; }
+    th { color: #64748b; background: #f8fafc; font-size: 12px; font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #f8fafc; }
+    details { margin-top: 13px; }
+    summary { padding: 15px 16px; cursor: pointer; color: #475569; font-size: 13px; }
+    .footnote { margin: 14px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7; }
+    footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 46px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
+    @media (max-width: 760px) {
+      body { padding: 15px 14px 50px; }
+      .topbar { align-items: flex-start; flex-direction: column; padding-bottom: 20px; }
+      nav { gap: 12px; }
+      .hero { border-radius: 18px; padding: 28px 22px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .section-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root, body { background: #0b1220; color: #e5e7eb; }
+      .brand { color: #e5e7eb; }
+      .metric, .chart-card, .table-card { border-color: #263247; background: #111a2b; box-shadow: none; }
+      .metric span, .section-heading p, .footnote, footer { color: #94a3b8; }
+      th { color: #94a3b8; background: #162033; }
+      th, td { border-color: #263247; }
+      tbody tr:hover { background: #162033; }
+      footer { border-color: #263247; }
+    }
   </style>
 </head>
 <body>
-  <h1>Mocika Shield 项目统计</h1>
-  <p class="note">每日自动更新 · 最近采集时间 2026-07-10T07:44:41.989396Z · 下载次数不等于独立用户数</p>
-  <section class="metrics" aria-label="统计摘要"><article class="metric"><span>发布包累计下载</span><strong>180</strong></article><article class="metric"><span>近 14 天独立访客</span><strong>—</strong></article><article class="metric"><span>近 14 天独立克隆</span><strong>—</strong></article><article class="metric"><span>星标</span><strong>13</strong></article></section>
-  <section class="charts" aria-label="趋势图">
-    <img src="charts/platform-downloads.svg" alt="各系统平台累计下载量">
-    <img src="charts/version-downloads.svg" alt="各版本按系统平台拆分的累计下载量">
-    <img src="charts/download-trend.svg" alt="发布包累计下载趋势">
-    <img src="charts/traffic-trend.svg" alt="仓库独立访客与独立克隆趋势">
-  </section>
-  <h2>版本下载明细</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>版本</th><th>类型</th><th>Windows</th><th>macOS</th><th>Linux</th><th>合计</th></tr></thead>
-      <tbody><tr><td><code>v1.2.2</code></td><td>正式版</td><td>1</td><td>0</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.1</code></td><td>正式版</td><td>5</td><td>1</td><td>0</td><td><strong>6</strong></td></tr><tr><td><code>v1.2.0</code></td><td>正式版</td><td>0</td><td>5</td><td>0</td><td><strong>5</strong></td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>预发布版</td><td>0</td><td>1</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>预发布版</td><td>0</td><td>1</td><td>1</td><td><strong>2</strong></td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>预发布版</td><td>0</td><td>1</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>预发布版</td><td>3</td><td>2</td><td>0</td><td><strong>5</strong></td></tr><tr><td><code>v1.1.0</code></td><td>正式版</td><td>88</td><td>44</td><td>15</td><td><strong>147</strong></td></tr><tr><td><code>v1.0.0</code></td><td>正式版</td><td>9</td><td>2</td><td>1</td><td><strong>12</strong></td></tr></tbody>
-    </table>
-  </div>
-  <details>
-    <summary>查看具体发布产物</summary>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>版本</th><th>产物</th><th>平台</th><th>下载</th></tr></thead>
-        <tbody><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_macos_universal.dmg</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_windows_x64_setup.exe</td><td>Windows</td><td>1</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_windows_x64_setup.exe</td><td>Windows</td><td>5</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_macos_universal.dmg</td><td>macOS</td><td>5</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_linux_amd64.AppImage</td><td>Linux</td><td>1</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-macos-universal.tar.gz</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-windows-x86_64.zip</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_macos_universal.dmg</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-macos-universal.tar.gz</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-windows-x86_64.zip</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_macos_universal.dmg</td><td>macOS</td><td>2</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-macos-universal.tar.gz</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-windows-x86_64.zip</td><td>Windows</td><td>3</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_amd64.AppImage</td><td>Linux</td><td>5</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_amd64.deb</td><td>Linux</td><td>5</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_gnome_amd64.AppImage</td><td>Linux</td><td>3</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_gnome_amd64.deb</td><td>Linux</td><td>2</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_arm64.dmg</td><td>macOS</td><td>13</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_swift_arm64.dmg</td><td>macOS</td><td>18</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_swift_universal.dmg</td><td>macOS</td><td>6</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_universal.dmg</td><td>macOS</td><td>7</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_windows_x64_setup.exe</td><td>Windows</td><td>88</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_linux_amd64.deb</td><td>Linux</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_macos_aarch64.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_windows_x64_setup.exe</td><td>Windows</td><td>9</td></tr></tbody>
-      </table>
-    </div>
-  </details>
-  <footer>数据来自 <a href="https://github.com/mocikadev/mocika-shield">GitHub 仓库与 Releases</a> 的聚合统计，不包含客户端遥测。</footer>
+  <header class="topbar">
+    <a class="brand" href="https://github.com/mocikadev/mocika-shield"><span class="brand-mark" aria-hidden="true">M</span><span>Mocika Shield</span></a>
+    <nav aria-label="页面导航"><a href="#overview">概览</a><a href="#charts">趋势图</a><a href="#versions">版本明细</a><a href="https://github.com/mocikadev/mocika-shield/releases">发布页</a><a href="https://github.com/mocikadev/mocika-shield">GitHub</a></nav>
+  </header>
+  <main>
+    <section class="hero" id="overview">
+      <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>每日自动更新的公开统计</p>
+      <h1>了解 Mocika Shield 被关注和使用的趋势</h1>
+      <p class="hero-copy">通过 GitHub 发布包下载、版本分布和仓库公开指标，观察不同平台与版本的需求变化。这里展示的是项目趋势，不是精确的独立用户数。</p>
+      <div class="hero-meta"><span>最后采集：2026-07-10T07:48:05.991910Z</span><span>数据窗口：GitHub 最近 14 天流量</span></div>
+    </section>
+    <section class="metrics" aria-label="统计摘要"><article class="metric"><span>发布包累计下载</span><strong>180</strong></article><article class="metric"><span>近 14 天独立访客</span><strong>—</strong></article><article class="metric"><span>近 14 天独立克隆</span><strong>—</strong></article><article class="metric"><span>星标</span><strong>13</strong></article></section>
+    <section class="section" id="charts">
+      <div class="section-heading"><h2>趋势与分布</h2><p>按平台、版本和时间观察下载变化</p></div>
+      <div class="charts" aria-label="趋势图">
+        <div class="chart-card"><img src="charts/platform-downloads.svg" alt="各系统平台累计下载量"></div>
+        <div class="chart-card"><img src="charts/version-downloads.svg" alt="各版本按系统平台拆分的累计下载量"></div>
+        <div class="chart-card"><img src="charts/download-trend.svg" alt="发布包累计下载趋势"></div>
+        <div class="chart-card"><img src="charts/traffic-trend.svg" alt="仓库独立访客与独立克隆趋势"></div>
+      </div>
+    </section>
+    <section class="section" id="versions">
+      <div class="section-heading"><h2>版本下载明细</h2><p>正式版与预发布版分开统计</p></div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>版本</th><th>类型</th><th>Windows</th><th>macOS</th><th>Linux</th><th>合计</th></tr></thead>
+            <tbody><tr><td><code>v1.2.2</code></td><td>正式版</td><td>1</td><td>0</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.1</code></td><td>正式版</td><td>5</td><td>1</td><td>0</td><td><strong>6</strong></td></tr><tr><td><code>v1.2.0</code></td><td>正式版</td><td>0</td><td>5</td><td>0</td><td><strong>5</strong></td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>预发布版</td><td>0</td><td>1</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>预发布版</td><td>0</td><td>1</td><td>1</td><td><strong>2</strong></td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>预发布版</td><td>0</td><td>1</td><td>0</td><td><strong>1</strong></td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>预发布版</td><td>3</td><td>2</td><td>0</td><td><strong>5</strong></td></tr><tr><td><code>v1.1.0</code></td><td>正式版</td><td>88</td><td>44</td><td>15</td><td><strong>147</strong></td></tr><tr><td><code>v1.0.0</code></td><td>正式版</td><td>9</td><td>2</td><td>1</td><td><strong>12</strong></td></tr></tbody>
+          </table>
+        </div>
+        <details>
+          <summary>查看具体发布产物</summary>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>版本</th><th>产物</th><th>平台</th><th>下载</th></tr></thead>
+              <tbody><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_macos_universal.dmg</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.2</code></td><td>MocikaShield_1.2.2_windows_x64_setup.exe</td><td>Windows</td><td>1</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.1</code></td><td>MocikaShield_1.2.1_windows_x64_setup.exe</td><td>Windows</td><td>5</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_macos_universal.dmg</td><td>macOS</td><td>5</td></tr><tr><td><code>v1.2.0</code></td><td>MocikaShield_1.2.0_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.4</code></td><td>MocikaShield_1.2.0-rc.4_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_linux_amd64.AppImage</td><td>Linux</td><td>1</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>MocikaShield_1.2.0-rc.3_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-macos-universal.tar.gz</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.3</code></td><td>mocika-shield-cli-1.2.0-rc.3-windows-x86_64.zip</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_macos_universal.dmg</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>MocikaShield_1.2.0-rc.2_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-macos-universal.tar.gz</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.2.0-rc.2</code></td><td>mocika-shield-cli-1.2.0-rc.2-windows-x86_64.zip</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_linux_amd64.deb</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_macos_universal.dmg</td><td>macOS</td><td>2</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>MocikaShield_1.2.0-rc.1_windows_x64_setup.exe</td><td>Windows</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-linux-x86_64.tar.gz</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-macos-universal.tar.gz</td><td>macOS</td><td>0</td></tr><tr><td><code>v1.2.0-rc.1</code></td><td>mocika-shield-cli-1.2.0-rc.1-windows-x86_64.zip</td><td>Windows</td><td>3</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_amd64.AppImage</td><td>Linux</td><td>5</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_amd64.deb</td><td>Linux</td><td>5</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_gnome_amd64.AppImage</td><td>Linux</td><td>3</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_linux_gnome_amd64.deb</td><td>Linux</td><td>2</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_arm64.dmg</td><td>macOS</td><td>13</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_swift_arm64.dmg</td><td>macOS</td><td>18</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_swift_universal.dmg</td><td>macOS</td><td>6</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_macos_universal.dmg</td><td>macOS</td><td>7</td></tr><tr><td><code>v1.1.0</code></td><td>MocikaShield_1.1.0_windows_x64_setup.exe</td><td>Windows</td><td>88</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_linux_amd64.AppImage</td><td>Linux</td><td>0</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_linux_amd64.deb</td><td>Linux</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_macos_aarch64.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_macos_universal.dmg</td><td>macOS</td><td>1</td></tr><tr><td><code>v1.0.0</code></td><td>MocikaShield_1.0.0_windows_x64_setup.exe</td><td>Windows</td><td>9</td></tr></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+      <p class="footnote">下载次数包含重复下载和不同格式下载，不等于独立用户数。访客和克隆在 GitHub 权限不可用时显示为“—”，不会被当作零。</p>
+    </section>
+  </main>
+  <footer><span>数据来自 <a href="https://github.com/mocikadev/mocika-shield">GitHub 仓库与 Releases</a> 的聚合统计，不包含客户端遥测。</span><span><a href="https://github.com/mocikadev/mocika-shield/blob/main/docs/ops/project-statistics.md">查看统计口径</a></span></footer>
 </body>
 </html>
