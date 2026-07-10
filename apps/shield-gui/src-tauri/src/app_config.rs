@@ -16,11 +16,41 @@ pub(crate) struct UpdateCache {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub(crate) struct TelemetryConfig {
+    pub enabled: bool,
+    pub anonymous_id: String,
+    pub daily: std::collections::BTreeMap<String, DailyTelemetry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub(crate) struct DailyTelemetry {
+    pub app_start_count: u32,
+    pub protect_start_count: u32,
+    pub protect_success_count: u32,
+    pub protect_failed_count: u32,
+    pub sign_success_count: u32,
+    pub uploaded: bool,
+}
+
+impl Default for TelemetryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            anonymous_id: uuid::Uuid::new_v4().to_string(),
+            daily: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub(crate) struct AppConfig {
     pub locale: String,
     pub theme_mode: String,
     pub dismissed_version: Option<String>,
     pub update_cache: UpdateCache,
+    pub telemetry: TelemetryConfig,
 }
 
 impl Default for AppConfig {
@@ -30,6 +60,7 @@ impl Default for AppConfig {
             theme_mode: "system".to_string(),
             dismissed_version: None,
             update_cache: UpdateCache::default(),
+            telemetry: TelemetryConfig::default(),
         }
     }
 }
@@ -38,6 +69,7 @@ impl Default for AppConfig {
 pub(crate) struct AppConfigPayload {
     pub locale: String,
     pub theme_mode: String,
+    pub telemetry_enabled: bool,
 }
 
 impl From<&AppConfig> for AppConfigPayload {
@@ -45,6 +77,7 @@ impl From<&AppConfig> for AppConfigPayload {
         Self {
             locale: normalize_locale(&config.locale),
             theme_mode: normalize_theme_mode(&config.theme_mode),
+            telemetry_enabled: config.telemetry.enabled,
         }
     }
 }

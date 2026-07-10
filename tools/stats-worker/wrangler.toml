@@ -1,0 +1,8 @@
+name = "mocika-shield-stats-api"
+main = "src/index.js"
+compatibility_date = "2026-07-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mocika-shield-analytics"
+database_id = "0540e5d6-576e-4ea8-b409-a10ba3cdf30f"

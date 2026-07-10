@@ -9,6 +9,7 @@ mod cert_store;
 mod file_ops;
 mod protect_runner;
 mod signing;
+mod telemetry;
 mod updates;
 
 use apk_check::{do_check_apk, do_compare_cert_fingerprints, ApkCheckResult, CertCompareResult};
@@ -69,13 +70,15 @@ async fn compare_cert_fingerprints(
 #[tauri::command]
 async fn protect_apk(
     window: tauri::Window,
+    telemetry_state: tauri::State<'_, AppConfigState>,
     input: String,
     output: String,
     apktool_path: Option<String>,
     resources_path: Option<String>,
     cancel_handle: tauri::State<'_, CancelHandle>,
 ) -> Result<(), String> {
-    execute_protect_apk(
+    telemetry::record_event(&telemetry_state, "protect_start_count");
+    let result = execute_protect_apk(
         window,
         input,
         output,
@@ -83,7 +86,16 @@ async fn protect_apk(
         resources_path,
         cancel_handle,
     )
-    .await
+    .await;
+    telemetry::record_event(
+        &telemetry_state,
+        if result.is_ok() {
+            "protect_success_count"
+        } else {
+            "protect_failed_count"
+        },
+    );
+    result
 }
 
 #[tauri::command]
@@ -127,12 +139,14 @@ fn save_app_config(
     state.mutate(move |current| {
         current.locale = normalize_locale(&config.locale);
         current.theme_mode = normalize_theme_mode(&config.theme_mode);
+        current.telemetry.enabled = config.telemetry_enabled;
     })
 }
 
 #[tauri::command]
 async fn sign_apk(
     app: tauri::AppHandle,
+    telemetry_state: tauri::State<'_, AppConfigState>,
     state: tauri::State<'_, CertificateStoreState>,
     apk_path: String,
     output_path: Option<String>,
@@ -142,11 +156,15 @@ async fn sign_apk(
     let certificate = state
         .get_certificate(&certificate_id)?
         .ok_or_else(|| "未找到签名证书".to_string())?;
-    tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         execute_sign_apk(&app, apk_path, output_path, apksigner_path, certificate)
     })
     .await
-    .map_err(|err| format!("后台任务执行失败: {err}"))?
+    .map_err(|err| format!("后台任务执行失败: {err}"))?;
+    if result.is_ok() {
+        telemetry::record_event(&telemetry_state, "sign_success_count");
+    }
+    result
 }
 
 #[tauri::command]
@@ -235,6 +253,12 @@ async fn check_update(
 }
 
 #[tauri::command]
+async fn sync_telemetry(state: tauri::State<'_, AppConfigState>) -> Result<(), String> {
+    telemetry::sync_pending(&state).await;
+    Ok(())
+}
+
+#[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     open_url_impl(url)
 }
@@ -280,7 +304,9 @@ fn main() {
             let loaded = load_app_config(app.handle())?;
             save_app_config_file(&loaded.path, &loaded.config)?;
             let cert_store = initialize_certificate_store(app.handle())?;
-            app.manage(AppConfigState::new(loaded.path, loaded.config));
+            let config_state = AppConfigState::new(loaded.path, loaded.config);
+            telemetry::record_app_start(&config_state);
+            app.manage(config_state);
             app.manage(cert_store);
             Ok(())
         })
@@ -304,6 +330,7 @@ fn main() {
             create_managed_certificate_command,
             list_keystore_aliases,
             check_update,
+            sync_telemetry,
             open_url,
             dismiss_update,
             get_dismissed_version,

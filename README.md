@@ -10,6 +10,12 @@
 
 > 本项目仅用于保护你拥有合法权利的 Android 应用。请勿用于绕过第三方应用保护、规避平台安全机制或其他未授权场景。
 
+## 项目关注趋势
+
+[![各系统平台累计下载](https://raw.githubusercontent.com/mocikadev/mocika-shield/stats/charts/platform-downloads.svg)](https://mocikadev.github.io/mocika-shield/)
+
+> 数据每日自动更新。下载次数不等于独立用户数，仅用于观察项目关注趋势；统计不包含客户端遥测。[查看统计口径](docs/ops/project-statistics.md)
+
 ---
 
 ## 功能特性

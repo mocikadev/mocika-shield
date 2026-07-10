@@ -31,7 +31,7 @@ type Page = "protect" | "sign" | "certificates" | "settings" | "about";
 
 export function App() {
   const [page, setPage] = useState<Page>("protect");
-  const { locale, setLocale, themeMode, setThemeMode } = useAppConfigState();
+  const { locale, setLocale, themeMode, setThemeMode, telemetryEnabled, setTelemetryEnabled } = useAppConfigState();
   const certificatesState = useCertificatesState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
   const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
@@ -141,6 +141,8 @@ export function App() {
                 setLocale={setLocale}
                 themeMode={themeMode}
                 setThemeMode={setThemeMode}
+                telemetryEnabled={telemetryEnabled}
+                setTelemetryEnabled={setTelemetryEnabled}
               />
             )}
             {page === "about" && (

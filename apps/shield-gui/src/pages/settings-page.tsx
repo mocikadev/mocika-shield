@@ -9,11 +9,15 @@ export function SettingsPage({
   setLocale,
   themeMode,
   setThemeMode,
+  telemetryEnabled,
+  setTelemetryEnabled,
 }: {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  telemetryEnabled: boolean;
+  setTelemetryEnabled: (enabled: boolean) => void;
 }) {
   const [selectedLocale, setSelectedLocale] = useState<Locale>(locale);
   const [selectedThemeMode, setSelectedThemeMode] = useState<ThemeMode>(themeMode);
@@ -36,16 +40,18 @@ export function SettingsPage({
     }
   }, []);
 
-  async function persist(nextLocale: Locale, nextThemeMode: ThemeMode) {
+  async function persist(nextLocale: Locale, nextThemeMode: ThemeMode, nextTelemetry = telemetryEnabled) {
     setSaving(true);
     setError("");
     try {
       await api.saveAppConfig({
         locale: nextLocale,
         theme_mode: nextThemeMode,
+        telemetry_enabled: nextTelemetry,
       });
       setLocale(nextLocale);
       setThemeMode(nextThemeMode);
+      setTelemetryEnabled(nextTelemetry);
       setStatus("saved");
       if (timerRef.current) {
         window.clearTimeout(timerRef.current);
@@ -102,6 +108,11 @@ export function SettingsPage({
                 ]}
               />
             </div>
+          </SettingsFieldRow>
+        </SettingsGroup>
+        <SettingsGroup title="匿名使用统计">
+          <SettingsFieldRow label="允许发送匿名使用统计">
+            <input type="checkbox" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
           </SettingsFieldRow>
         </SettingsGroup>
         {status === "saved" && (

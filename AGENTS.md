@@ -140,7 +140,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 
 | 仓库 | homepage |
 |------|----------|
-| `mocikadev/mocika-shield` | `https://github.com/mocikadev/mocika-shield/releases/latest` |
+| `mocikadev/mocika-shield` | `https://mocikadev.github.io/mocika-shield/` |
 
 ### Topics
 
@@ -158,6 +158,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/README.md](docs/README.md) | 文档总览、模块概览、阅读路线 |
 | [docs/ops/build.md](docs/ops/build.md) | 从源码编译的详细步骤（含 GUI、Windows） |
 | [docs/ops/environment.md](docs/ops/environment.md) | 环境要求与 NDK 配置（含 Windows Scoop 一键配置） |
+| [docs/ops/project-statistics.md](docs/ops/project-statistics.md) | 项目关注度统计口径、自动化流程与维护方式 |
 | [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
 | [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |

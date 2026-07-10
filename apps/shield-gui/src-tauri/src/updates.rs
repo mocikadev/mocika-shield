@@ -122,7 +122,9 @@ pub(crate) async fn check_update_impl(
     }
 
     if !response.status().is_success() {
-        return Err(format!("GitHub API 返回错误状态码: {}", response.status()));
+        // GitHub API 的匿名额度较低。额度耗尽时，使用 releases/latest 的重定向结果
+        // 获取版本号，不依赖 API 配额。
+        return check_update_from_release_redirect(&client, state, current).await;
     }
 
     let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
@@ -136,6 +138,40 @@ pub(crate) async fn check_update_impl(
         latest,
         release_url.map(|s| s.to_string()),
     ))
+}
+
+async fn check_update_from_release_redirect(
+    client: &reqwest::Client,
+    state: &AppConfigState,
+    current: &str,
+) -> Result<UpdateCheckResult, String> {
+    let response = client
+        .get("https://github.com/mocikadev/mocika-shield/releases/latest")
+        .header("User-Agent", format!("mocika-shield/{current}"))
+        .send()
+        .await
+        .map_err(|e| format!("无法访问 GitHub Releases: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "GitHub Releases 返回错误状态码: {}",
+            response.status()
+        ));
+    }
+
+    let release_url = response.url().to_string();
+    let tag = release_url
+        .rsplit("/tag/")
+        .next()
+        .filter(|value| !value.is_empty() && *value != release_url)
+        .unwrap_or("");
+    let latest = tag.trim_start_matches(['v', 'V']);
+    if latest.is_empty() {
+        return Err("GitHub Releases 未返回有效版本号".to_string());
+    }
+
+    save_update_to_cache(state, latest, Some(&release_url));
+    Ok(compare_semver(current, latest, Some(release_url.clone())))
 }
 
 #[cfg(test)]

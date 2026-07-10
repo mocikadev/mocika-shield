@@ -1,0 +1,72 @@
+name: 项目统计
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: project-stats
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: 更新项目统计
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: 检出主分支
+        uses: actions/checkout@v7
+        with:
+          path: source
+
+      - name: 读取已有统计历史
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stats-output/data"
+          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" stats >/dev/null 2>&1; then
+            git -C source fetch origin stats
+            git -C source show origin/stats:data/history.json > "$RUNNER_TEMP/stats-output/data/history.json"
+          fi
+
+      - name: 采集并生成统计页面
+        working-directory: source
+        env:
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || github.token }}
+        run: |
+          python3 scripts/project_stats.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --history-file "$RUNNER_TEMP/stats-output/data/history.json" \
+            --output-dir "$RUNNER_TEMP/stats-output"
+
+      - name: 发布到统计分支
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git -c core.autocrlf=false clone --quiet --no-checkout \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$RUNNER_TEMP/stats-branch"
+          cd "$RUNNER_TEMP/stats-branch"
+          if git show-ref --verify --quiet refs/remotes/origin/stats; then
+            git switch stats
+          else
+            git switch --orphan stats
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R "$RUNNER_TEMP/stats-output/." .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "统计数据没有变化"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: 更新项目统计"
+          git push origin HEAD:stats

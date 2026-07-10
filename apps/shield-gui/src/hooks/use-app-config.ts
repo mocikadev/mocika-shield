@@ -7,8 +7,10 @@ export function useAppConfigState() {
   const [locale, setLocale] = useState<Locale>(detectSystemLocale);
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(true);
 
   useEffect(() => {
+    void api.syncTelemetry();
     let disposed = false;
     api.getAppConfig()
       .then((value: AppConfig) => {
@@ -17,6 +19,7 @@ export function useAppConfigState() {
         }
         setLocale(value.locale === "en" ? "en" : "zh");
         setThemeMode(normalizeThemeMode(value.theme_mode));
+        setTelemetryEnabled(value.telemetry_enabled !== false);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -35,6 +38,8 @@ export function useAppConfigState() {
     themeMode,
     setThemeMode,
     configLoaded,
+    telemetryEnabled,
+    setTelemetryEnabled,
   };
 }
 

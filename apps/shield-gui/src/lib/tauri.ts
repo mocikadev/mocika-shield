@@ -18,6 +18,7 @@ export type ThemeMode = "system" | "light" | "dark";
 export type AppConfig = {
   locale: "zh" | "en" | string;
   theme_mode: ThemeMode | string;
+  telemetry_enabled: boolean;
 };
 
 export type CertificateRecord = {
@@ -182,6 +183,7 @@ export const api = {
 	    certificateId: string;
 	  }) => invoke<CertCompareResult>("compare_cert_fingerprints", args),
   checkUpdate: (force: boolean) => invoke<UpdateCheckResult>("check_update", { force }),
+  syncTelemetry: () => invoke<void>("sync_telemetry"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   dismissUpdate: (version: string) => invoke<void>("dismiss_update", { version }),
   getDismissedVersion: () => invoke<string | null>("get_dismissed_version"),
