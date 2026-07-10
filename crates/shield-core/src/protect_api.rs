@@ -91,8 +91,6 @@ pub fn protect_apk(
 
     emit_progress(&on_progress, &cancel, ProgressStep::CheckTools, "检查工具")?;
     print_step("检查工具");
-    find_apktool().map_err(ShieldError::from)?;
-    find_runtime_resources().map_err(ShieldError::from)?;
     print_success("所有工具就绪");
 
     let temp_dir = create_temp_dir("shield-").map_err(ShieldError::from)?;
