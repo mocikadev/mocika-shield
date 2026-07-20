@@ -4116,7 +4116,7 @@
     },
     {
       "date": "2026-07-20",
-      "collected_at": "2026-07-20T03:58:00.907967Z",
+      "collected_at": "2026-07-20T04:29:33.025025Z",
       "repository": {
         "stars": 22,
         "forks": 3,
@@ -4578,6 +4578,34 @@
           "name": "MocikaShield_1.2.3_windows_x64_setup.exe",
           "download_count": 31,
           "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_macos_universal.dmg",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
         }
       ],
       "totals": {
@@ -4591,5 +4619,5 @@
       }
     }
   ],
-  "updated_at": "2026-07-20T03:58:00.907967Z"
+  "updated_at": "2026-07-20T04:29:33.025025Z"
 }
