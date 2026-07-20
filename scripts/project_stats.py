@@ -57,18 +57,27 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
             rows = json.load(response).get("data", [])
         if not isinstance(rows, list):
             raise ValueError("data 字段不是数组")
+        trend: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("data 数组元素不是对象")
+            date = row.get("date") or row.get("usage_date") or row.get("day")
+            if not date:
+                raise ValueError("匿名使用统计缺少日期字段")
+            trend.append({**row, "date": str(date)})
+        trend.sort(key=lambda row: row["date"])
     except (OSError, ValueError, TypeError) as error:
         print(f"警告：匿名使用统计接口不可用：{error}", file=sys.stderr)
         return {"available": False, "trend": []}
 
-    latest = rows[-1] if rows else {}
+    latest = trend[-1] if trend else {}
     return {
         "available": True,
         "active_devices": latest.get("active_devices"),
-        "app_starts": sum(int(row.get("app_starts") or 0) for row in rows),
-        "protect_successes": sum(int(row.get("protect_successes") or 0) for row in rows),
-        "protect_failures": sum(int(row.get("protect_failures") or 0) for row in rows),
-        "trend": rows,
+        "app_starts": sum(int(row.get("app_starts") or 0) for row in trend),
+        "protect_successes": sum(int(row.get("protect_successes") or 0) for row in trend),
+        "protect_failures": sum(int(row.get("protect_failures") or 0) for row in trend),
+        "trend": trend,
     }
 
 

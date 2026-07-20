@@ -124,6 +124,23 @@ class ProjectStatsTests(unittest.TestCase):
         self.assertEqual(request.get_header("User-agent"), "mocika-shield-project-stats")
         self.assertTrue(usage["available"])
         self.assertEqual(usage["app_starts"], 3)
+        self.assertEqual(usage["trend"][0]["date"], "2026-07-10")
+
+        payload = {
+            "repository": {"stargazers_count": 1, "forks_count": 0, "open_issues_count": 0},
+            "views": {"count": 3, "uniques": 2},
+            "clones": {"count": 1, "uniques": 1},
+            "releases": [],
+            "usage": usage,
+        }
+        snapshot = build_snapshot(payload, datetime(2026, 7, 10, tzinfo=timezone.utc))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            history = load_history(root / "missing.json", "mocikadev/mocika-shield")
+            merge_snapshot(history, snapshot)
+            write_outputs(history, root)
+            chart = (root / "charts/usage-trend.svg").read_text(encoding="utf-8")
+            self.assertIn("2026-07-10", chart)
 
     @patch("scripts.project_stats.urllib.request.urlopen")
     def test_usage_stats_接口失败时明确标记不可用(self, urlopen):
