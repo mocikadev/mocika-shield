@@ -43,6 +43,16 @@ use std::sync::{
 use tauri::Manager;
 use updates::{check_update_impl, UpdateCheckResult};
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProtectRequest {
+    input: String,
+    output: String,
+    apktool_path: Option<String>,
+    resources_path: Option<String>,
+    certificate_id: Option<String>,
+}
+
 #[tauri::command]
 async fn compare_cert_fingerprints(
     app: tauri::AppHandle,
@@ -71,19 +81,26 @@ async fn compare_cert_fingerprints(
 async fn protect_apk(
     window: tauri::Window,
     telemetry_state: tauri::State<'_, AppConfigState>,
-    input: String,
-    output: String,
-    apktool_path: Option<String>,
-    resources_path: Option<String>,
+    certificate_state: tauri::State<'_, CertificateStoreState>,
+    request: ProtectRequest,
     cancel_handle: tauri::State<'_, CancelHandle>,
 ) -> Result<(), String> {
+    let expected_signing_certificate = match request.certificate_id {
+        Some(id) => Some(
+            certificate_state
+                .get_certificate(&id)?
+                .ok_or_else(|| "未找到自动签名证书".to_string())?,
+        ),
+        None => None,
+    };
     telemetry::record_event(&telemetry_state, "protect_start_count");
     let result = execute_protect_apk(
         window,
-        input,
-        output,
-        apktool_path,
-        resources_path,
+        request.input,
+        request.output,
+        request.apktool_path,
+        request.resources_path,
+        expected_signing_certificate,
         cancel_handle,
     )
     .await;

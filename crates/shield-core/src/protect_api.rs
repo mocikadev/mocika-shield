@@ -7,17 +7,19 @@ use std::sync::{
     Arc,
 };
 
+use crate::apk_inspect::{
+    check_apk, extract_apk_cert_fingerprint, normalize_fingerprint, ApkCheckOutcome,
+};
 use crate::error::ShieldError;
 use crate::protect::{
     dex::process_dex,
     manifest::modify_manifest,
     runtime::{inject_runtime, read_stub_application},
-    signature::extract_apk_signature,
 };
 use crate::utils::is_json_mode;
 use crate::utils::{
-    create_temp_dir, find_apktool, find_java, find_runtime_resources, human_size, print_step,
-    print_success, run_command,
+    create_temp_dir, find_apksigner, find_apktool, find_java, find_runtime_resources, human_size,
+    print_step, print_success, run_command,
 };
 use crate::zipalign::align_apk;
 
@@ -29,6 +31,10 @@ pub struct ProtectOptions {
     pub apktool_path: Option<PathBuf>,
     /// 用户自定义 resources.zip 路径（优先于自动查找）
     pub resources_path: Option<PathBuf>,
+    /// 用户自定义 apksigner.jar 路径（优先于自动查找）
+    pub apksigner_path: Option<PathBuf>,
+    /// 计划用于加固输出签名的证书指纹；提供时必须与输入 APK 当前证书一致
+    pub expected_output_cert_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +83,16 @@ pub fn protect_apk(
         }
         None => find_runtime_resources().map_err(ShieldError::from)?,
     };
+    let apksigner = match &opts.apksigner_path {
+        Some(p) if p.exists() => p.clone(),
+        Some(p) => {
+            return Err(ShieldError::from(anyhow::anyhow!(
+                "配置的 apksigner.jar 路径不存在: {}",
+                p.display()
+            )))
+        }
+        None => find_apksigner().map_err(ShieldError::from)?,
+    };
 
     if !is_json_mode() {
         println!("{}", "========================================".cyan());
@@ -92,6 +108,17 @@ pub fn protect_apk(
     emit_progress(&on_progress, &cancel, ProgressStep::CheckTools, "检查工具")?;
     print_step("检查工具");
     print_success("所有工具就绪");
+
+    let apk_check = check_apk(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
+    validate_apk_eligibility(&apk_check).map_err(ShieldError::from)?;
+    let signature =
+        extract_apk_cert_fingerprint(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
+    validate_output_certificate(&signature, opts.expected_output_cert_fingerprint.as_deref())
+        .map_err(ShieldError::from)?;
+    print_success(&format!(
+        "原始 APK 当前签名证书 SHA-256: {}...",
+        &signature[..16]
+    ));
 
     let temp_dir = create_temp_dir("shield-").map_err(ShieldError::from)?;
     let apk_dir = temp_dir.path().join("apk");
@@ -133,9 +160,6 @@ pub fn protect_apk(
         ProgressStep::ProcessDex,
         "处理DEX文件",
     )?;
-    print_internal_step("提取APK签名");
-    let signature =
-        extract_apk_signature(&opts.input, &apktool, &java).map_err(ShieldError::from)?;
 
     let mut ikm = [0u8; 32];
     rand::rng().fill_bytes(&mut ikm);
@@ -194,6 +218,31 @@ pub fn protect_apk(
     Ok(())
 }
 
+fn validate_apk_eligibility(outcome: &ApkCheckOutcome) -> anyhow::Result<()> {
+    if outcome.already_protected {
+        anyhow::bail!("该 APK 已经加固，禁止重复加固。请使用原始未加固 APK")
+    }
+    if !outcome.is_signed {
+        anyhow::bail!("该 APK 尚未签名，加固需要有效签名的 APK")
+    }
+    Ok(())
+}
+
+fn validate_output_certificate(
+    input_fingerprint: &str,
+    expected_output_fingerprint: Option<&str>,
+) -> anyhow::Result<()> {
+    let Some(expected) = expected_output_fingerprint else {
+        return Ok(());
+    };
+    if normalize_fingerprint(input_fingerprint) != normalize_fingerprint(expected) {
+        anyhow::bail!(
+            "原 APK 签名证书与所选自动签名证书不一致；加固数据绑定原证书，使用所选证书签名后应用将无法启动。请选择与原 APK 相同的证书"
+        )
+    }
+    Ok(())
+}
+
 fn emit_progress<F>(
     on_progress: &F,
     cancel: &Arc<AtomicBool>,
@@ -219,8 +268,44 @@ fn check_cancel(cancel: &Arc<AtomicBool>) -> std::result::Result<(), ShieldError
     Ok(())
 }
 
-fn print_internal_step(step: &str) {
-    if !is_json_mode() {
-        println!("\n{} {}", "=>".cyan().bold(), step.bold());
+#[cfg(test)]
+mod tests {
+    use super::{validate_apk_eligibility, validate_output_certificate};
+    use crate::apk_inspect::ApkCheckOutcome;
+
+    #[test]
+    fn 已加固_apk_被核心入口拒绝() {
+        let outcome = ApkCheckOutcome {
+            already_protected: true,
+            is_signed: true,
+        };
+        let error = validate_apk_eligibility(&outcome).unwrap_err();
+        assert!(error.to_string().contains("禁止重复加固"));
+    }
+
+    #[test]
+    fn 未签名_apk_被核心入口拒绝() {
+        let outcome = ApkCheckOutcome {
+            already_protected: false,
+            is_signed: false,
+        };
+        let error = validate_apk_eligibility(&outcome).unwrap_err();
+        assert!(error.to_string().contains("尚未签名"));
+    }
+
+    #[test]
+    fn 自动签名证书不一致时失败关闭() {
+        let error = validate_output_certificate("AA:BB", Some("CCDD")).unwrap_err();
+        assert!(error.to_string().contains("应用将无法启动"));
+    }
+
+    #[test]
+    fn 自动签名证书比较会规范化格式() {
+        validate_output_certificate("aa:bb cc", Some("AABBCC")).unwrap();
+    }
+
+    #[test]
+    fn 未配置自动签名时允许生成未签名产物() {
+        validate_output_certificate("AABB", None).unwrap();
     }
 }

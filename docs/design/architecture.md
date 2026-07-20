@@ -17,14 +17,14 @@ mocika-shield/
 │           ├── lib.rs                # 公共 API：protect_apk / sign_apk / ProgressEvent 等
 │           ├── error.rs              # 错误类型（ShieldError）
 │           ├── utils.rs              # 工具函数：exe_dir、strip_unc_prefix（dunce）、find_apktool 等
+│           ├── apk_inspect.rs         # APK 预检、有效签名验证与当前证书指纹提取
 │           ├── protect_api.rs        # 加固流程编排、进度事件、取消
 │           ├── signing.rs            # APK 签名（apksigner）
 │           ├── protect/
 │           │   ├── mod.rs
 │           │   ├── manifest.rs       # AndroidManifest 修改与 Application 注入
 │           │   ├── dex.rs            # DEX 收集、打包、header 修复
-│           │   ├── runtime.rs        # runtime 资源注入、ABI 收集、metadata 读取
-│           │   └── signature.rs      # 原 APK 签名提取
+│           │   └── runtime.rs        # runtime 资源注入、ABI 收集、metadata 读取
 │           └── dex_packer/           # DEX 打包模块（Zstd 压缩 + ChaCha20-Poly1305 + HKDF）
 │               ├── crypto.rs         # 加解密：derive_key / encrypt / decrypt
 │               ├── packer.rs         # 打包入口：DexPacker，输出 DEXB v5 格式

@@ -37,26 +37,89 @@
 
 ## 一、已知缺陷（Bug）
 
-### V2/V3-only APK 签名预检误判
+### V2/V3-only APK 预检与加固签名提取不一致
 
 | 项 | 内容 |
 |----|------|
 | **优先级** | 高 |
 | **状态** | 已完成 |
-| **涉及文件** | `apps/shield-cli/src/main.rs`、`apps/shield-gui/src-tauri/src/main.rs` |
+| **涉及文件** | `crates/shield-core/src/apk_inspect.rs`、`crates/shield-core/src/protect_api.rs`、`shield-stub/src/main/java/dev/mocika/shield/loader/Ld.java` |
 
-**现象**：用 V2/V3 签名（无 V1）的 APK 拖入 GUI，预检会显示"未签名"，阻止后续流程。
+**现象**：早期实现会把 V2/V3-only APK 误判为“未签名”。预检修复后，严格不含 `META-INF` 签名文件的 V2/V3-only APK 虽可通过预检，仍会在“处理 DEX”阶段报签名提取失败。
 
-**根因**：`do_check_apk` 只检测 `META-INF/*.RSA|DSA|EC` 是否存在来判断签名状态。这是 V1 签名的特征，V2/V3 签名存储在 APK Signing Block（ZIP 中央目录前的扩展区域），该代码完全检测不到。
+**根因**：预检和加固流程曾维护两套签名提取逻辑。预检已经使用 `apksigner` 识别 APK Signing Block，加固流程却仍然只检查 `META-INF/*.RSA|DSA|EC` 并调用 `keytool -jarfile`。后者不能可靠读取严格的 V2/V3-only APK，也可能读到已经失效的 V1 残留证书。
 
 **最终修复方案**：
 
-**CLI 层（`apps/shield-cli/src/main.rs`）**：
-1. 新增 `has_v2_v3_signature()`：读取 APK 末尾 64KB，扫描 `"APK Sig Block 42"` magic（16 字节），命中即判定 V2/V3 已签名
-2. `check_apk_json()` 在 V1 未检到时 fallback 调用 `has_v2_v3_signature()`
-3. `extract_apk_cert_fingerprint()` 先试 `keytool -jarfile`（V1），失败则 fallback `apksigner verify --print-certs`（V2/V3），新增 `parse_sha256_from_apksigner()` 解析输出格式
+1. `check_apk()` 优先调用 `apksigner verify` 判断签名是否有效；只有工具不可用时才使用 APK Signing Block magic 和 V1 条目做预检降级。
+2. `extract_apk_cert_fingerprint()` 统一调用 `apksigner verify --print-certs`，只接受验证成功的当前 APK 内容签名证书，不再把 `keytool -jarfile` 作为 APK 证书来源。
+3. 加固流程直接复用 `extract_apk_cert_fingerprint()`，删除重复的 apktool 解包、临时 Java 编译和 V1 证书解析实现。
+4. 指纹固定为当前 X.509 签名证书 DER 的 SHA-256、大写 64 位十六进制；忽略公钥摘要和 Source Stamp 证书。
+5. DEXB v5 当前只保存一个指纹，因此宿主端和 Android 壳都明确拒绝多签名 APK，避免证书数组顺序不稳定导致运行时误判。
+6. 加固后必须使用与输入 APK 当前证书相同的 keystore 签名；若改用其他证书，运行时按设计拒绝解密和启动。
 
-**Tauri GUI**：`do_check_apk` 调用 `apksigner verify <apk_path>` 判断退出码（0 = 已签名）；`apksigner` 通过 `find_apksigner_path` 查找，无法找到时降级 V1 检测并提示。
+---
+
+### 大体积加固载荷导致状态预检漏报
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 中 |
+| **状态** | 已完成 |
+| **涉及文件** | `crates/shield-core/src/apk_inspect.rs` |
+
+**现象**：加固包可在真机正常解密运行，但 `check-apk` 返回 `already_protected: false`。
+
+**根因**：MSHD 追加块布局为 `magic(4) + payload_len(4) + payload`，标记位于加密载荷起点。预检只扫描 `classes.dex` 最后 4 KB；当加密载荷超过 4 KB 时，标记必然落在扫描范围之外。
+
+**最终修复方案**：
+
+1. 流式扫描完整 `classes.dex`，每次只读取 64 KB，并保留 7 字节跨块重叠，不将完整 DEX 载入内存。
+2. 只有 `MSHD` 后的 `payload_len` 恰好指向 `classes.dex` 文件末尾时才判定已加固，避免普通字节内容中的同名字符串造成误报。
+3. 覆盖大于 4 KB 的载荷、跨读取分块的头部以及长度不一致的伪标记回归测试。
+4. 核心 `protect_apk()` 在解包前再次执行加固状态检查，保证 GUI 预检漏报或 CLI 直接调用时也无法二次加固。
+
+---
+
+### 自动签名证书不一致仍生成无法启动的产物
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 高 |
+| **状态** | 已完成 |
+| **涉及文件** | `crates/shield-core/src/protect_api.rs`、`apps/shield-gui/src-tauri/src/protect_runner.rs`、`apps/shield-gui/src/hooks/use-protect-workflow.ts` |
+
+**现象**：原 APK 与默认自动签名证书不一致时，旧流程先完成加固，之后只提示“可能无法覆盖安装”，仍继续用不同证书签名。
+
+**根因**：证书比较位于加固之后、签名之前，并且只作为前端警告。DEXB v5 已将原 APK 证书指纹绑定到密钥派生，不同证书签名后的实际结果是运行时无法解密和启动，而不只是覆盖安装失败。
+
+**最终修复方案**：
+
+1. 选择 APK 时立即比较原 APK 与默认自动签名证书，指纹不一致或读取失败都作为预检错误。
+2. 前端只向 Tauri 后端传证书 ID；后端从本地证书库读取材料并提取指纹，不向前端返回密码。
+3. `ProtectOptions` 接收计划输出证书指纹，核心在解包和创建输出前再次比较；任何错误均失败关闭。
+4. 错误信息明确说明不同证书签名后的应用将无法启动，并要求选择原 APK 使用的证书。
+
+---
+
+### 匿名使用统计存在数据但页面始终为空
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 中 |
+| **状态** | 已完成 |
+| **涉及文件** | `scripts/project_stats.py`、`apps/shield-gui/src-tauri/src/telemetry.rs` |
+
+**现象**：Worker 已保存客户端启动、加固和签名数据，GitHub Pages 的应用使用指标仍显示为空，每日工作流却持续成功。
+
+**根因**：页面脚本使用 Python 默认 `Python-urllib/*` 请求标识访问 Worker，被 Cloudflare 返回 `403`；异常被静默转换为空对象。另有 `sign_failed_count` 分支未累加，导致签名失败永远记为零。
+
+**最终修复方案**：
+
+1. 匿名统计请求设置项目专用 `User-Agent` 与 `Accept: application/json`。
+2. 接口失败时输出任务警告并写入 `available: false`，页面明确显示不可用，不再伪装成“没有数据”。
+3. 保持下载和仓库统计的失败隔离，匿名统计暂时不可用时仍生成页面。
+4. 补齐签名失败计数，并覆盖请求头和失败状态单元测试。
 
 ---
 

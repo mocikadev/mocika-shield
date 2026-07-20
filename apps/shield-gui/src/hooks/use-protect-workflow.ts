@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isApk, protectedOutputPath, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getProtectJavaError } from "@/lib/java";
-import { notifyError, notifySuccess, notifyWarning } from "@/lib/notify";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   api,
   onTauriEvent,
@@ -47,8 +47,10 @@ export function useProtectWorkflow({
   const [precheck, setPrecheck] = useState("");
   const [currentStep, setCurrentStep] = useState("");
   const [messages, setMessages] = useState<string[]>([]);
+  const precheckRequest = useRef(0);
 
   const autoSignReady = Boolean(certificate?.auto_sign_enabled);
+  const autoSignCertificateId = autoSignReady ? certificate?.id ?? null : null;
 
   const computedOutput = useMemo(() => {
     const protectedPath = protectedOutputPath(input);
@@ -75,7 +77,7 @@ export function useProtectWorkflow({
   }, []);
 
   const handleSelected = useCallback(
-    async (path: string) => {
+    (path: string) => {
       setWarning("");
       setError("");
       setPrecheck("");
@@ -89,24 +91,59 @@ export function useProtectWorkflow({
       }
       setInput(path);
       setOutput(protectedOutputPath(path));
+    },
+    [locale],
+  );
+
+  const runPrecheck = useCallback(
+    async (path: string) => {
+      const request = ++precheckRequest.current;
       setState("prechecking");
+      setPrecheck("");
       try {
         const result = await api.checkApk(path);
-        const message = precheckMessage(locale, result);
+        let message = precheckMessage(locale, result);
+        if (!message && autoSignCertificateId) {
+          const compare = await api.compareCertFingerprints({
+            apkPath: path,
+            certificateId: autoSignCertificateId,
+          });
+          if (compare.error) {
+            message = compare.error;
+          } else if (!compare.matches) {
+            message = t(locale, "signMismatch");
+          }
+        }
+        if (request !== precheckRequest.current) {
+          return;
+        }
         if (message) {
           setPrecheck(message);
           notifyError(message);
         }
         setState("idle");
       } catch {
+        if (request !== precheckRequest.current) {
+          return;
+        }
         const message = t(locale, "apkCheckFailed");
         setPrecheck(message);
         notifyError(message);
         setState("idle");
       }
     },
-    [locale],
+    [autoSignCertificateId, locale],
   );
+
+  useEffect(() => {
+    if (!input) {
+      return;
+    }
+    void runPrecheck(input);
+    return () => {
+      precheckRequest.current += 1;
+    };
+  }, [input, runPrecheck]);
 
   useEffect(() => {
     const unlisten = Promise.all([
@@ -124,7 +161,7 @@ export function useProtectWorkflow({
         const first = payload.paths?.[0];
         setDragActive(false);
         if (first) {
-          void handleSelected(first);
+          handleSelected(first);
         }
       }),
       onTauriEvent<void>("tauri://drag-enter", () => setDragActive(true)),
@@ -138,7 +175,7 @@ export function useProtectWorkflow({
   const browse = useCallback(async () => {
     const path = await openFileDialog("APK", ["apk"]);
     if (path) {
-      await handleSelected(path);
+      handleSelected(path);
     }
   }, [handleSelected]);
 
@@ -161,19 +198,14 @@ export function useProtectWorkflow({
       setCurrentStep("CheckTools");
 
       const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
-      await api.protectApk(input, unsignedOutput);
+      await api.protectApk(
+        input,
+        unsignedOutput,
+        autoSignReady && certificate ? certificate.id : null,
+      );
       if (autoSignReady && certificate) {
         setCurrentStep("Sign");
         appendMessage(t(locale, "autoSignStarted"));
-        const compare = await api.compareCertFingerprints({
-          apkPath: input,
-          certificateId: certificate.id,
-        });
-        if (!compare.matches && !compare.error) {
-          const message = t(locale, "signMismatch");
-          setWarning(message);
-          notifyWarning(message);
-        }
         await api.signApk({
           apkPath: unsignedOutput,
           outputPath: output,

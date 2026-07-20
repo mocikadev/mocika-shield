@@ -36,6 +36,15 @@ java -jar tools/apksigner.jar verify app.apk
 
 退出码为 `0` 表示签名验证通过。V2/V3/V4 签名不一定会在 `META-INF/` 下留下证书文件，因此不要只依赖 `unzip -l app.apk | grep META-INF` 判断是否已签名。
 
+加固绑定的是 `--print-certs` 输出中的当前 APK 内容签名证书 SHA-256。加固完成后必须使用同一证书对应的 keystore 重新签名，可在签名前后分别执行以下命令核对：
+
+```bash
+java -jar tools/apksigner.jar verify --print-certs input.apk
+java -jar tools/apksigner.jar verify --print-certs protected_signed.apk
+```
+
+两次输出的 `certificate SHA-256 digest` 必须一致。当前 DEXB v5 仅支持单签名 APK；如果输出多个内容签名证书，需要先改为单证书签名后再加固。
+
 ## APK 16 KB 对齐检查
 
 本工具的加固输出和 GUI 签名链路会自动执行 4 字节 / 16 KB ZIP 对齐。若需要用 Android SDK 官方工具复核：

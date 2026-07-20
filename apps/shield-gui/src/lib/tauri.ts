@@ -145,12 +145,15 @@ export type DragDropPayload = {
 
 export const api = {
   checkApk: (path: string) => invoke<ApkCheckResult>("check_apk", { path }),
-  protectApk: (input: string, output: string) =>
+  protectApk: (input: string, output: string, certificateId?: string | null) =>
     invoke<void>("protect_apk", {
-      input,
-      output,
-      apktoolPath: null,
-      resourcesPath: null,
+      request: {
+        input,
+        output,
+        apktoolPath: null,
+        resourcesPath: null,
+        certificateId: certificateId ?? null,
+      },
     }),
   cancelProtect: () => invoke<void>("cancel_protect"),
   showInFolder: (path: string) => invoke<void>("show_in_folder", { path }),

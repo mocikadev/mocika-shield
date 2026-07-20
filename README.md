@@ -14,7 +14,7 @@
 
 [![各系统平台累计下载](https://raw.githubusercontent.com/mocikadev/mocika-shield/stats/charts/platform-downloads.svg)](https://mocikadev.github.io/mocika-shield/)
 
-> 数据每日自动更新。下载次数不等于独立用户数，仅用于观察项目关注趋势；统计不包含客户端遥测。[查看统计口径](docs/ops/project-statistics.md)
+> 数据每日自动更新。下载次数不等于独立用户数；应用使用数据仅包含用户允许上报的匿名每日汇总。[查看统计口径](docs/ops/project-statistics.md)
 
 ---
 
@@ -104,7 +104,7 @@
 
 使用 PKCS12 证书时，`keytool` 可能会把输入的 Alias 规范为小写。GUI 会按大小写不敏感方式校验，并保存 keystore 中实际返回的 Alias。
 
-如果原 APK 与当前选中的证书指纹不一致，GUI 会提示重新签名后可能无法覆盖安装。
+如果原 APK 与默认自动签名证书的指纹不一致，GUI 会在预检阶段阻止加固。加固数据与原证书绑定，改用其他证书签名会导致应用无法启动。
 
 ### 配置与证书数据
 
@@ -162,7 +162,7 @@ adb install -r protected.apk
     ↓
 [2. 修改 Manifest] → Application 替换为 StubApp，注入 ORIGINAL_APPLICATION meta-data
     ↓
-[3. 提取签名] → 读取原始 APK 证书 SHA-256 指纹（`keytool` → `apksigner` 两级降级）
+[3. 提取签名] → `apksigner` 验证并读取原始 APK 当前内容签名证书的 SHA-256 指纹
     ↓
 [4. 打包加密 DEX] → Zstd 压缩 → ChaCha20-Poly1305 加密 → DEXB v5（含签名指纹与随机 IKM）→ 追加到 classes.dex 末尾
     ↓

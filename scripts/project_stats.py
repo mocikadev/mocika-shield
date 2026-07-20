@@ -7,6 +7,7 @@ import argparse
 import html
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -41,6 +42,34 @@ def github_get(repository: str, endpoint: str, token: str) -> Any:
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"GitHub API 请求失败：{endpoint}，状态码 {error.code}，{detail}") from error
+
+
+def collect_usage_stats(stats_url: str) -> dict[str, Any]:
+    request = urllib.request.Request(
+        stats_url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "mocika-shield-project-stats",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            rows = json.load(response).get("data", [])
+        if not isinstance(rows, list):
+            raise ValueError("data 字段不是数组")
+    except (OSError, ValueError, TypeError) as error:
+        print(f"警告：匿名使用统计接口不可用：{error}", file=sys.stderr)
+        return {"available": False, "trend": []}
+
+    latest = rows[-1] if rows else {}
+    return {
+        "available": True,
+        "active_devices": latest.get("active_devices"),
+        "app_starts": sum(int(row.get("app_starts") or 0) for row in rows),
+        "protect_successes": sum(int(row.get("protect_successes") or 0) for row in rows),
+        "protect_failures": sum(int(row.get("protect_failures") or 0) for row in rows),
+        "trend": rows,
+    }
 
 
 def classify_platform(name: str) -> str:
@@ -305,18 +334,24 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     totals = latest["totals"]
     traffic = latest["traffic"]
     usage = latest.get("usage", {})
+    usage_available = usage.get("available", bool(usage))
     repo = latest["repository"]
     cards: list[tuple[str, Any]] = [
         ("发布包累计下载", totals["downloads"]),
         ("近 14 天独立访客", traffic["unique_visitors"]),
         ("近 14 天独立克隆", traffic["unique_cloners"]),
         ("星标", repo["stars"]),
-        ("近 14 天活跃设备", usage.get("active_devices")),
+        ("最近有数据日活跃设备", usage.get("active_devices")),
         ("近 14 天加固成功", usage.get("protect_successes")),
     ]
     card_html = "".join(
         f'<article class="metric"><span>{html.escape(label)}</span><strong>{value if value is not None else "—"}</strong></article>'
         for label, value in cards
+    )
+    usage_notice = (
+        ""
+        if usage_available
+        else '<p class="status-note">匿名使用统计接口本次采集不可用，下载与仓库统计仍正常更新。</p>'
     )
     versions = summarize_versions(latest)
     version_rows = "".join(
@@ -384,6 +419,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     details {{ margin-top: 13px; }}
     summary {{ padding: 15px 16px; cursor: pointer; color: #475569; font-size: 13px; }}
     .footnote {{ margin: 14px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7; }}
+    .status-note {{ margin: -8px 0 24px; border: 1px solid #f59e0b; border-radius: 12px; padding: 11px 14px; background: #fffbeb; color: #92400e; font-size: 13px; }}
     footer {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 46px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }}
     @media (max-width: 760px) {{
       body {{ padding: 15px 14px 50px; }}
@@ -398,6 +434,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       .brand {{ color: #e5e7eb; }}
       .metric, .chart-card, .table-card {{ border-color: #263247; background: #111a2b; box-shadow: none; }}
       .metric span, .section-heading p, .footnote, footer {{ color: #94a3b8; }}
+      .status-note {{ border-color: #92400e; background: #2b1d0e; color: #fcd34d; }}
       th {{ color: #94a3b8; background: #162033; }}
       th, td {{ border-color: #263247; }}
       tbody tr:hover {{ background: #162033; }}
@@ -414,10 +451,10 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     <section class="hero" id="overview">
       <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>每日自动更新的公开统计</p>
       <h1>Mocika Shield 关注与使用趋势</h1>
-      <p class="hero-copy"><strong>Mocika Shield 是一个 Android APK 加固工具</strong>，提供 DEX 加密、壳保护和运行时反调试能力。这里通过 GitHub 发布包下载、版本分布和仓库公开指标，观察不同平台与版本的需求变化；展示的是项目趋势，不是精确的独立用户数。</p>
-      <div class="hero-meta"><span>最后采集：{html.escape(latest["collected_at"])}</span><span>数据窗口：GitHub 最近 14 天流量</span></div>
+      <p class="hero-copy"><strong>Mocika Shield 是一个 Android APK 加固工具</strong>，提供 DEX 加密、壳保护和运行时反调试能力。这里通过 GitHub 公开指标和用户允许上报的匿名每日汇总，观察项目关注与实际使用趋势；展示的是聚合趋势，不是精确的独立用户数。</p>
+      <div class="hero-meta"><span>最后采集：{html.escape(latest["collected_at"])}</span><span>数据窗口：最近 14 天</span></div>
     </section>
-    <section class="metrics" aria-label="统计摘要">{card_html}</section>
+    <section class="metrics" aria-label="统计摘要">{card_html}</section>{usage_notice}
     <section class="section" id="charts">
       <div class="section-heading"><h2>趋势与分布</h2><p>按平台、版本和时间观察下载变化</p></div>
       <div class="charts" aria-label="趋势图">
@@ -450,7 +487,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       <p class="footnote">下载次数包含重复下载和不同格式下载，不等于独立用户数。访客和克隆在 GitHub 权限不可用时显示为“—”，不会被当作零。</p>
     </section>
   </main>
-  <footer><span>数据来自 <a href="https://github.com/{html.escape(repository)}">GitHub 仓库与 Releases</a> 的聚合统计，不包含客户端遥测。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a></span></footer>
+  <footer><span>数据来自 GitHub 聚合指标，以及用户允许上报的匿名客户端每日汇总；不包含 APK、路径、证书或密码。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a></span></footer>
 </body>
 </html>
 '''
@@ -523,20 +560,11 @@ def collect_payload(repository: str, token: str) -> dict[str, Any]:
         "views": optional_traffic("traffic/views?per=day"),
         "clones": optional_traffic("traffic/clones?per=day"),
     }
-    stats_url = os.environ.get("STATS_API_URL", "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/trend?days=14")
-    try:
-        with urllib.request.urlopen(stats_url, timeout=15) as response:
-            rows = json.load(response).get("data", [])
-        latest = rows[-1] if rows else {}
-        payload["usage"] = {
-            "active_devices": latest.get("active_devices"),
-            "app_starts": sum(int(row.get("app_starts") or 0) for row in rows),
-            "protect_successes": sum(int(row.get("protect_successes") or 0) for row in rows),
-            "protect_failures": sum(int(row.get("protect_failures") or 0) for row in rows),
-            "trend": rows,
-        }
-    except (OSError, ValueError, TypeError):
-        payload["usage"] = {}
+    stats_url = os.environ.get(
+        "STATS_API_URL",
+        "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/trend?days=14",
+    )
+    payload["usage"] = collect_usage_stats(stats_url)
     return payload
 
 

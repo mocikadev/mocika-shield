@@ -36,7 +36,9 @@ pub(crate) fn record_event(state: &AppConfigState, field: &str) {
             "sign_success_count" => {
                 entry.sign_success_count = entry.sign_success_count.saturating_add(1)
             }
-            "sign_failed_count" => {}
+            "sign_failed_count" => {
+                entry.sign_failed_count = entry.sign_failed_count.saturating_add(1)
+            }
             _ => {}
         }
     });
@@ -145,5 +147,29 @@ mod chrono_like {
         let m = mp + if mp < 10 { 3 } else { -9 };
         let year = y + if m <= 2 { 1 } else { 0 };
         format!("{year:04}-{m:02}-{d:02}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::record_event;
+    use crate::app_config::{AppConfig, AppConfigState};
+
+    #[test]
+    fn 签名失败会写入每日匿名统计() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+
+        record_event(&state, "sign_failed_count");
+
+        let total: u32 = state
+            .read()
+            .unwrap()
+            .telemetry
+            .daily
+            .values()
+            .map(|item| item.sign_failed_count)
+            .sum();
+        assert_eq!(total, 1);
     }
 }

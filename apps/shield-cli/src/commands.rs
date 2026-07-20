@@ -39,6 +39,8 @@ pub(crate) fn run_protect(
         output,
         apktool_path: None,
         resources_path: None,
+        apksigner_path: None,
+        expected_output_cert_fingerprint: None,
     };
 
     let cancel = Arc::new(AtomicBool::new(false));

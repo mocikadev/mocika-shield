@@ -30,15 +30,23 @@ public class Ld {
     static String getSignatureSha256(Context ctx) throws Exception {
         android.content.pm.PackageManager pm = ctx.getPackageManager();
         String pkg = ctx.getPackageName();
-        byte[] certBytes;
+        android.content.pm.Signature[] signatures;
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             PackageInfo pi = pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
-            certBytes = pi.signingInfo.getApkContentsSigners()[0].toByteArray();
+            if (pi.signingInfo == null || pi.signingInfo.hasMultipleSigners()) {
+                throw new SecurityException("当前仅支持单签名 APK");
+            }
+            signatures = pi.signingInfo.getApkContentsSigners();
         } else {
             @SuppressWarnings("deprecation")
             PackageInfo pi = pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNATURES);
-            certBytes = pi.signatures[0].toByteArray();
+            signatures = pi.signatures;
         }
+        if (signatures == null || signatures.length != 1 || signatures[0] == null) {
+            throw new SecurityException("无法确定唯一的 APK 签名证书");
+        }
+        // Signature.toByteArray() 返回 X.509 证书 DER，与 apksigner 的 certificate digest 口径一致。
+        byte[] certBytes = signatures[0].toByteArray();
         java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
         byte[] digest = md.digest(certBytes);
         StringBuilder sb = new StringBuilder(64);

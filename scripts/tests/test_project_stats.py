@@ -1,12 +1,17 @@
 import json
+import io
 import tempfile
 import unittest
+import urllib.error
+from contextlib import redirect_stderr
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.project_stats import (
     build_snapshot,
     classify_platform,
+    collect_usage_stats,
     load_history,
     merge_snapshot,
     summarize_versions,
@@ -66,6 +71,9 @@ class ProjectStatsTests(unittest.TestCase):
             self.assertTrue((root / "charts/platform-downloads.svg").exists())
             self.assertTrue((root / "charts/version-downloads.svg").exists())
             self.assertTrue((root / "data/history.json").exists())
+            page = (root / "index.html").read_text(encoding="utf-8")
+            self.assertIn("匿名使用统计接口本次采集不可用", page)
+            self.assertNotIn("不包含客户端遥测", page)
 
     def test_unavailable_traffic_is_not_recorded_as_zero(self):
         payload = {
@@ -90,6 +98,45 @@ class ProjectStatsTests(unittest.TestCase):
         self.assertFalse(versions[0]["prerelease"])
         self.assertTrue(versions[1]["prerelease"])
         self.assertGreater(version_sort_key("v1.2.0"), version_sort_key("v1.2.0-rc.1"))
+
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_usage_stats_使用明确请求标识(self, urlopen):
+        response = io.BytesIO(
+            json.dumps(
+                {
+                    "data": [
+                        {
+                            "usage_date": "2026-07-10",
+                            "active_devices": 2,
+                            "app_starts": 3,
+                            "protect_successes": 1,
+                            "protect_failures": 0,
+                        }
+                    ]
+                }
+            ).encode()
+        )
+        urlopen.return_value.__enter__.return_value = response
+
+        usage = collect_usage_stats("https://stats.example.test/trend")
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("User-agent"), "mocika-shield-project-stats")
+        self.assertTrue(usage["available"])
+        self.assertEqual(usage["app_starts"], 3)
+
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_usage_stats_接口失败时明确标记不可用(self, urlopen):
+        urlopen.side_effect = urllib.error.HTTPError(
+            "https://stats.example.test/trend", 403, "Forbidden", {}, None
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            usage = collect_usage_stats("https://stats.example.test/trend")
+
+        self.assertFalse(usage["available"])
+        self.assertIn("接口不可用", stderr.getvalue())
 
 
 if __name__ == "__main__":

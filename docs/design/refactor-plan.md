@@ -50,7 +50,7 @@
 - `sign.rs`、`main.rs`、GUI Tauri 后端里都存在证书/签名相关近似逻辑
 - `no_window_command()` 在 CLI 和 GUI 各自重复定义
 
-> 其中 `protect.rs` 的职责堆积已经通过 `protect/manifest.rs`、`protect/dex.rs`、`protect/runtime.rs`、`protect/signature.rs` 拆开。
+> 其中 `protect.rs` 的职责堆积已经通过 `protect/manifest.rs`、`protect/dex.rs`、`protect/runtime.rs` 拆开；原 `protect/signature.rs` 后续并入共享的 `apk_inspect.rs`，避免预检与加固维护两套签名提取逻辑。
 
 ### 1.3 当前目录里哪些不是重构重点
 
@@ -155,8 +155,7 @@ apps/shield-cli/src/
 │   ├── mod.rs
 │   ├── manifest.rs         # AndroidManifest 修改
 │   ├── dex.rs              # DEX 处理、header 修复
-│   ├── runtime.rs          # runtime 注入
-│   └── signature.rs        # 原 APK 签名提取
+│   └── runtime.rs          # runtime 注入
 └── dex_packer/
 ```
 
@@ -210,10 +209,11 @@ apps/shield-cli/src/
      - `extract_apk_fingerprint`
      - `extract_keystore_fingerprint`
      - `parse_sha256_fingerprint`
-     - `parse_sha256_from_apksigner`
      - `normalize_fingerprint`
      - `do_check_apk`
      - `check_apk_signed`
+
+   > APK 签名验证、`apksigner` 输出解析与证书指纹规范化后续已下沉到 `shield-core::apk_inspect`，Tauri 层只保留输入输出适配。
 
 5. 新建 `updates.rs`
    - 搬走：
@@ -287,6 +287,7 @@ apps/shield-cli/src/
 
 1. 新建 `protect/signature.rs`
    - 签名提取、`keytool` / 临时 Java 提取逻辑搬走
+   - 后续已由 `apk_inspect.rs` 统一承接 APK 签名验证与指纹提取，删除该重复模块
 
 2. 新建 `protect/manifest.rs`
    - `modify_manifest`

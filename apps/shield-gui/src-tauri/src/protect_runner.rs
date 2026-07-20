@@ -1,6 +1,12 @@
-use crate::app_paths::{find_apktool_path, find_resources_path, strip_unc_prefix};
+use crate::app_paths::{
+    find_apksigner_path, find_apktool_path, find_resources_path, strip_unc_prefix,
+};
+use crate::cert_store::CertificateRecord;
 use serde::Serialize;
-use shield_core::{protect_apk as shield_protect_apk, ProgressEvent, ProtectOptions, ShieldError};
+use shield_core::{
+    extract_keystore_cert_fingerprint, protect_apk as shield_protect_apk, ProgressEvent,
+    ProtectOptions, ShieldError,
+};
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -23,6 +29,7 @@ pub(crate) async fn execute_protect_apk(
     output: String,
     apktool_path: Option<String>,
     resources_path: Option<String>,
+    expected_signing_certificate: Option<CertificateRecord>,
     cancel_handle: tauri::State<'_, CancelHandle>,
 ) -> Result<(), String> {
     cancel_handle.inner().0.store(false, Ordering::SeqCst);
@@ -38,6 +45,7 @@ pub(crate) async fn execute_protect_apk(
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| find_resources_path(&app));
+    let resolved_apksigner = find_apksigner_path(&app);
 
     let cancel = Arc::clone(&cancel_handle.inner().0);
     let emit_error = Arc::new(Mutex::new(None::<String>));
@@ -45,11 +53,24 @@ pub(crate) async fn execute_protect_apk(
     let progress_window = window.clone();
 
     let task_result = tokio::task::spawn_blocking(move || {
+        let expected_output_cert_fingerprint = expected_signing_certificate
+            .map(|certificate| {
+                extract_keystore_cert_fingerprint(
+                    std::path::Path::new(&certificate.keystore_path),
+                    &certificate.key_alias,
+                    &certificate.keystore_password,
+                    Some(&certificate.ks_type),
+                )
+            })
+            .transpose()
+            .map_err(ShieldError::from)?;
         let opts = ProtectOptions {
             input: strip_unc_prefix(PathBuf::from(input)),
             output: strip_unc_prefix(PathBuf::from(output)),
             apktool_path: resolved_apktool,
             resources_path: resolved_resources,
+            apksigner_path: resolved_apksigner,
+            expected_output_cert_fingerprint,
         };
         let cancel_for_progress = Arc::clone(&cancel);
         let cancel_for_protect = Arc::clone(&cancel);

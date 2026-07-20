@@ -53,10 +53,15 @@
 - 加固页选择 APK 后能完成预检
 - 非 APK 文件会立即提示错误，不进入加固流程
 - 未签名 APK 会被阻止或明确提示
+- 无 `META-INF` 签名文件的严格 V2/V3-only APK 能通过预检并完成签名指纹提取
+- 多签名 APK 会明确提示 DEXB v5 仅支持单签名，不生成可能无法启动的产物
+- 已加固 APK 在 GUI 预检和核心加固入口都会被拒绝，不创建二次加固产物
+- 默认自动签名证书与原 APK 指纹不一致或无法读取时，预检直接失败，不生成加固产物
 - 加固成功后生成 `{name}_protected.apk`
 - 开启自动签名并存在默认证书时，生成 `{name}_protected_signed.apk`
 - 日志至少覆盖解包、修改 Manifest、提取签名、加密 DEX、注入壳资源、重新打包、对齐、签名、完成等关键步骤
 - 加固失败时错误信息可复制，且不包含密码明文
+- 输入 APK 与自动签名输出的 `certificate SHA-256 digest` 一致
 - 加固后的 APK 可安装并正常启动
 
 ## APK 对齐与 Google Play 兼容
@@ -86,6 +91,28 @@
 - `make build-stub` 能生成最新 `resources.zip`
 - `make build-cli` 能生成 `shield` 二进制
 - `shield protect -i input.apk -o protected.apk` 可完成基础加固
+
+## 匿名使用统计与公开页面
+
+- 启动、加固成功/失败、签名成功/失败均能写入本地每日汇总
+- 当天记录不会上传；后续日期再次启动时才上传此前汇总
+- 页面采集请求携带项目 `User-Agent`，不会被 Cloudflare 按 Python 默认请求拦截
+- 匿名统计接口可用时，页面展示最近 14 天启动和加固趋势
+- 匿名统计接口不可用时，任务日志出现警告且页面明确标记不可用，GitHub 下载统计仍正常生成
+
+## 关键改动验证记录
+
+### 2026-07-20：严格 V2-only APK 签名提取
+
+| 项 | 结果 |
+|----|------|
+| 测试环境 | macOS 桌面应用；华为 DBY-W09 真机，Android 12，arm64-v8a |
+| 输入 APK | `app-release_v2-only-test.apk`，无有效 V1 签名，仅启用 V2 签名 |
+| 加固与签名 | 桌面应用完成加固和自动签名，输出签名验证为 V2/V3，签名证书 SHA-256 与输入一致 |
+| 安装启动 | ADB 安装成功；`MainActivity` 冷启动成功，`ComposeMainActivity` 热启动成功 |
+| 运行时加载 | 三个原始 DEX 均完成解密和加载，两个页面中的独立模块组件正常绘制 |
+| 异常检查 | 进程持续存活；无签名校验失败、解密失败、类加载失败或崩溃日志 |
+| 加固状态预检 | `check-apk` 能识别载荷超过 4 KB 的 MSHD 追加块，`already_protected` 返回 `true` |
 
 ## 记录要求
 

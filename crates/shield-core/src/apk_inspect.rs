@@ -19,9 +19,6 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
         .map_err(|err| anyhow::anyhow!("{}", classify_apk_zip_error(path, &err)))?;
 
     let mut already_protected = false;
-    const MSHD_MAGIC: &[u8] = b"MSHD";
-    const TAIL_READ_SIZE: u64 = 4096;
-
     for i in 0..archive.len() {
         let mut entry = match archive.by_index(i) {
             Ok(entry) => entry,
@@ -30,19 +27,8 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
 
         if entry.name() == "classes.dex" && !already_protected {
             let entry_size = entry.size();
-            if entry_size >= 8 {
-                let skip = entry_size.saturating_sub(TAIL_READ_SIZE);
-                let read_len = (entry_size - skip) as usize;
-                let mut tail = vec![0u8; read_len];
-                if skip > 0 {
-                    std::io::copy(&mut entry.by_ref().take(skip), &mut std::io::sink())
-                        .context("读取 classes.dex 失败")?;
-                }
-                entry
-                    .read_exact(&mut tail)
-                    .context("读取 classes.dex 失败")?;
-                already_protected = tail.windows(MSHD_MAGIC.len()).any(|w| w == MSHD_MAGIC);
-            }
+            already_protected = contains_valid_mshd_block(&mut entry, entry_size)
+                .context("读取 classes.dex 失败")?;
         }
 
         if already_protected {
@@ -54,6 +40,52 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
         already_protected,
         is_signed: check_apk_signed(path, apksigner_path)?,
     })
+}
+
+fn contains_valid_mshd_block(reader: &mut impl Read, total_size: u64) -> Result<bool> {
+    const MSHD_HEADER_LEN: usize = 8;
+    const OVERLAP_LEN: usize = MSHD_HEADER_LEN - 1;
+    const BUFFER_LEN: usize = 64 * 1024;
+
+    if total_size < MSHD_HEADER_LEN as u64 {
+        return Ok(false);
+    }
+
+    let mut buffer = vec![0u8; BUFFER_LEN + OVERLAP_LEN];
+    let mut overlap_len = 0usize;
+    let mut consumed = 0u64;
+
+    loop {
+        let read_len = reader.read(&mut buffer[overlap_len..overlap_len + BUFFER_LEN])?;
+        if read_len == 0 {
+            return Ok(false);
+        }
+
+        let available = overlap_len + read_len;
+        let base_offset = consumed.saturating_sub(overlap_len as u64);
+        for index in 0..=available.saturating_sub(MSHD_HEADER_LEN) {
+            if &buffer[index..index + 4] != b"MSHD" {
+                continue;
+            }
+            let payload_len = u32::from_le_bytes(
+                buffer[index + 4..index + MSHD_HEADER_LEN]
+                    .try_into()
+                    .expect("MSHD 长度字段固定为 4 字节"),
+            ) as u64;
+            let block_start = base_offset + index as u64;
+            if block_start
+                .checked_add(MSHD_HEADER_LEN as u64)
+                .and_then(|offset| offset.checked_add(payload_len))
+                == Some(total_size)
+            {
+                return Ok(true);
+            }
+        }
+
+        consumed += read_len as u64;
+        overlap_len = available.min(OVERLAP_LEN);
+        buffer.copy_within(available - overlap_len..available, 0);
+    }
 }
 
 fn classify_apk_open_error(path: &Path, err: &io::Error) -> String {
@@ -92,25 +124,12 @@ pub fn extract_apk_cert_fingerprint(
     apk_path: &Path,
     apksigner_path: Option<&Path>,
 ) -> Result<String> {
-    if let Ok(keytool) = find_keytool() {
-        if let Ok(output) = no_window_command(&keytool)
-            .args(["-printcert", "-jarfile", apk_path.to_str().unwrap_or("")])
-            .output()
-        {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                if let Some(fp) = parse_sha256_from_keytool(&stdout) {
-                    return Ok(fp);
-                }
-            }
-        }
-    }
-
     let signer = match apksigner_path {
-        Some(path) => path.to_path_buf(),
-        None => find_apksigner().context("V1 证书提取失败，且未找到 apksigner.jar")?,
+        Some(path) if path.exists() => path.to_path_buf(),
+        Some(path) => anyhow::bail!("配置的 apksigner.jar 路径不存在: {}", path.display()),
+        None => find_apksigner().context("提取 APK 签名证书需要 apksigner.jar")?,
     };
-    let java = find_java().context("V1 证书提取失败，且未找到 Java")?;
+    let java = find_java().context("提取 APK 签名证书需要 Java")?;
     let output = no_window_command(&java)
         .args([
             "-jar",
@@ -122,14 +141,19 @@ pub fn extract_apk_cert_fingerprint(
         .output()
         .context("执行 apksigner verify 失败")?;
 
-    if output.status.success() {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        if let Some(fp) = parse_sha256_from_apksigner(&stdout) {
-            return Ok(fp);
-        }
+        let detail = if stderr.trim().is_empty() {
+            stdout.trim()
+        } else {
+            stderr.trim()
+        };
+        anyhow::bail!("APK 签名验证失败：{detail}")
     }
 
-    anyhow::bail!("无法提取 APK 证书指纹（V1 和 V2/V3 均失败）")
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    select_single_apk_signer_fingerprint(&stdout)
 }
 
 pub fn extract_keystore_cert_fingerprint(
@@ -176,7 +200,10 @@ pub fn normalize_fingerprint(fp: &str) -> String {
 }
 
 fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bool> {
-    if let Some(signer) = apksigner_path {
+    let signer = apksigner_path
+        .map(Path::to_path_buf)
+        .or_else(|| find_apksigner().ok());
+    if let Some(signer) = signer {
         let java = find_java()?;
         if let Ok(status) = no_window_command(&java)
             .args([
@@ -251,27 +278,46 @@ fn parse_sha256_from_keytool(output: &str) -> Option<String> {
     None
 }
 
-fn parse_sha256_from_apksigner(output: &str) -> Option<String> {
+fn parse_cert_sha256_from_apksigner(output: &str) -> Vec<String> {
+    let mut fingerprints = Vec::new();
     for line in output.lines() {
         let upper = line.trim().to_uppercase();
-        if upper.contains("SHA-256") && upper.contains("DIGEST") {
-            let pos = line.rfind(':')?;
+        if upper.contains("CERTIFICATE SHA-256 DIGEST") && !upper.contains("SOURCE STAMP") {
+            let Some(pos) = line.rfind(':') else {
+                continue;
+            };
             let hex = line[pos + 1..].trim().to_uppercase();
-            if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Some(hex);
+            if hex.len() == 64
+                && hex.chars().all(|c| c.is_ascii_hexdigit())
+                && !fingerprints.contains(&hex)
+            {
+                fingerprints.push(hex);
             }
         }
     }
-    None
+    fingerprints
+}
+
+fn select_single_apk_signer_fingerprint(output: &str) -> Result<String> {
+    let fingerprints = parse_cert_sha256_from_apksigner(output);
+    match fingerprints.as_slice() {
+        [fingerprint] => Ok(fingerprint.clone()),
+        [] => anyhow::bail!("apksigner 未返回可识别的 APK 签名证书 SHA-256 指纹"),
+        _ => anyhow::bail!(
+            "检测到 {} 个 APK 内容签名证书；当前 DEXB v5 仅支持单签名 APK",
+            fingerprints.len()
+        ),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_apk_open_error, classify_apk_zip_error, normalize_fingerprint,
-        parse_sha256_from_apksigner, parse_sha256_from_keytool,
+        classify_apk_open_error, classify_apk_zip_error, contains_valid_mshd_block,
+        normalize_fingerprint, parse_cert_sha256_from_apksigner, parse_sha256_from_keytool,
+        select_single_apk_signer_fingerprint,
     };
-    use std::io;
+    use std::io::{self, Cursor};
     use std::path::Path;
 
     #[test]
@@ -293,22 +339,42 @@ mod tests {
     }
 
     #[test]
-    fn parse_sha256_from_apksigner_returns_hex() {
+    fn parse_apksigner_单签名返回证书指纹() {
         let text = "Signer #1 certificate SHA-256 digest: AABBCCDD112233445566778899AABBCCDDEEFF00112233445566778899AABBCC";
         assert_eq!(
-            parse_sha256_from_apksigner(text).as_deref(),
-            Some("AABBCCDD112233445566778899AABBCCDDEEFF00112233445566778899AABBCC")
+            select_single_apk_signer_fingerprint(text).unwrap(),
+            "AABBCCDD112233445566778899AABBCCDDEEFF00112233445566778899AABBCC"
         );
     }
 
     #[test]
-    fn parse_sha256_from_apksigner_returns_first_signer_digest() {
+    fn parse_apksigner_兼容_v3_输出并忽略公钥摘要() {
+        let text = "\
+V3.0 Signer: certificate SHA-256 digest: 1111111111111111111111111111111111111111111111111111111111111111
+V3.0 Signer: public key SHA-256 digest: 2222222222222222222222222222222222222222222222222222222222222222";
+        assert_eq!(
+            select_single_apk_signer_fingerprint(text).unwrap(),
+            "1111111111111111111111111111111111111111111111111111111111111111"
+        );
+    }
+
+    #[test]
+    fn parse_apksigner_多签名明确拒绝() {
+        let text = "\
+V2 Signer #1: certificate SHA-256 digest: 1111111111111111111111111111111111111111111111111111111111111111
+V2 Signer #2: certificate SHA-256 digest: 2222222222222222222222222222222222222222222222222222222222222222";
+        let error = select_single_apk_signer_fingerprint(text).unwrap_err();
+        assert!(error.to_string().contains("仅支持单签名 APK"));
+    }
+
+    #[test]
+    fn parse_apksigner_忽略来源戳证书() {
         let text = "\
 Signer #1 certificate SHA-256 digest: 1111111111111111111111111111111111111111111111111111111111111111
-Signer #2 certificate SHA-256 digest: 2222222222222222222222222222222222222222222222222222222222222222";
+Source Stamp Signer certificate SHA-256 digest: 2222222222222222222222222222222222222222222222222222222222222222";
         assert_eq!(
-            parse_sha256_from_apksigner(text).as_deref(),
-            Some("1111111111111111111111111111111111111111111111111111111111111111")
+            parse_cert_sha256_from_apksigner(text),
+            vec!["1111111111111111111111111111111111111111111111111111111111111111"]
         );
     }
 
@@ -325,9 +391,8 @@ Signer #2 certificate SHA-256 digest: 222222222222222222222222222222222222222222
     #[test]
     fn parse_returns_none_without_sha256_digest() {
         assert_eq!(parse_sha256_from_keytool("SHA1: AA:BB"), None);
-        assert_eq!(
-            parse_sha256_from_apksigner("Signer #1 certificate SHA-1 digest: AABB"),
-            None
+        assert!(
+            parse_cert_sha256_from_apksigner("Signer #1 certificate SHA-1 digest: AABB").is_empty()
         );
     }
 
@@ -347,5 +412,36 @@ Signer #2 certificate SHA-256 digest: 222222222222222222222222222222222222222222
         std::fs::write(&apk, []).unwrap();
         let message = classify_apk_zip_error(&apk, &zip::result::ZipError::InvalidArchive("eof"));
         assert!(message.starts_with("文件为空，不是有效 APK"));
+    }
+
+    #[test]
+    fn mshd_载荷超过四千字节仍可识别() {
+        let payload = vec![0x5a; 8192];
+        let mut dex = vec![0u8; 128];
+        dex.extend_from_slice(b"MSHD");
+        dex.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        dex.extend_from_slice(&payload);
+
+        assert!(contains_valid_mshd_block(&mut Cursor::new(&dex), dex.len() as u64).unwrap());
+    }
+
+    #[test]
+    fn mshd_头跨读取分块仍可识别() {
+        let payload = vec![0x3c; 32];
+        let mut dex = vec![0u8; 64 * 1024 - 3];
+        dex.extend_from_slice(b"MSHD");
+        dex.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        dex.extend_from_slice(&payload);
+
+        assert!(contains_valid_mshd_block(&mut Cursor::new(&dex), dex.len() as u64).unwrap());
+    }
+
+    #[test]
+    fn mshd_长度未指向文件末尾不会误判() {
+        let mut dex = b"dex-content-MSHD".to_vec();
+        dex.extend_from_slice(&4u32.to_le_bytes());
+        dex.extend_from_slice(b"data-extra");
+
+        assert!(!contains_valid_mshd_block(&mut Cursor::new(&dex), dex.len() as u64).unwrap());
     }
 }

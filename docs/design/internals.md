@@ -118,22 +118,24 @@ java -jar apktool.jar d <input.apk> -o <tmp/apk> -f --no-src
 #### 步骤 ③ 签名提取
 
 ```
-层级 1：V1 签名（keytool）
-  keytool -printcert -jarfile <apk>
-  解析 stdout 中的 SHA256 行
-
-    ↓ 失败
-
-层级 2：V2/V3/V4 降级（apksigner）
-  java -jar apksigner.jar verify --print-certs <apk>
-  解析 "Signer #1 certificate SHA-256 digest" 行
-
-    ↓ 仍失败
-
-直接报错退出，要求先使用已签名 APK 进行加固
+java -jar apksigner.jar verify --print-certs <apk>
+    ↓ 验证 APK 的实际有效签名
+解析当前 APK 内容签名证书的 "certificate SHA-256 digest"
+    ↓
+规范化为大写 64 位十六进制
 ```
 
-> 取 **X.509 证书本体的 SHA-256**，与 Runtime 侧 `PackageManager` 返回的证书字节 SHA-256 口径一致。
+> 取 **当前 X.509 内容签名证书 DER 的 SHA-256**。`apksigner` 的 `certificate SHA-256 digest` 与 Runtime 侧对 `PackageManager` 返回的 `Signature.toByteArray()` 计算 SHA-256 口径一致。
+
+安全约束：
+
+- 不使用 `keytool -jarfile` 提取 APK 证书，避免严格 V2/V3-only APK 无法读取，也避免命中已经失效的 V1 残留证书
+- 只接受 `apksigner` 验证成功的 APK
+- 忽略 public key digest 和 Source Stamp 证书，只读取 APK 内容签名证书摘要
+- DEXB v5 只支持一个签名指纹；检测到多签名 APK 时直接拒绝加固
+- 加固输出重新签名时必须继续使用该当前证书对应的 keystore，否则设备运行时取得的实际指纹不同，AEAD 解密和指纹比较都会失败
+- GUI 配置自动签名时，所选证书指纹必须在解包前与输入 APK 指纹一致；不一致或读取失败直接终止，不生成加固产物
+- 核心加固入口会独立检查 MSHD 追加块并拒绝已加固 APK，不能依赖 GUI 预检作为唯一防线
 
 #### 步骤 ④ DEX 打包
 
@@ -229,6 +231,7 @@ compressed_data  comp_sz   Zstd 压缩块（level 19）
 
 **格式要点：**
 - `MSHD` magic：runtime 侧全文反向扫描，每个候选位置均做严格一致性校验（magic + payload_len + 文件末尾三者完全吻合），消除误命中风险
+- 桌面端与 CLI 的加固状态预检会流式扫描完整 `classes.dex`，同样要求 `magic + payload_len` 恰好指向文件末尾；不依赖固定大小的尾部窗口，也不把完整 DEX 载入内存
 - AEAD tag 校验失败立即报错，不返回任何明文
 - 每次加固追加前，先读取 DEX header 的 `file_size` 并裁剪文件至原始边界，确保不会产生多份 MSHD
 - Zstd 参数：`level = 19`（最高压缩比）
@@ -365,6 +368,8 @@ f2  ←→  Ld.q(Context ctx, byte[] dexData) → byte[][]
 1. 解析 DEXB v5 头，读取 `expected_signature`
 2. 调用 `Ld.getSignatureSha256(ctx)` 获取设备当前 APK 实际签名指纹
    - 使用传入的 `ctx`，不依赖 `ActivityThread.currentApplication()`（该阶段返回 null）
+   - Android 9 及以上读取 `SigningInfo.getApkContentsSigners()`，旧系统读取 `PackageInfo.signatures`
+   - 两条路径都要求当前内容签名证书恰好一个，并对 `Signature.toByteArray()` 的证书 DER 计算 SHA-256
 3. `timing_safe_eq(expected, actual)` 常数时间比对，防时序攻击
 4. 不匹配时抛出 `java.lang.RuntimeException`，中断加载
 
