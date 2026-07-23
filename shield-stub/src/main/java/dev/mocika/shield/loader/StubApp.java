@@ -39,8 +39,8 @@ public class StubApp extends Application {
         super.onCreate();
         if (realApp == null) return;
         replaceAppReferences(realApp);
+        ARouterCompat.prepareARouterRouteMap(this);
         realApp.onCreate();
-        ARouterCompat.injectARouterRouteMap(this);
     }
 
     @Override

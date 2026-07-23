@@ -60,8 +60,8 @@
 │     └─ makeRealApp() → 真实 Application.attach()               │
 │  ② StubApp.onCreate()                                          │
 │     ├─ replaceAppReferences()                                   │
-│     ├─ realApp.onCreate()                                       │
-│     └─ ARouterCompat.injectARouterRouteMap()（按需）            │
+│     ├─ ARouterCompat.prepareARouterRouteMap()（按需）           │
+│     └─ realApp.onCreate()                                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -334,9 +334,9 @@ StubApp.onCreate()
     │         替换 ActivityThread.mAllApplications 列表中的引用
     │         替换 LoadedApk.mApplication
     │
-    ├─[7] realApp.onCreate()
+    ├─[7] ARouterCompat.prepareARouterRouteMap(this)（按需）
     │
-    └─[8] ARouterCompat.injectARouterRouteMap(this)（按需）
+    └─[8] realApp.onCreate()
 ```
 
 ### 5.2 JNI 接口
@@ -407,8 +407,10 @@ addDexPath.invoke(pathList, dexFile.getAbsolutePath(), optDir);
 
 | 方式 | 检测标志 | 处理 |
 |------|---------|------|
-| arouter-register Gradle plugin | `ARouter$$Root$$xxx` 在壳 DEX 中 | 已通过 plugin 静态注入，跳过补注册 |
-| 运行时扫描 | 无上述类 | 静态扫描 DEX，找到所有路由表类，逐一反射调用 `loadInto()` |
+| arouter-register Gradle plugin | `LogisticsCenter.registerByPlugin = true` | 已通过 plugin 静态注入，跳过补注册 |
+| 运行时扫描 | `registerByPlugin = false` | 加固阶段只收集 `Root`、`Providers`、`Interceptors` 注册入口；壳在真实 Application 启动前调用 `LogisticsCenter.register()` 并设置完成标志 |
+
+补注册必须发生在真实 `Application.onCreate()` 之前。ARouter 1.5.1 的 `ARouter.init()` 会在 `LogisticsCenter.init()` 后立即执行 `_ARouter.afterInit()`，此时就会查找并缓存 `InterceptorService`；如果等宿主初始化完成后再补路由表，缓存字段已经是 `null`，后续普通路由跳转会触发空指针。
 
 ---
 
@@ -508,6 +510,16 @@ addDexPath.invoke(pathList, dexFile.getAbsolutePath(), optDir);
 - **问题**：`getSignatureSha256` 仅被 JNI Native 调用，R8 无法感知，判定为死代码删除
 - **修复**：`Ld` 改为 `-keep class ... { *; }` 全保留
 - **教训**：任何被 JNI 调用的类，必须用 `{ *; }` 全保留，不能逐条列举
+
+---
+
+### Bug 9：ARouter 运行期扫描补注册过晚 ✅ 已修复
+
+- **位置**：`ARouterCompat.java`、`StubApp.java`、`route_scanner.rs`
+- **问题**：壳在真实 `Application.onCreate()` 返回后才补注册路由表。ARouter 1.5.1 已在 `ARouter.init()` 内缓存空的 `InterceptorService`，导致首次安装或清除数据后路由跳转空指针；覆盖安装可能因旧缓存暂时正常。
+- **修复**：在真实 Application 启动前预注册 `Root`、`Providers`、`Interceptors` 三类入口，并仅在成功注册后设置 `registerByPlugin`；排除 `Group` 和内部类等无效扫描结果。
+- **验证**：用户多模块 Demo 的未加固基线、加固后首次安装、清除数据后重启均通过同一套真机端到端测试，覆盖两次跨模块跳转和四种参数注入。
+- **教训**：第三方框架若在初始化过程中缓存服务实例，兼容注入必须发生在其初始化入口之前，事后补齐注册表无法修复已缓存的空状态。
 
 ---
 
