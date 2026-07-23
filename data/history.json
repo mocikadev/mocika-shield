@@ -5646,11 +5646,11 @@
     },
     {
       "date": "2026-07-23",
-      "collected_at": "2026-07-23T03:46:02.448691Z",
+      "collected_at": "2026-07-23T04:05:40.198770Z",
       "repository": {
-        "stars": 28,
+        "stars": 29,
         "forks": 5,
-        "open_issues": 2
+        "open_issues": 1
       },
       "traffic": {
         "window_days": 14,
@@ -5664,8 +5664,8 @@
         "available": true,
         "active_devices": 1,
         "latest_complete_date": "2026-07-21",
-        "app_starts": 26,
-        "protect_successes": 16,
+        "app_starts": 30,
+        "protect_successes": 20,
         "protect_failures": 2,
         "trend": [
           {
@@ -5730,6 +5730,15 @@
             "protect_failures": 0,
             "sign_successes": 1,
             "date": "2026-07-17"
+          },
+          {
+            "usage_date": "2026-07-20",
+            "active_devices": 1,
+            "app_starts": 4,
+            "protect_successes": 4,
+            "protect_failures": 0,
+            "sign_successes": 4,
+            "date": "2026-07-20"
           },
           {
             "usage_date": "2026-07-21",
@@ -6146,27 +6155,27 @@
           "tag": "v1.2.4",
           "published_at": "2026-07-20T04:15:35Z",
           "name": "MocikaShield_1.2.4_macos_universal.dmg",
-          "download_count": 5,
+          "download_count": 6,
           "platform": "macOS"
         },
         {
           "tag": "v1.2.4",
           "published_at": "2026-07-20T04:15:35Z",
           "name": "MocikaShield_1.2.4_windows_x64_setup.exe",
-          "download_count": 22,
+          "download_count": 25,
           "platform": "Windows"
         }
       ],
       "totals": {
-        "downloads": 267,
+        "downloads": 271,
         "platform_downloads": {
-          "Windows": 164,
-          "macOS": 77,
+          "Windows": 167,
+          "macOS": 78,
           "Linux": 26,
           "其他": 0
         }
       }
     }
   ],
-  "updated_at": "2026-07-23T03:46:02.448691Z"
+  "updated_at": "2026-07-23T04:05:40.198770Z"
 }
