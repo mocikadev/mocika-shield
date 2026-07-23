@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name="msk.b"
+        android:allowBackup="false"
+        android:label="AAB DEXB 验证"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <meta-data
+            android:name="ORIGINAL_APPLICATION"
+            android:value="android.app.Application" />
+        <activity
+            android:name="dev.mocika.shield.aabprobe.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -7,6 +7,13 @@ license = "MIT"
 description = "Mocika Shield 核心加固与签名能力"
 repository = "git@github.com:mocikadev/mocika-shield.git"
 
+[features]
+aab-experiment = []
+
+[[example]]
+name = "aab_dexb_probe"
+required-features = ["aab-experiment"]
+
 [dependencies]
 anyhow = "1.0"
 thiserror = "2.0"

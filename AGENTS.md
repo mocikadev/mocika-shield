@@ -163,6 +163,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
 | [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |
 | [docs/design/gui.md](docs/design/gui.md) | GUI 设计：唯一正式桌面 GUI、页面结构、签名配置与维护约束 |
+| [docs/design/aab-feasibility.md](docs/design/aab-feasibility.md) | AAB 加固可行性实验、测试矩阵与结论 |
 | [docs/process/commit-convention.md](docs/process/commit-convention.md) | Commit Message 规范 |
 | [docs/process/release.md](docs/process/release.md) | 发布流程、版本号管理、三平台发布检查清单 |
 | [docs/process/test-checklist.md](docs/process/test-checklist.md) | 发布前与关键改动后的回归测试清单 |

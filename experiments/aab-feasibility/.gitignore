@@ -1,0 +1,5 @@
+.gradle/
+__pycache__/
+app/build/
+shell/build/
+artifacts/
