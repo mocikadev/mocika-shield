@@ -1,6 +1,17 @@
 use crate::app_config::{AppConfigState, DailyTelemetry};
 use chrono_like::today_utc;
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tauri::Manager;
+
+const EVENT_SYNC_DELAY: Duration = Duration::from_secs(30);
+const TELEMETRY_URL: &str = "https://mocika-shield-stats-api.xuechao-suo.workers.dev/events/daily";
+
+#[derive(Default)]
+pub(crate) struct TelemetryRuntime {
+    sync_scheduled: AtomicBool,
+}
 
 pub(crate) fn record_app_start(state: &AppConfigState) {
     let today = today_utc();
@@ -69,7 +80,7 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
         .telemetry
         .daily
         .iter()
-        .filter(|(date, item)| date.as_str() < today.as_str() && !item.uploaded)
+        .filter(|(date, item)| date.as_str() <= today.as_str() && !item.uploaded)
         .map(|(date, item)| (date.clone(), item.clone()))
         .collect();
     if pending.is_empty() {
@@ -96,20 +107,37 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
             sign_success_count: item.sign_success_count,
             sign_failed_count: item.sign_failed_count,
         };
-        let Ok(response) = client
-            .post("https://mocika-shield-stats-api.xuechao-suo.workers.dev/events/daily")
-            .json(&payload)
-            .send()
-            .await
-        else {
+        let Ok(response) = client.post(TELEMETRY_URL).json(&payload).send().await else {
             continue;
         };
         if response.status().is_success() {
-            let _ = state.mutate(|config| {
-                config.telemetry.daily.remove(&date);
-            });
+            mark_uploaded(state, &date, &today);
         }
     }
+}
+
+fn mark_uploaded(state: &AppConfigState, date: &str, today: &str) {
+    let _ = state.mutate(|config| {
+        if date < today {
+            config.telemetry.daily.remove(date);
+        }
+    });
+}
+
+/// 操作事件在本地累计后延迟同步，避免一次操作产生多次网络请求。
+pub(crate) fn schedule_sync(app: tauri::AppHandle) {
+    let runtime = app.state::<TelemetryRuntime>();
+    if runtime.sync_scheduled.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(EVENT_SYNC_DELAY).await;
+        let state = app.state::<AppConfigState>();
+        sync_pending(&state).await;
+        app.state::<TelemetryRuntime>()
+            .sync_scheduled
+            .store(false, Ordering::SeqCst);
+    });
 }
 
 fn today_utc_days_ago(days: i64) -> String {
@@ -152,8 +180,8 @@ mod chrono_like {
 
 #[cfg(test)]
 mod tests {
-    use super::record_event;
-    use crate::app_config::{AppConfig, AppConfigState};
+    use super::{mark_uploaded, record_event, today_utc};
+    use crate::app_config::{AppConfig, AppConfigState, DailyTelemetry};
 
     #[test]
     fn 签名失败会写入每日匿名统计() {
@@ -171,5 +199,40 @@ mod tests {
             .map(|item| item.sign_failed_count)
             .sum();
         assert_eq!(total, 1);
+    }
+
+    #[test]
+    fn 当天记录会保留完整累计值() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+
+        record_event(&state, "protect_success_count");
+        record_event(&state, "protect_success_count");
+
+        let config = state.read().unwrap();
+        let today = today_utc();
+        assert_eq!(config.telemetry.daily[&today].protect_success_count, 2);
+    }
+
+    #[test]
+    fn 上传成功后保留当天并清理此前记录() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = AppConfig::default();
+        config
+            .telemetry
+            .daily
+            .insert("2026-07-22".to_string(), DailyTelemetry::default());
+        config
+            .telemetry
+            .daily
+            .insert("2026-07-23".to_string(), DailyTelemetry::default());
+        let state = AppConfigState::new(dir.path().join("config.toml"), config);
+
+        mark_uploaded(&state, "2026-07-22", "2026-07-23");
+        mark_uploaded(&state, "2026-07-23", "2026-07-23");
+
+        let daily = state.read().unwrap().telemetry.daily;
+        assert!(!daily.contains_key("2026-07-22"));
+        assert!(daily.contains_key("2026-07-23"));
     }
 }

@@ -17,5 +17,5 @@ CREATE TABLE IF NOT EXISTS daily_usage (
 CREATE INDEX IF NOT EXISTS idx_daily_usage_date
   ON daily_usage(usage_date);
 
-CREATE INDEX IF NOT EXISTS idx_daily_usage_version
-  ON daily_usage(app_version, usage_date);
+-- 当前公开查询仅按日期筛选。版本维度需要报表时再增加，避免每次累计更新维护无用索引。
+DROP INDEX IF EXISTS idx_daily_usage_version;

@@ -1,0 +1,8 @@
+{
+  "name": "mocika-shield-stats-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

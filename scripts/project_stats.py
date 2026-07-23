@@ -70,14 +70,18 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
         print(f"警告：匿名使用统计接口不可用：{error}", file=sys.stderr)
         return {"available": False, "trend": []}
 
-    latest = trend[-1] if trend else {}
+    # 当日数据仍在持续累计，静态快照和历史图只使用已经结束的 UTC 日期。
+    today = datetime.now(timezone.utc).date().isoformat()
+    complete_trend = [row for row in trend if row["date"] < today][-14:]
+    latest = complete_trend[-1] if complete_trend else {}
     return {
         "available": True,
         "active_devices": latest.get("active_devices"),
-        "app_starts": sum(int(row.get("app_starts") or 0) for row in trend),
-        "protect_successes": sum(int(row.get("protect_successes") or 0) for row in trend),
-        "protect_failures": sum(int(row.get("protect_failures") or 0) for row in trend),
-        "trend": trend,
+        "latest_complete_date": latest.get("date"),
+        "app_starts": sum(int(row.get("app_starts") or 0) for row in complete_trend),
+        "protect_successes": sum(int(row.get("protect_successes") or 0) for row in complete_trend),
+        "protect_failures": sum(int(row.get("protect_failures") or 0) for row in complete_trend),
+        "trend": complete_trend,
     }
 
 
@@ -345,17 +349,19 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     usage = latest.get("usage", {})
     usage_available = usage.get("available", bool(usage))
     repo = latest["repository"]
-    cards: list[tuple[str, Any]] = [
-        ("发布包累计下载", totals["downloads"]),
-        ("近 14 天独立访客", traffic["unique_visitors"]),
-        ("近 14 天独立克隆", traffic["unique_cloners"]),
-        ("星标", repo["stars"]),
-        ("最近有数据日活跃设备", usage.get("active_devices")),
-        ("近 14 天加固成功", usage.get("protect_successes")),
+    cards: list[tuple[str, Any, Optional[str], str]] = [
+        ("发布包累计下载", totals["downloads"], "downloads", "近实时"),
+        ("星标", repo["stars"], "stars", "近实时"),
+        ("分支", repo["forks"], "forks", "近实时"),
+        ("未关闭事项", repo["open_issues"], "open_issues", "包含问题与拉取请求，近实时"),
+        ("最近完整日活跃设备", usage.get("active_devices"), None, usage.get("latest_complete_date") or "每日快照"),
+        ("近 14 天加固成功", usage.get("protect_successes"), None, "完整日汇总"),
+        ("近 14 天独立访客", traffic["unique_visitors"], None, "GitHub 流量快照"),
+        ("近 14 天独立克隆", traffic["unique_cloners"], None, "GitHub 流量快照"),
     ]
     card_html = "".join(
-        f'<article class="metric"><span>{html.escape(label)}</span><strong>{value if value is not None else "—"}</strong></article>'
-        for label, value in cards
+        f'<article class="metric"><span>{html.escape(label)}</span><strong{f" data-live={live_key!r}" if live_key else ""}>{value if value is not None else "—"}</strong><small>{html.escape(note)}</small></article>'
+        for label, value, live_key, note in cards
     )
     usage_notice = (
         ""
@@ -429,6 +435,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     summary {{ padding: 15px 16px; cursor: pointer; color: #475569; font-size: 13px; }}
     .footnote {{ margin: 14px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7; }}
     .status-note {{ margin: -8px 0 24px; border: 1px solid #f59e0b; border-radius: 12px; padding: 11px 14px; background: #fffbeb; color: #92400e; font-size: 13px; }}
+    .live-note {{ margin: -8px 0 24px; border: 1px solid #bfdbfe; border-radius: 12px; padding: 11px 14px; background: #eff6ff; color: #1e40af; font-size: 13px; }}
     footer {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 46px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }}
     @media (max-width: 760px) {{
       body {{ padding: 15px 14px 50px; }}
@@ -444,6 +451,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       .metric, .chart-card, .table-card {{ border-color: #263247; background: #111a2b; box-shadow: none; }}
       .metric span, .section-heading p, .footnote, footer {{ color: #94a3b8; }}
       .status-note {{ border-color: #92400e; background: #2b1d0e; color: #fcd34d; }}
+      .live-note {{ border-color: #1e40af; background: #101d3a; color: #bfdbfe; }}
       th {{ color: #94a3b8; background: #162033; }}
       th, td {{ border-color: #263247; }}
       tbody tr:hover {{ background: #162033; }}
@@ -458,12 +466,13 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
   </header>
   <main>
     <section class="hero" id="overview">
-      <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>每日自动更新的公开统计</p>
+      <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>当前指标近实时 · 趋势每日更新</p>
       <h1>Mocika Shield 关注与使用趋势</h1>
       <p class="hero-copy"><strong>Mocika Shield 是一个 Android APK 加固工具</strong>，提供 DEX 加密、壳保护和运行时反调试能力。这里通过 GitHub 公开指标和用户允许上报的匿名每日汇总，观察项目关注与实际使用趋势；展示的是聚合趋势，不是精确的独立用户数。</p>
-      <div class="hero-meta"><span>最后采集：{html.escape(latest["collected_at"])}</span><span>数据窗口：最近 14 天</span></div>
+      <div class="hero-meta"><span id="current-updated">历史快照：{html.escape(latest["collected_at"])}</span><span>数据窗口：最近 14 个完整 UTC 日期</span></div>
     </section>
-    <section class="metrics" aria-label="统计摘要">{card_html}</section>{usage_notice}
+    <section class="metrics" aria-label="统计摘要">{card_html}</section>
+    <p class="live-note" id="live-usage">今日匿名使用数据仍在累计，完整日数据于次日进入趋势。</p>{usage_notice}
     <section class="section" id="charts">
       <div class="section-heading"><h2>趋势与分布</h2><p>按平台、版本和时间观察下载变化</p></div>
       <div class="charts" aria-label="趋势图">
@@ -497,6 +506,29 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     </section>
   </main>
   <footer><span>数据来自 GitHub 聚合指标，以及用户允许上报的匿名客户端每日汇总；不包含 APK、路径、证书或密码。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a></span></footer>
+  <script>
+    (() => {{
+      const endpoint = "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/summary";
+      const setValue = (key, value) => {{
+        const node = document.querySelector(`[data-live="${{key}}"]`);
+        if (node && Number.isFinite(Number(value))) node.textContent = Number(value).toLocaleString("zh-CN");
+      }};
+      fetch(endpoint, {{ headers: {{ Accept: "application/json" }} }})
+        .then((response) => {{ if (!response.ok) throw new Error(String(response.status)); return response.json(); }})
+        .then((summary) => {{
+          setValue("downloads", summary.downloads?.total);
+          setValue("stars", summary.repository?.stars);
+          setValue("forks", summary.repository?.forks);
+          setValue("open_issues", summary.repository?.open_issues);
+          const updated = document.getElementById("current-updated");
+          if (updated && summary.updated_at) updated.textContent = `当前指标更新：${{new Date(summary.updated_at).toLocaleString("zh-CN")}}`;
+          const usageNode = document.getElementById("live-usage");
+          const today = summary.usage?.today;
+          if (usageNode && today) usageNode.textContent = `今日截至当前：活跃设备 ${{today.active_devices || 0}}，启动 ${{today.app_starts || 0}} 次，加固成功 ${{today.protect_successes || 0}} 次。今日数据仍在累计。`;
+        }})
+        .catch(() => undefined);
+    }})();
+  </script>
 </body>
 </html>
 '''
@@ -571,7 +603,7 @@ def collect_payload(repository: str, token: str) -> dict[str, Any]:
     }
     stats_url = os.environ.get(
         "STATS_API_URL",
-        "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/trend?days=14",
+        "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/trend?days=15",
     )
     payload["usage"] = collect_usage_stats(stats_url)
     return payload

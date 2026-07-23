@@ -85,6 +85,7 @@ async fn protect_apk(
     request: ProtectRequest,
     cancel_handle: tauri::State<'_, CancelHandle>,
 ) -> Result<(), String> {
+    let app = window.app_handle().clone();
     let expected_signing_certificate = match request.certificate_id {
         Some(id) => Some(
             certificate_state
@@ -112,6 +113,7 @@ async fn protect_apk(
             "protect_failed_count"
         },
     );
+    telemetry::schedule_sync(app);
     result
 }
 
@@ -170,6 +172,7 @@ async fn sign_apk(
     apksigner_path: Option<String>,
     certificate_id: String,
 ) -> Result<(), String> {
+    let telemetry_app = app.clone();
     let certificate = state
         .get_certificate(&certificate_id)?
         .ok_or_else(|| "未找到签名证书".to_string())?;
@@ -186,6 +189,7 @@ async fn sign_apk(
             "sign_failed_count"
         },
     );
+    telemetry::schedule_sync(telemetry_app);
     result
 }
 
@@ -322,6 +326,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(CancelHandle(Arc::new(AtomicBool::new(false))))
+        .manage(telemetry::TelemetryRuntime::default())
         .setup(|app| {
             let loaded = load_app_config(app.handle())?;
             save_app_config_file(&loaded.path, &loaded.config)?;

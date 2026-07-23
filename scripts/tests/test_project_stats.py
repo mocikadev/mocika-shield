@@ -4,7 +4,7 @@ import tempfile
 import unittest
 import urllib.error
 from contextlib import redirect_stderr
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -73,6 +73,8 @@ class ProjectStatsTests(unittest.TestCase):
             self.assertTrue((root / "data/history.json").exists())
             page = (root / "index.html").read_text(encoding="utf-8")
             self.assertIn("匿名使用统计接口本次采集不可用", page)
+            self.assertIn('data-live=\'downloads\'', page)
+            self.assertIn("当前指标近实时", page)
             self.assertNotIn("不包含客户端遥测", page)
 
     def test_unavailable_traffic_is_not_recorded_as_zero(self):
@@ -154,6 +156,28 @@ class ProjectStatsTests(unittest.TestCase):
 
         self.assertFalse(usage["available"])
         self.assertIn("接口不可用", stderr.getvalue())
+
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_usage_stats_历史趋势排除当天未完成数据(self, urlopen):
+        today = datetime.now(timezone.utc).date()
+        yesterday = today - timedelta(days=1)
+        response = io.BytesIO(
+            json.dumps(
+                {
+                    "data": [
+                        {"usage_date": yesterday.isoformat(), "active_devices": 3, "app_starts": 4},
+                        {"usage_date": today.isoformat(), "active_devices": 1, "app_starts": 1},
+                    ]
+                }
+            ).encode()
+        )
+        urlopen.return_value.__enter__.return_value = response
+
+        usage = collect_usage_stats("https://stats.example.test/trend")
+
+        self.assertEqual(usage["active_devices"], 3)
+        self.assertEqual(usage["latest_complete_date"], yesterday.isoformat())
+        self.assertEqual([row["date"] for row in usage["trend"]], [yesterday.isoformat()])
 
 
 if __name__ == "__main__":

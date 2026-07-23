@@ -1,3 +1,5 @@
+import { getCurrentSummary } from "./github-summary.js";
+
 const ALLOWED_EVENTS = new Set([
   "app_start_count",
   "protect_start_count",
@@ -7,19 +9,21 @@ const ALLOWED_EVENTS = new Set([
   "sign_failed_count",
 ]);
 
-function corsHeaders() {
+const PUBLIC_CACHE_SECONDS = 600;
+
+function corsHeaders(cacheControl = "no-store") {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "content-type",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Cache-Control": "no-store",
+    "Cache-Control": cacheControl,
   };
 }
 
-function json(data, status = 200) {
+function json(data, status = 200, cacheControl = "no-store") {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders(), "Content-Type": "application/json; charset=utf-8" },
+    headers: { ...corsHeaders(cacheControl), "Content-Type": "application/json; charset=utf-8" },
   });
 }
 
@@ -90,9 +94,7 @@ async function saveDailyUsage(request, env) {
   return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
-async function getStats(request, env) {
-  const url = new URL(request.url);
-  const days = Math.min(Math.max(Number(url.searchParams.get("days") || 14), 1), 90);
+async function queryStats(env, days) {
   const result = await env.DB.prepare(`
     SELECT usage_date, COUNT(*) AS active_devices,
       SUM(app_start_count) AS app_starts,
@@ -104,16 +106,45 @@ async function getStats(request, env) {
     GROUP BY usage_date
     ORDER BY usage_date ASC
   `).bind(`-${days - 1} days`).all();
-  return json({ window_days: days, data: result.results || [] });
+  return result.results || [];
+}
+
+async function getStats(request, env) {
+  const url = new URL(request.url);
+  const days = Math.min(Math.max(Number(url.searchParams.get("days") || 14), 1), 90);
+  return json(
+    { window_days: days, data: await queryStats(env, days) },
+    200,
+    `public, max-age=60, s-maxage=${PUBLIC_CACHE_SECONDS}`,
+  );
+}
+
+async function getSummary(env) {
+  const summary = await getCurrentSummary(env, queryStats(env, 15));
+  return json(summary, 200, `public, max-age=60, s-maxage=${PUBLIC_CACHE_SECONDS}`);
+}
+
+async function cached(request, ctx, producer) {
+  const cache = caches.default;
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  const response = await producer();
+  if (response.ok) ctx.waitUntil(cache.put(request, response.clone()));
+  return response;
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
     try {
       const path = new URL(request.url).pathname;
       if (request.method === "POST" && path === "/events/daily") return saveDailyUsage(request, env);
-      if (request.method === "GET" && path === "/stats/trend") return getStats(request, env);
+      if (request.method === "GET" && path === "/stats/trend") {
+        return cached(request, ctx, () => getStats(request, env));
+      }
+      if (request.method === "GET" && path === "/stats/summary") {
+        return cached(request, ctx, () => getSummary(env));
+      }
       return json({ error: "接口不存在" }, 404);
     } catch (error) {
       console.error(error);
