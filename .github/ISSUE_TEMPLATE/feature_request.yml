@@ -1,0 +1,103 @@
+name: 功能建议
+description: 提议新的加固能力、工作流或使用体验改进
+title: "[功能建议] "
+labels:
+  - enhancement
+  - 待评估
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢建议。提交前请先搜索已有 issue；如果已有相同需求，请使用 👍 表情表示支持，并补充你的使用场景。
+
+        请不要上传 APK、keystore、证书密码、签名密码、业务代码或其他敏感材料。安全问题请使用 GitHub Security Advisories 私下反馈。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 功能分类
+      options:
+        - APK 加固能力
+        - Android 运行期兼容性
+        - 签名与证书管理
+        - GUI 使用体验
+        - CLI 与自动化
+        - 构建与发布
+        - 文档与诊断
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 请说明谁会在什么情况下使用这个功能，以及要完成什么任务。
+      placeholder: "例如：在 CI 中批量处理多个 APK，需要以非交互方式选择签名配置。"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 当前问题
+      description: 目前如何处理？现有方式造成了什么困难？
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望方案
+      description: 描述期望的行为和结果，不必限定具体技术实现。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: 影响程度
+      options:
+        - 阻塞使用，目前无法完成目标
+        - 明显影响效率，需要频繁绕行
+        - 改善体验，有替代方案
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: 相关平台
+      description: 可多选；不确定时选择“与平台无关”。
+      options:
+        - label: Windows
+        - label: macOS
+        - label: Linux
+        - label: Android 运行期
+        - label: 与平台无关
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 已尝试的替代方案
+      description: 可选。说明你尝试过的工具、命令或临时处理方式。
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 可选。可提供不含敏感信息的界面草图、公开资料或最小示例。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已搜索现有 issue，未发现相同需求。
+          required: true
+        - label: 我确认内容不包含 APK、证书、密码、业务代码或其他敏感材料。
+          required: true

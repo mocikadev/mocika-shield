@@ -75,6 +75,8 @@ class ProjectStatsTests(unittest.TestCase):
             self.assertIn("匿名使用统计接口本次采集不可用", page)
             self.assertIn('data-live=\'downloads\'', page)
             self.assertIn("当前指标近实时", page)
+            self.assertIn("issues/new?template=feature_request.yml", page)
+            self.assertIn("需求评审规则", page)
             self.assertNotIn("不包含客户端遥测", page)
 
     def test_unavailable_traffic_is_not_recorded_as_zero(self):

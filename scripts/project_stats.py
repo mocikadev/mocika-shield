@@ -462,7 +462,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
 <body>
   <header class="topbar">
     <a class="brand" href="https://github.com/{html.escape(repository)}"><span class="brand-mark" aria-hidden="true">M</span><span>Mocika Shield</span></a>
-    <nav aria-label="页面导航"><a href="#overview">概览</a><a href="#charts">趋势图</a><a href="#versions">版本明细</a><a href="https://github.com/{html.escape(repository)}/releases">发布页</a><a href="https://github.com/{html.escape(repository)}">GitHub</a></nav>
+    <nav aria-label="页面导航"><a href="#overview">概览</a><a href="#charts">趋势图</a><a href="#versions">版本明细</a><a href="https://github.com/{html.escape(repository)}/issues/new?template=feature_request.yml">功能建议</a><a href="https://github.com/{html.escape(repository)}/releases">发布页</a><a href="https://github.com/{html.escape(repository)}">GitHub</a></nav>
   </header>
   <main>
     <section class="hero" id="overview">
@@ -505,7 +505,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       <p class="footnote">下载次数包含重复下载和不同格式下载，不等于独立用户数。访客和克隆在 GitHub 权限不可用时显示为“—”，不会被当作零。</p>
     </section>
   </main>
-  <footer><span>数据来自 GitHub 聚合指标，以及用户允许上报的匿名客户端每日汇总；不包含 APK、路径、证书或密码。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a></span></footer>
+  <footer><span>数据来自 GitHub 聚合指标，以及用户允许上报的匿名客户端每日汇总；不包含 APK、路径、证书或密码。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a> · <a href="https://github.com/{html.escape(repository)}/blob/main/docs/process/feature-requests.md">需求评审规则</a></span></footer>
   <script>
     (() => {{
       const endpoint = "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/summary";
