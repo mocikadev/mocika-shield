@@ -19,17 +19,16 @@ public class ARouterCompat {
     /**
      * 从 assets/arouter_routes.txt 读取路由表类名并注册到 ARouter Warehouse。
      * 路由表由 shield-cli 加固时静态扫描 DEX 生成，不依赖 DexFile API，兼容 API 24-34。
-     * 必须在 ARouter.init() 执行完毕后调用。
+     * 必须在宿主 Application.onCreate() 之前调用，确保 ARouter.init() 能初始化内置服务。
      */
-    public static void injectARouterRouteMap(Context context) {
+    public static void prepareARouterRouteMap(Context context) {
         try {
             Class<?> logisticsCenterClass = Class.forName(
                     "com.alibaba.android.arouter.core.LogisticsCenter");
 
-            // arouter-register plugin 编译时注入后会将 registerByPlugin 置为 true，无需再补注册
+            java.lang.reflect.Field registerByPlugin = null;
             try {
-                java.lang.reflect.Field registerByPlugin =
-                        logisticsCenterClass.getDeclaredField("registerByPlugin");
+                registerByPlugin = logisticsCenterClass.getDeclaredField("registerByPlugin");
                 registerByPlugin.setAccessible(true);
                 if ((boolean) registerByPlugin.get(null)) {
                     return;
@@ -46,12 +45,19 @@ public class ARouterCompat {
             Method registerMethod = logisticsCenterClass.getDeclaredMethod("register", String.class);
             registerMethod.setAccessible(true);
 
+            int registeredCount = 0;
             for (String className : routeClassNames) {
                 try {
                     registerMethod.invoke(null, className);
+                    registeredCount++;
                 } catch (Exception e) {
                     Log.w(TAG, "  注册路由类失败: " + className, e);
                 }
+            }
+
+            // 告知 LogisticsCenter 路由表已预注册，避免首次安装时再次扫描壳 DEX。
+            if (registerByPlugin != null && registeredCount > 0) {
+                registerByPlugin.setBoolean(null, true);
             }
 
         } catch (ClassNotFoundException ignored) {

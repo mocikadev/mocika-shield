@@ -3,6 +3,11 @@ use std::fs;
 use std::path::Path;
 
 const AROUTER_ROUTES_PREFIX: &str = "com/alibaba/android/arouter/routes/";
+const AROUTER_REGISTRY_PREFIXES: [&str; 3] = [
+    "ARouter$$Root$$",
+    "ARouter$$Providers$$",
+    "ARouter$$Interceptors$$",
+];
 
 /// 扫描 DEX 目录，提取所有 ARouter 路由表类的全限定名。
 /// 解析 DEX header 的 class_defs 段，不依赖任何运行时 API。
@@ -19,7 +24,7 @@ pub fn scan_arouter_routes(dex_dir: &Path) -> Result<Vec<String>> {
     for path in &dex_paths {
         let data = fs::read(path)?;
         for name in parse_dex_class_names(&data)? {
-            if name.starts_with(AROUTER_ROUTES_PREFIX) {
+            if is_arouter_registry_class(&name) {
                 let java_name = name.replace('/', ".");
                 routes.push(java_name);
             }
@@ -29,6 +34,17 @@ pub fn scan_arouter_routes(dex_dir: &Path) -> Result<Vec<String>> {
     routes.sort();
     routes.dedup();
     Ok(routes)
+}
+
+fn is_arouter_registry_class(name: &str) -> bool {
+    let Some(simple_name) = name.strip_prefix(AROUTER_ROUTES_PREFIX) else {
+        return false;
+    };
+    AROUTER_REGISTRY_PREFIXES.iter().any(|prefix| {
+        simple_name
+            .strip_prefix(prefix)
+            .is_some_and(|module_name| !module_name.is_empty() && !module_name.contains('$'))
+    })
 }
 
 /// 解析 DEX 文件，提取所有类的描述符（内部格式，如 "Lcom/foo/Bar;"）
@@ -121,4 +137,28 @@ fn u32_le(data: &[u8], offset: usize) -> u32 {
         data[offset + 2],
         data[offset + 3],
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_arouter_registry_class;
+
+    #[test]
+    fn 只接受_arouter_可注册入口类() {
+        assert!(is_arouter_registry_class(
+            "com/alibaba/android/arouter/routes/ARouter$$Root$$featurehome"
+        ));
+        assert!(is_arouter_registry_class(
+            "com/alibaba/android/arouter/routes/ARouter$$Providers$$arouterapi"
+        ));
+        assert!(is_arouter_registry_class(
+            "com/alibaba/android/arouter/routes/ARouter$$Interceptors$$app"
+        ));
+        assert!(!is_arouter_registry_class(
+            "com/alibaba/android/arouter/routes/ARouter$$Group$$home"
+        ));
+        assert!(!is_arouter_registry_class(
+            "com/alibaba/android/arouter/routes/ARouter$$Root$$featurehome$1"
+        ));
+    }
 }

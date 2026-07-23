@@ -123,6 +123,27 @@
 
 ---
 
+### ARouter 运行期扫描在首次安装后路由失败
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 高 |
+| **状态** | 已完成 |
+| **涉及文件** | `crates/shield-core/src/dex_packer/route_scanner.rs`、`shield-stub/src/main/java/dev/mocika/shield/loader/ARouterCompat.java`、`StubApp.java` |
+
+**现象**：未启用 `arouter-register` 的 ARouter 1.5.1 应用，加固后首次安装或清除应用数据后路由跳转出现 `InterceptorService.doInterceptions(...)` 空指针；保留旧缓存的覆盖安装可能暂时正常。
+
+**根因**：壳在真实 `Application.onCreate()` 返回后才补注册路由表，但 ARouter 已在 `ARouter.init()` 内查找并缓存空的 `InterceptorService`。事后补注册 Warehouse 无法回填该静态字段。
+
+**最终修复方案**：
+
+1. 在真实 Application 启动前读取加固阶段生成的路由清单并调用 `LogisticsCenter.register()`。
+2. 至少成功注册一项后设置 `registerByPlugin`，使 ARouter 跳过无法发现加密 DEX 的运行期扫描。
+3. 扫描清单只保留 `Root`、`Providers`、`Interceptors` 三类入口，排除 `Group` 和内部类。
+4. 使用用户提供的多模块 Demo 真机验证原始基线、加固后首次安装和清除数据后三条路径，跨模块跳转及四类参数注入全部通过。
+
+---
+
 ### 证书对比任务异常时 fail-open
 
 | 项 | 内容 |
