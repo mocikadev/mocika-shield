@@ -239,10 +239,12 @@ git push origin main vx.y.z
 
 Release Notes 生成规则：
 
-- workflow 先读取稳定版或预发布版前言模板
+- workflow 先读取稳定版或预发布版的简洁中英文前言模板
 - 再调用 GitHub Release Notes API 生成本次版本的自动变更列表
 - 最终将两部分合并后写入 Release
 - 如果重新运行同一个 tag 的发布任务，产物与 Release Notes 会一并更新
+
+Release Notes 只保留下载入口、必要运行条件、安全边界和本版本变更，不重复 README 中的完整功能介绍。稳定版本进入 Draft 后，公开前应根据实际变更补充 2～5 条中英文版本亮点；若之后重新运行同一 tag 的发布任务，自动生成内容会覆盖人工修改，需要重新核对亮点。
 
 ### 手动触发发布
 

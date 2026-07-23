@@ -1,5 +1,7 @@
 # Mocika Shield — Android APK 加固工具
 
+简体中文 | [English](README.en.md)
+
 [![最新版本](https://img.shields.io/github/v/release/mocikadev/mocika-shield?style=flat-square&label=最新版本&color=6366f1)](https://github.com/mocikadev/mocika-shield/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/mocikadev/mocika-shield/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mocikadev/mocika-shield/actions/workflows/ci.yml)
 [![许可证](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
