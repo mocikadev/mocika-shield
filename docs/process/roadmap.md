@@ -506,10 +506,11 @@ shield sign    -i input.apk -o output.apk --ks keystore.jks --ks-pass <pass> --k
 
 - `protect` 命令：XML Manifest 解析、Adler32 校验、ABI 检测、DEX 处理相关单元测试
 - `sign` 命令：KeystoreType 自动识别、alias 解析单元测试
+- 自有最小 Android 测试夹具覆盖“编译 → 原始签名 → 加固 → 再签名 → 产物结构与签名验证”的无设备端到端链路
 
 **仍缺失**：
 
-- `protect` 端到端 smoke test（输入 APK → 输出结构验证）
+- Android 模拟器自动安装、首次启动与清除数据后的运行时回归
 - JNI 降级路径测试（native 失败时 Java 反射是否正确接管）
 
 ---

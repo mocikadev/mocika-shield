@@ -2,6 +2,17 @@
 
 本文档记录发布前和关键改动后的手动回归检查项。自动化测试不能覆盖桌面安装包、系统 Java 环境、真实 APK 安装启动等场景时，按本清单补足验证。
 
+## 自动端到端加固回归
+
+修改加固、签名、Manifest、DEXB、壳资源或 ZIP 对齐链路后执行：
+
+```bash
+make build-stub
+bash tests/scripts/run-protect-e2e.sh
+```
+
+脚本使用项目自有最小 Android 测试夹具，验证从源码 APK 到已签名加固产物的完整无设备链路。CI 的“Android 壳构建”任务也会执行该测试。
+
 ## 使用时机
 
 - 发布 `rc` 或稳定版本前

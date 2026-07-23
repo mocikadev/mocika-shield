@@ -181,6 +181,9 @@ jobs:
           path: shield-stub/build/outputs/resources/resources.zip
           if-no-files-found: error
 
+      - name: 运行端到端加固回归测试
+        run: bash tests/scripts/run-protect-e2e.sh
+
   release-readiness:
     name: 发布前检查
     if: github.event_name == 'workflow_dispatch'
