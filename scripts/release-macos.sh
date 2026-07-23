@@ -112,19 +112,49 @@ build_cli() {
   echo "  大小: $(du -h "$CLI_BIN" | cut -f1)"
 }
 
-# ========== 构建 GUI（Tauri bundle：.app + .dmg）==========
+# ========== 构建 GUI（先生成并签名 .app，再由已验证应用包创建 .dmg）==========
 build_gui() {
-  info "构建 GUI（cargo tauri build --bundles app,dmg）..."
+  info "构建 GUI（cargo tauri build --bundles app）..."
   cd "$ROOT/apps/shield-gui"
 
   npm ci
+  local BUNDLE_BASE
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
-    cargo tauri build --bundles app,dmg --target universal-apple-darwin
+    cargo tauri build --bundles app --target universal-apple-darwin
+    BUNDLE_BASE="$ROOT/target/universal-apple-darwin/release/bundle"
   else
-    cargo tauri build --bundles app,dmg
+    cargo tauri build --bundles app
+    BUNDLE_BASE="$ROOT/target/release/bundle"
   fi
 
-  success "GUI 构建完成"
+  local APP_DIR
+  APP_DIR=$(find "$BUNDLE_BASE/macos" -name "*.app" -maxdepth 1 2>/dev/null | head -n 1)
+  if [[ -z "$APP_DIR" ]]; then
+    error "Tauri .app 未生成: $BUNDLE_BASE/macos/"
+  fi
+
+  info "对完整 .app 执行 adhoc 签名并校验..."
+  codesign --force --deep --sign - "$APP_DIR"
+  codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+  success ".app adhoc 签名校验通过"
+
+  local ARCH_SUFFIX
+  if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
+    ARCH_SUFFIX="universal"
+  else
+    ARCH_SUFFIX="$(uname -m)"
+  fi
+  local DMG_DIR="$BUNDLE_BASE/dmg"
+  local DMG="$DMG_DIR/MocikaShield_${VERSION}_${ARCH_SUFFIX}.dmg"
+  local DMG_STAGE
+  DMG_STAGE=$(mktemp -d)
+  rm -rf "$DMG_DIR"
+  mkdir -p "$DMG_DIR"
+  ditto "$APP_DIR" "$DMG_STAGE/MocikaShield.app"
+  ln -s /Applications "$DMG_STAGE/Applications"
+  hdiutil create -quiet -volname "MocikaShield" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG"
+  rm -rf "$DMG_STAGE"
+  success "GUI 构建完成，DMG 已从签名后的 .app 创建"
 }
 
 # ========== 准备输出目录 ==========
