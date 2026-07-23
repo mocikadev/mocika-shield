@@ -14,7 +14,7 @@
 
 [![各系统平台累计下载](https://raw.githubusercontent.com/mocikadev/mocika-shield/stats/charts/platform-downloads.svg)](https://mocikadev.github.io/mocika-shield/)
 
-> 当前星标、分支、未关闭事项与累计下载接近实时更新，历史趋势每日更新。下载次数不等于独立用户数；应用使用数据仅包含用户允许上报的匿名每日汇总。[查看统计口径](docs/ops/project-statistics.md)
+> 当前星标、复刻、未关闭事项与累计下载接近实时更新，历史趋势每日更新。下载次数不等于独立用户数；应用使用数据仅包含用户允许上报的匿名每日汇总。[查看统计口径](docs/ops/project-statistics.md)
 
 ---
 

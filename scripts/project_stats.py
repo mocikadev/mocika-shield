@@ -352,7 +352,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     cards: list[tuple[str, Any, Optional[str], str]] = [
         ("发布包累计下载", totals["downloads"], "downloads", "近实时"),
         ("星标", repo["stars"], "stars", "近实时"),
-        ("分支", repo["forks"], "forks", "近实时"),
+        ("复刻", repo["forks"], "forks", "GitHub Fork，近实时"),
         ("未关闭事项", repo["open_issues"], "open_issues", "包含问题与拉取请求，近实时"),
         ("最近完整日活跃设备", usage.get("active_devices"), None, usage.get("latest_complete_date") or "每日快照"),
         ("近 14 天加固成功", usage.get("protect_successes"), None, "完整日汇总"),
