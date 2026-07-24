@@ -350,17 +350,20 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     usage_available = usage.get("available", bool(usage))
     repo = latest["repository"]
     cards: list[tuple[str, Any, Optional[str], str]] = [
-        ("发布包累计下载", totals["downloads"], "downloads", "近实时"),
-        ("星标", repo["stars"], "stars", "近实时"),
-        ("复刻", repo["forks"], "forks", "GitHub Fork，近实时"),
-        ("未关闭事项", repo["open_issues"], "open_issues", "包含问题与拉取请求，近实时"),
-        ("最近完整日活跃设备", usage.get("active_devices"), None, usage.get("latest_complete_date") or "每日快照"),
+        ("发布包累计下载", totals["downloads"], "downloads", "实时接口"),
+        ("星标", repo["stars"], "stars", "实时接口"),
+        ("复刻", repo["forks"], "forks", "GitHub Fork，实时接口"),
+        ("未关闭事项", repo["open_issues"], "open_issues", "包含问题与拉取请求，实时接口"),
+        ("最近完整日活跃设备", usage.get("active_devices"), "active_devices", usage.get("latest_complete_date") or "每日快照"),
         ("近 14 天加固成功", usage.get("protect_successes"), None, "完整日汇总"),
         ("近 14 天独立访客", traffic["unique_visitors"], None, "GitHub 流量快照"),
         ("近 14 天独立克隆", traffic["unique_cloners"], None, "GitHub 流量快照"),
     ]
     card_html = "".join(
-        f'<article class="metric"><span>{html.escape(label)}</span><strong{f" data-live={live_key!r}" if live_key else ""}>{value if value is not None else "—"}</strong><small>{html.escape(note)}</small></article>'
+        f'<article class="metric"><span>{html.escape(label)}</span>'
+        f'<strong{f" data-live={live_key!r} data-snapshot={str(value) if value is not None else chr(8212)!r}" if live_key else ""}>'
+        f'{"加载中…" if live_key else value if value is not None else "—"}</strong>'
+        f'<small{f" data-live-note={live_key!r}" if live_key else ""}>{html.escape(note)}</small></article>'
         for label, value, live_key, note in cards
     )
     usage_notice = (
@@ -469,7 +472,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>当前指标近实时 · 趋势每日更新</p>
       <h1>Mocika Shield 关注与使用趋势</h1>
       <p class="hero-copy"><strong>Mocika Shield 是一个 Android APK 加固工具</strong>，提供 DEX 加密、壳保护和运行时反调试能力。这里通过 GitHub 公开指标和用户允许上报的匿名每日汇总，观察项目关注与实际使用趋势；展示的是聚合趋势，不是精确的独立用户数。</p>
-      <div class="hero-meta"><span id="current-updated">历史快照：{html.escape(latest["collected_at"])}</span><span>数据窗口：最近 14 个完整 UTC 日期</span></div>
+      <div class="hero-meta"><span id="current-updated" data-snapshot-time="{html.escape(latest["collected_at"])}">实时数据加载中…</span><span>数据窗口：最近 14 个完整 UTC 日期</span></div>
     </section>
     <section class="metrics" aria-label="统计摘要">{card_html}</section>
     <p class="live-note" id="live-usage">今日匿名使用数据仍在累计，完整日数据于次日进入趋势。</p>{usage_notice}
@@ -509,24 +512,48 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
   <script>
     (() => {{
       const endpoint = "https://mocika-shield-stats-api.xuechao-suo.workers.dev/stats/summary";
-      const setValue = (key, value) => {{
+      const setValue = (key, value, note) => {{
         const node = document.querySelector(`[data-live="${{key}}"]`);
+        const noteNode = document.querySelector(`[data-live-note="${{key}}"]`);
         if (node && Number.isFinite(Number(value))) node.textContent = Number(value).toLocaleString("zh-CN");
+        if (noteNode && note) noteNode.textContent = note;
       }};
-      fetch(endpoint, {{ headers: {{ Accept: "application/json" }} }})
+      const restoreSnapshot = (key) => {{
+        const node = document.querySelector(`[data-live="${{key}}"]`);
+        const noteNode = document.querySelector(`[data-live-note="${{key}}"]`);
+        if (node) node.textContent = node.dataset.snapshot || "—";
+        if (noteNode) noteNode.textContent = `${{noteNode.textContent.replace("实时接口", "").replace(/，+$/, "")}}，每日快照`;
+      }};
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 8000);
+      fetch(endpoint, {{ headers: {{ Accept: "application/json" }}, signal: controller.signal }})
         .then((response) => {{ if (!response.ok) throw new Error(String(response.status)); return response.json(); }})
         .then((summary) => {{
-          setValue("downloads", summary.downloads?.total);
-          setValue("stars", summary.repository?.stars);
-          setValue("forks", summary.repository?.forks);
-          setValue("open_issues", summary.repository?.open_issues);
+          setValue("downloads", summary.downloads?.total, "实时接口");
+          setValue("stars", summary.repository?.stars, "实时接口");
+          setValue("forks", summary.repository?.forks, "GitHub Fork，实时接口");
+          setValue("open_issues", summary.repository?.open_issues, "包含问题与拉取请求，实时接口");
           const updated = document.getElementById("current-updated");
           if (updated && summary.updated_at) updated.textContent = `当前指标更新：${{new Date(summary.updated_at).toLocaleString("zh-CN")}}`;
           const usageNode = document.getElementById("live-usage");
           const today = summary.usage?.today;
-          if (usageNode && today) usageNode.textContent = `今日截至当前：活跃设备 ${{today.active_devices || 0}}，启动 ${{today.app_starts || 0}} 次，加固成功 ${{today.protect_successes || 0}} 次。今日数据仍在累计。`;
+          const latestComplete = summary.usage?.latest_complete;
+          if (latestComplete) setValue("active_devices", latestComplete.active_devices, `${{latestComplete.usage_date}}，实时接口`);
+          else restoreSnapshot("active_devices");
+          if (usageNode && today) {{
+            usageNode.textContent = `今日截至当前：活跃设备 ${{today.active_devices || 0}}，启动 ${{today.app_starts || 0}} 次，加固成功 ${{today.protect_successes || 0}} 次。今日数据仍在累计。`;
+          }} else if (usageNode) {{
+            usageNode.textContent = "今日暂未收到匿名使用事件，数据仍在累计。";
+          }}
         }})
-        .catch(() => undefined);
+        .catch(() => {{
+          document.querySelectorAll("[data-live]").forEach((node) => restoreSnapshot(node.dataset.live));
+          const updated = document.getElementById("current-updated");
+          if (updated) updated.textContent = `实时接口暂不可用 · 每日快照：${{updated.dataset.snapshotTime || "未知"}}`;
+          const usageNode = document.getElementById("live-usage");
+          if (usageNode) usageNode.textContent = "实时接口暂不可用，当前展示最近一次每日快照。";
+        }})
+        .finally(() => window.clearTimeout(timeout));
     }})();
   </script>
 </body>
