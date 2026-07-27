@@ -53,6 +53,9 @@ jobs:
       - name: 运行 stub Rust 单元测试
         run: cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml
 
+      - name: 运行发布与统计脚本测试
+        run: python3 -m unittest discover -s scripts/tests -v
+
       - name: 安装 GUI 前端依赖
         working-directory: apps/shield-gui
         run: npm ci

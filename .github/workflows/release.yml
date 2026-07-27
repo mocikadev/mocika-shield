@@ -330,6 +330,7 @@ jobs:
           set -euo pipefail
           find release-assets -mindepth 2 -maxdepth 2 -name checksums-sha256.txt | while read -r checksum; do
             artifact="$(basename "$(dirname "$checksum")")"
+            python3 scripts/normalize_release_checksums.py "$checksum"
             mv "$checksum" "$(dirname "$checksum")/${artifact}-checksums-sha256.txt"
           done
           mapfile -t files < <(find release-assets -type f | sort)
