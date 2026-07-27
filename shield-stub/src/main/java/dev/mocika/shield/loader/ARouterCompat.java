@@ -18,7 +18,7 @@ public class ARouterCompat {
 
     /**
      * 从 assets/arouter_routes.txt 读取路由表类名并注册到 ARouter Warehouse。
-     * 路由表由 shield-cli 加固时静态扫描 DEX 生成，不依赖 DexFile API，兼容 API 24-34。
+     * 路由表由 shield-cli 加固时静态扫描 DEX 生成，不依赖 DexFile API，兼容 API 21 及以上。
      * 必须在宿主 Application.onCreate() 之前调用，确保 ARouter.init() 能初始化内置服务。
      */
     public static void prepareARouterRouteMap(Context context) {

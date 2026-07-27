@@ -87,6 +87,15 @@ bash tests/scripts/run-protect-e2e.sh
 - 输入 APK 与自动签名输出的 `certificate SHA-256 digest` 一致
 - 加固后的 APK 可安装并正常启动
 
+## Android 运行时兼容
+
+- API 21、22 使用 `makeDexElements` 路径，日志包含 `dex-route:elementFactory`
+- API 23 使用 `makePathElements` 路径，日志包含 `dex-route:elementFactory`
+- API 24 及以上继续使用 `addDexPath` 路径，日志包含 `dex-route:addDexPath`
+- API 21、23 分别验证单 DEX、多 DEX、真实 Application、ARouter 和 Native 库加载
+- 同一测试 APK 在 API 21、23、24 设备上完成冷启动、清除数据后首次启动和覆盖安装启动
+- API 19～20 明确拒绝或保持不支持，不将 API 21 构建的 Native 库作为兼容产物交付
+
 ## APK 对齐与 Google Play 兼容
 
 - 加固输出 APK 已执行 ZIP 对齐
@@ -126,6 +135,17 @@ bash tests/scripts/run-protect-e2e.sh
 - 匿名统计接口不可用时，任务日志出现警告且页面明确标记不可用，GitHub 下载统计仍正常生成
 
 ## 关键改动验证记录
+
+### 2026-07-27：Android 5.0～6.0 DEX 注入兼容原型
+
+| 项 | 结果 |
+|----|------|
+| 自动验证 | API 21～22/23 方法路由与 Element 前插单元测试通过；混淆壳构建和端到端加固回归通过 |
+| Android 5.0 | 官方 ARM64 AVD `mocika_api21`，Android 5.0.2（API 21）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功，日志确认 `dex-route:elementFactory api=21` |
+| Android 6.0 | 官方 ARM64 AVD `mocika_api23`，Android 6.0（API 23）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功，日志确认 `dex-route:elementFactory api=23` |
+| 高版本回归 | 一加 ONEPLUS A5000，Android 16（API 36），arm64-v8a；测试 APK 安装和冷启动成功 |
+| 运行时路径 | 日志确认 `dex-route:addDexPath api=36`，进程持续存活，无 DEX 注入或真实 Application 启动异常 |
+| 待验证 | 低 `minSdk` 的 ARouter 与宿主 Native 库样本、Android 5.x/6.0 厂商真机；完成前不调整正式最低支持范围 |
 
 ### 2026-07-20：严格 V2-only APK 签名提取
 
