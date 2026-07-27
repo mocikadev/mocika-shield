@@ -8,7 +8,6 @@ import android.util.Log;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ public class StubApp extends Application {
         try {
             exemptHiddenApi();
             List<File> dexFiles = Ld.extractDexFiles(base);
-            injectDexElements(base, dexFiles);
+            DexInjector.inject(base, dexFiles);
             realApp = makeRealApp(base.getClassLoader(), base);
         } catch (Exception e) {
             throw new RuntimeException("init", e);
@@ -46,63 +45,6 @@ public class StubApp extends Application {
     @Override
     public Context getApplicationContext() {
         return realApp != null ? realApp : super.getApplicationContext();
-    }
-
-    /**
-     * 将落地的 DEX 文件注入原始 PathClassLoader 的 dexElements。
-     *
-     * 优先通过 JNI 路径（Ld.p）完成注入：JNI 访问字段/方法不经过
-     * hidden API 检查，面向 Android 15+ 更健壮。JNI 失败时降级到 Java 反射方案。
-     *
-     * addDexPath 内部将 DEX 直接注册到 PathClassLoader（definingContext），
-     * 整个过程不创建任何中间 ClassLoader，从根源上避免：
-     *   - "multiple class loaders" InternalError（同一 DEX 被多个 loader 注册）
-     *   - InstantiationError（lambda access check 因 defining loader 不一致而失败）
-     */
-    private void injectDexElements(Context base, List<File> dexFiles) throws Exception {
-        ClassLoader pathCl = base.getClassLoader();
-
-        String[] dexPaths = new String[dexFiles.size()];
-        for (int i = 0; i < dexFiles.size(); i++) {
-            dexPaths[i] = dexFiles.get(i).getAbsolutePath();
-        }
-        String optDirPath = (android.os.Build.VERSION.SDK_INT < 26)
-                ? base.getDir("dex_opt", Context.MODE_PRIVATE).getAbsolutePath() : "";
-
-        boolean nativeOk = Ld.p(pathCl, dexPaths, optDirPath);
-        if (!nativeOk) {
-            injectDexElementsJavaFallback(base, pathCl, dexFiles);
-        }
-    }
-
-    private void injectDexElementsJavaFallback(Context base, ClassLoader pathCl, List<File> dexFiles)
-            throws Exception {
-        Field pathListField = findField(pathCl.getClass(), "pathList");
-        pathListField.setAccessible(true);
-        Object pathList = pathListField.get(pathCl);
-
-        Field dexElementsField = findField(pathList.getClass(), "dexElements");
-        dexElementsField.setAccessible(true);
-        int oldLen = ((Object[]) dexElementsField.get(pathList)).length;
-
-        Method addDexPath = findMethod(pathList.getClass(), "addDexPath",
-                String.class, File.class);
-        File optDir = (android.os.Build.VERSION.SDK_INT < 26)
-                ? base.getDir("dex_opt", Context.MODE_PRIVATE) : null;
-
-        for (File dexFile : dexFiles) {
-            addDexPath.invoke(pathList, dexFile.getAbsolutePath(), optDir);
-        }
-
-        Object[] elements = (Object[]) dexElementsField.get(pathList);
-        int injected = elements.length - oldLen;
-        if (injected > 0) {
-            Object[] reordered = (Object[]) Array.newInstance(
-                    elements.getClass().getComponentType(), elements.length);
-            System.arraycopy(elements, oldLen, reordered, 0, injected);
-            System.arraycopy(elements, 0, reordered, injected, oldLen);
-            dexElementsField.set(pathList, reordered);
-        }
     }
 
     private static Method findMethod(Class<?> clazz, String name, Class<?>... params)

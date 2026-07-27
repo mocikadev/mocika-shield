@@ -149,10 +149,10 @@ ls -lh input.apk protected.apk
 
 1. 查看日志：
    ```bash
-   adb logcat | grep -E "AndroidRuntime|ax|lx|rx|e[1-4]"
+   adb logcat | grep -E "AndroidRuntime|ax|dx|lx|rx|e[1-4]"
    ```
 
-   当前壳层日志 tag 已做弱特征化处理，常见 tag 为 `ax`（StubApp）、`lx`（Ld）、`rx`（ARouterCompat）。
+   当前壳层日志 tag 已做弱特征化处理，常见 tag 为 `ax`（StubApp）、`dx`（DEX 注入）、`lx`（Ld）、`rx`（ARouterCompat）。
 
 2. 确认未用未签名 APK 加固（必须先签名再加固）：
    ```bash
@@ -167,7 +167,7 @@ ls -lh input.apk protected.apk
    adb shell getprop ro.product.cpu.abi
    ```
 
-4. 确认 Android 版本 ≥ 7.0（API 24）
+4. 正式版本当前按 Android 7.0（API 24）及以上验证；Android 5.0～6.0（API 21～23）的兼容路径已通过官方 ARM64 模拟器基础回归，厂商真机测试产物需确认日志中出现 `dex-route:elementFactory`
 
 ### 能否重复加固？
 
