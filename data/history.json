@@ -7984,7 +7984,604 @@
           "其他": 0
         }
       }
+    },
+    {
+      "date": "2026-07-27",
+      "collected_at": "2026-07-27T04:29:35.401500Z",
+      "repository": {
+        "stars": 34,
+        "forks": 9,
+        "open_issues": 5
+      },
+      "traffic": {
+        "window_days": 14,
+        "available": true,
+        "views": 979,
+        "unique_visitors": 117,
+        "clones": 416,
+        "unique_cloners": 148
+      },
+      "usage": {
+        "available": true,
+        "active_devices": 1,
+        "latest_complete_date": "2026-07-24",
+        "app_starts": 33,
+        "protect_successes": 41,
+        "protect_failures": 3,
+        "trend": [
+          {
+            "usage_date": "2026-07-13",
+            "active_devices": 1,
+            "app_starts": 1,
+            "protect_successes": 1,
+            "protect_failures": 0,
+            "sign_successes": 0,
+            "date": "2026-07-13"
+          },
+          {
+            "usage_date": "2026-07-14",
+            "active_devices": 1,
+            "app_starts": 9,
+            "protect_successes": 2,
+            "protect_failures": 2,
+            "sign_successes": 2,
+            "date": "2026-07-14"
+          },
+          {
+            "usage_date": "2026-07-15",
+            "active_devices": 1,
+            "app_starts": 5,
+            "protect_successes": 7,
+            "protect_failures": 0,
+            "sign_successes": 7,
+            "date": "2026-07-15"
+          },
+          {
+            "usage_date": "2026-07-16",
+            "active_devices": 1,
+            "app_starts": 4,
+            "protect_successes": 1,
+            "protect_failures": 0,
+            "sign_successes": 1,
+            "date": "2026-07-16"
+          },
+          {
+            "usage_date": "2026-07-17",
+            "active_devices": 1,
+            "app_starts": 1,
+            "protect_successes": 1,
+            "protect_failures": 0,
+            "sign_successes": 1,
+            "date": "2026-07-17"
+          },
+          {
+            "usage_date": "2026-07-20",
+            "active_devices": 1,
+            "app_starts": 4,
+            "protect_successes": 4,
+            "protect_failures": 0,
+            "sign_successes": 4,
+            "date": "2026-07-20"
+          },
+          {
+            "usage_date": "2026-07-21",
+            "active_devices": 1,
+            "app_starts": 2,
+            "protect_successes": 1,
+            "protect_failures": 0,
+            "sign_successes": 1,
+            "date": "2026-07-21"
+          },
+          {
+            "usage_date": "2026-07-22",
+            "active_devices": 1,
+            "app_starts": 1,
+            "protect_successes": 0,
+            "protect_failures": 0,
+            "sign_successes": 0,
+            "date": "2026-07-22"
+          },
+          {
+            "usage_date": "2026-07-23",
+            "active_devices": 3,
+            "app_starts": 5,
+            "protect_successes": 4,
+            "protect_failures": 0,
+            "sign_successes": 4,
+            "date": "2026-07-23"
+          },
+          {
+            "usage_date": "2026-07-24",
+            "active_devices": 1,
+            "app_starts": 1,
+            "protect_successes": 20,
+            "protect_failures": 1,
+            "sign_successes": 20,
+            "date": "2026-07-24"
+          }
+        ]
+      },
+      "release_assets": [
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_macos_aarch64.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_windows_x64_setup.exe",
+          "download_count": 9,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_amd64.AppImage",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_amd64.deb",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_gnome_amd64.AppImage",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_gnome_amd64.deb",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_arm64.dmg",
+          "download_count": 13,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_swift_arm64.dmg",
+          "download_count": 18,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_swift_universal.dmg",
+          "download_count": 6,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_universal.dmg",
+          "download_count": 7,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_windows_x64_setup.exe",
+          "download_count": 88,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_macos_universal.dmg",
+          "download_count": 5,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-macos-universal.tar.gz",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-windows-x86_64.zip",
+          "download_count": 3,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_macos_universal.dmg",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-macos-universal.tar.gz",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-windows-x86_64.zip",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-macos-universal.tar.gz",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-windows-x86_64.zip",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_windows_x64_setup.exe",
+          "download_count": 5,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_windows_x64_setup.exe",
+          "download_count": 5,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_linux_amd64.deb",
+          "download_count": 7,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_macos_universal.dmg",
+          "download_count": 14,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_windows_x64_setup.exe",
+          "download_count": 31,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_macos_universal.dmg",
+          "download_count": 6,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_windows_x64_setup.exe",
+          "download_count": 27,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_macos_universal.dmg",
+          "download_count": 7,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_windows_x64_setup.exe",
+          "download_count": 8,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_macos_universal.dmg",
+          "download_count": 7,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_windows_x64_setup.exe",
+          "download_count": 24,
+          "platform": "Windows"
+        }
+      ],
+      "totals": {
+        "downloads": 321,
+        "platform_downloads": {
+          "Windows": 202,
+          "macOS": 92,
+          "Linux": 27,
+          "其他": 0
+        }
+      }
     }
   ],
-  "updated_at": "2026-07-26T04:21:26.889896Z"
+  "updated_at": "2026-07-27T04:29:35.401500Z"
 }
