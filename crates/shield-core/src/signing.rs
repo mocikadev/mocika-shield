@@ -60,7 +60,22 @@ pub struct SignOptions {
     pub signing_versions: SigningVersions,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SigningProgressStep {
+    Prepare,
+    Align,
+    Sign,
+}
+
 pub fn sign_apk(opts: &SignOptions) -> Result<()> {
+    sign_apk_with_progress(opts, |_| Ok(()))
+}
+
+pub fn sign_apk_with_progress(
+    opts: &SignOptions,
+    mut on_progress: impl FnMut(SigningProgressStep) -> std::result::Result<(), String>,
+) -> Result<()> {
+    on_progress(SigningProgressStep::Prepare).map_err(anyhow::Error::msg)?;
     let apksigner = match &opts.apksigner_path {
         Some(p) if p.exists() => p.clone(),
         Some(p) => anyhow::bail!("配置的 apksigner.jar 路径不存在: {}", p.display()),
@@ -83,6 +98,7 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
     let v = &opts.signing_versions;
     let temp_dir = TempDir::new().context("创建签名临时目录失败")?;
     let aligned_input = temp_dir.path().join("aligned.apk");
+    on_progress(SigningProgressStep::Align).map_err(anyhow::Error::msg)?;
     std::fs::copy(&opts.apk_path, &aligned_input)
         .with_context(|| format!("复制待签名 APK 到临时目录失败: {}", opts.apk_path.display()))?;
     align_apk(&aligned_input).context("内置 APK 对齐失败")?;
@@ -133,6 +149,7 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
 
     cmd_args.push(aligned_input_str);
 
+    on_progress(SigningProgressStep::Sign).map_err(anyhow::Error::msg)?;
     let output = no_window_command(&java)
         .args(&cmd_args)
         .stdout(Stdio::piped())

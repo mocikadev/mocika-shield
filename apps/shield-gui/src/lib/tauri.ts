@@ -134,9 +134,27 @@ export type BuildInfo = {
   min_java_major: number;
 };
 
-export type ProtectProgress = {
+export type TaskKind = "protect" | "sign";
+export type TaskStatus = "running" | "succeeded" | "failed" | "cancelled";
+
+export type TaskLog = {
+  timestamp_ms: number;
   step: string;
+  level: "info" | "error";
   message: string;
+};
+
+export type TaskSnapshot = {
+  task_id: string;
+  kind: TaskKind;
+  status: TaskStatus;
+  current_step: string;
+  input_path: string;
+  output_path: string;
+  started_at_ms: number;
+  finished_at_ms?: number | null;
+  logs: TaskLog[];
+  error?: string | null;
 };
 
 export type DragDropPayload = {
@@ -145,11 +163,13 @@ export type DragDropPayload = {
 
 export const api = {
   checkApk: (path: string) => invoke<ApkCheckResult>("check_apk", { path }),
-  protectApk: (input: string, output: string, certificateId?: string | null) =>
+  protectApk: (taskId: string, input: string, output: string, signedOutput?: string | null, certificateId?: string | null) =>
     invoke<void>("protect_apk", {
       request: {
+        taskId,
         input,
         output,
+        signedOutput: signedOutput ?? null,
         apktoolPath: null,
         resourcesPath: null,
         certificateId: certificateId ?? null,
@@ -174,11 +194,13 @@ export const api = {
   createManagedCertificate: (input: CreateManagedCertificateInput) =>
     invoke<CertificateRecord>("create_managed_certificate_command", { input }),
 	  signApk: (args: {
+	    taskId: string;
 	    apkPath: string;
 	    outputPath?: string | null;
 	    apksignerPath?: string | null;
 	    certificateId: string;
-	  }) => invoke<void>("sign_apk", args),
+	  }) => invoke<void>("sign_apk", { request: args }),
+  getLatestTask: (kind: TaskKind) => invoke<TaskSnapshot | null>("get_latest_task", { kind }),
   listKeystoreAliases: (keystorePath: string, ksPass: string, ksType: string) =>
     invoke<string[]>("list_keystore_aliases", { keystorePath, ksPass, ksType }),
 	  compareCertFingerprints: (args: {

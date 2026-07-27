@@ -2,9 +2,9 @@ use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
 use crate::cert_store::CertificateRecord;
 use shield_core::{
-    sign_apk as shield_sign_apk,
+    sign_apk_with_progress as shield_sign_apk,
     utils::{find_keytool, no_window_command},
-    KeystoreType, SignOptions, SigningVersions,
+    KeystoreType, SignOptions, SigningProgressStep, SigningVersions,
 };
 use std::path::PathBuf;
 
@@ -14,6 +14,7 @@ pub(crate) fn execute_sign_apk(
     output_path: Option<String>,
     apksigner_path: Option<String>,
     certificate: CertificateRecord,
+    mut on_progress: impl FnMut(&str, &str) -> Result<(), String>,
 ) -> Result<(), String> {
     let resolved_apksigner = apksigner_path
         .filter(|s| !s.is_empty())
@@ -46,7 +47,16 @@ pub(crate) fn execute_sign_apk(
             v4: certificate.sign_v4,
         },
     };
-    shield_sign_apk(&opts).map_err(|e| e.to_string())
+    shield_sign_apk(&opts, |step| {
+        let (step, message) = match step {
+            SigningProgressStep::Prepare => ("PrepareSign", "准备签名参数"),
+            SigningProgressStep::Align => ("AlignApk", "对齐待签名 APK"),
+            SigningProgressStep::Sign => ("SignApk", "调用 apksigner 执行签名"),
+        };
+        on_progress(step, message)
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub(crate) fn query_keystore_aliases(

@@ -11,7 +11,7 @@ import {
   type BuildInfo,
   type CertificateRecord,
   type DragDropPayload,
-  type ProtectProgress,
+  type TaskSnapshot,
 } from "@/lib/tauri";
 
 export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
@@ -30,10 +30,12 @@ function precheckMessage(locale: Locale, result: ApkCheckResult) {
 }
 
 export function useProtectWorkflow({
+  active,
   locale,
   certificate,
   buildInfo,
 }: {
+  active: boolean;
   locale: Locale;
   certificate: CertificateRecord | null;
   buildInfo: BuildInfo | null;
@@ -46,11 +48,17 @@ export function useProtectWorkflow({
   const [error, setError] = useState("");
   const [precheck, setPrecheck] = useState("");
   const [currentStep, setCurrentStep] = useState("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const [taskAutoSign, setTaskAutoSign] = useState<boolean | null>(null);
+  const [taskCertificate, setTaskCertificate] = useState<CertificateRecord | null>(null);
   const precheckRequest = useRef(0);
+  const taskId = useRef<string | null>(null);
+  const taskLocked = useRef(false);
 
-  const autoSignReady = Boolean(certificate?.auto_sign_enabled);
-  const autoSignCertificateId = autoSignReady ? certificate?.id ?? null : null;
+  const activeCertificate = taskAutoSign === null ? certificate : taskCertificate;
+  const autoSignReady = Boolean(activeCertificate);
+  const autoSignCertificateId = activeCertificate?.id ?? null;
 
   const computedOutput = useMemo(() => {
     const protectedPath = protectedOutputPath(input);
@@ -58,12 +66,10 @@ export function useProtectWorkflow({
   }, [autoSignReady, input]);
 
   useEffect(() => {
-    setOutput(computedOutput);
+    if (!taskLocked.current) {
+      setOutput(computedOutput);
+    }
   }, [computedOutput]);
-
-  const appendMessage = useCallback((message: string) => {
-    setMessages((items) => [...items.slice(-7), message]);
-  }, []);
 
   const resetSelection = useCallback(() => {
     setInput("");
@@ -72,16 +78,27 @@ export function useProtectWorkflow({
     setError("");
     setPrecheck("");
     setWarning("");
-    setMessages([]);
     setCurrentStep("");
+    setStartedAt(null);
+    setFinishedAt(null);
+    setTaskAutoSign(null);
+    setTaskCertificate(null);
+    taskId.current = null;
+    taskLocked.current = false;
+  }, []);
+
+  const updateOutput = useCallback((path: string) => {
+    if (!taskLocked.current) setOutput(path);
   }, []);
 
   const handleSelected = useCallback(
     (path: string) => {
+      if (taskLocked.current) {
+        return;
+      }
       setWarning("");
       setError("");
       setPrecheck("");
-      setMessages([]);
       setCurrentStep("");
       if (!isApk(path)) {
         const message = t(locale, "onlyApk");
@@ -136,7 +153,7 @@ export function useProtectWorkflow({
   );
 
   useEffect(() => {
-    if (!input) {
+    if (!input || taskLocked.current) {
       return;
     }
     void runPrecheck(input);
@@ -147,16 +164,23 @@ export function useProtectWorkflow({
 
   useEffect(() => {
     const unlisten = Promise.all([
-      onTauriEvent<ProtectProgress>("protect-progress", (payload) => {
-        setCurrentStep(payload.step);
-        setMessages((items) => [...items.slice(-7), payload.message]);
+      onTauriEvent<TaskSnapshot>("task-state", (payload) => {
+        if (payload.kind !== "protect" || payload.task_id !== taskId.current) return;
+        setCurrentStep(payload.current_step);
+        setStartedAt(payload.started_at_ms);
+        setFinishedAt(payload.finished_at_ms ?? null);
+        if (payload.status === "failed") {
+          setError(payload.error ?? t(locale, "failed"));
+          setState("failed");
+        }
       }),
-      onTauriEvent<string>("protect-error", (payload) => {
-        setError(payload);
-        notifyError(payload);
-        setState("failed");
-      }),
-      onTauriEvent<void>("protect-done", () => setState("done")),
+    ]);
+    return () => { void unlisten.then((items) => items.forEach((fn) => fn())); };
+  }, [locale]);
+
+  useEffect(() => {
+    if (!active) { setDragActive(false); return; }
+    const unlisten = Promise.all([
       onTauriEvent<DragDropPayload>("tauri://drag-drop", (payload) => {
         const first = payload.paths?.[0];
         setDragActive(false);
@@ -170,7 +194,7 @@ export function useProtectWorkflow({
     return () => {
       void unlisten.then((items) => items.forEach((fn) => fn()));
     };
-  }, [handleSelected]);
+  }, [active, handleSelected]);
 
   const browse = useCallback(async () => {
     const path = await openFileDialog("APK", ["apk"]);
@@ -194,31 +218,23 @@ export function useProtectWorkflow({
 
       setState("running");
       setError("");
-      setMessages([]);
       setCurrentStep("CheckTools");
+      setStartedAt(Date.now());
+      setFinishedAt(null);
+      setTaskAutoSign(autoSignReady);
+      setTaskCertificate(certificate);
+      taskLocked.current = true;
+      taskId.current = crypto.randomUUID();
 
       const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
       await api.protectApk(
+        taskId.current,
         input,
         unsignedOutput,
+        autoSignReady ? output : null,
         autoSignReady && certificate ? certificate.id : null,
       );
-      if (autoSignReady && certificate) {
-        setCurrentStep("Sign");
-        appendMessage(t(locale, "autoSignStarted"));
-        await api.signApk({
-          apkPath: unsignedOutput,
-          outputPath: output,
-          apksignerPath: null,
-          certificateId: certificate.id,
-        });
-        await api.deleteFile(`${output}.idsig`).catch(() => undefined);
-        appendMessage(t(locale, "autoSignCompleted"));
-        await api.deleteFile(unsignedOutput)
-          .then(() => appendMessage(t(locale, "cleanedIntermediate")))
-          .catch(() => appendMessage(t(locale, "cleanupIntermediateFailed")));
-      }
-      appendMessage(t(locale, "protectCompleted"));
+      setFinishedAt(Date.now());
       setState("done");
       notifySuccess(t(locale, "protectCompleted"));
     } catch (err) {
@@ -227,30 +243,35 @@ export function useProtectWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [appendMessage, autoSignReady, buildInfo, certificate, input, locale, output, precheck]);
+  }, [autoSignReady, buildInfo, certificate, input, locale, output, precheck]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
   }, []);
 
-  const steps = autoSignReady
-    ? ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk", "Sign"]
+  const effectiveAutoSign = taskAutoSign ?? autoSignReady;
+  const steps = effectiveAutoSign
+    ? ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk", "PrepareSign", "SignApk", "Cleanup"]
     : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk"];
 
   return {
     input,
     output,
+    setOutput: updateOutput,
     state,
     dragActive,
     warning,
     error,
     precheck,
     currentStep,
-    messages,
+    startedAt,
+    finishedAt,
     autoSignReady,
+    activeCertificate,
+    taskLocked: taskAutoSign !== null || state === "failed",
     steps,
     hasInput: Boolean(input),
-    showProgress: Boolean(input) && (state === "running" || state === "done" || messages.length > 0),
+    showProgress: Boolean(input) && (state === "running" || state === "done" || state === "failed" || Boolean(currentStep)),
     browse,
     start,
     cancel,

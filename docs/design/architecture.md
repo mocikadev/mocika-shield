@@ -54,6 +54,7 @@ mocika-shield/
 │       │       ├── cert_service.rs   # 证书增删改查、默认项、校验、创建/导入
 │       │       ├── signing.rs        # APK 签名、keystore alias 解析
 │       │       ├── protect_runner.rs # 加固任务桥接、取消、进度事件
+│       │       ├── task_manager.rs   # 任务生命周期、快照、日志与统一事件
 │       │       ├── updates.rs        # GitHub Releases 更新检查与缓存
 │       │       ├── file_ops.rs       # 打开目录、删除文件、URL 打开
 │       │       └── build_info.rs     # 版本与构建工具信息
@@ -210,15 +211,18 @@ Tauri 后端（main.rs + 模块）：
   #[tauri::command] protect_apk
     → tokio::task::spawn_blocking
     → protect_runner::execute_protect_apk()
-    → window.emit("protect-progress", payload) 推送进度到前端
+    → task_manager 更新同一任务内的加固、可选签名和清理状态
+    → window.emit("task-state", snapshot) 推送不可变任务快照
 
   #[tauri::command] sign_apk / check_apk / check_update
     → main.rs 只做参数接线
     → 具体实现分别委托给 signing.rs / apk_check.rs / updates.rs
 
 React 前端：
-  listen("protect-progress") → 更新分步进度条
-  listen("protect-done" / "protect-error") → 完成/失败状态
+  listen("task-state") → 按任务编号和任务类型过滤
+  → 更新步骤、耗时、日志、错误和侧边栏运行状态
 ```
+
+任务状态只由 `task_manager.rs` 修改；`shield-core` 不引用 Tauri 类型，仍通过原有 `ProgressEvent` 回调报告核心步骤。证书密码只在后端解析证书编号后进入签名调用，不写入任务快照或前端事件。
 
 子进程调用（`java`、`keytool` 等）在 Windows 上统一复用 `shield_core::utils::no_window_command()`，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { stepLabels } from "@/components/app/branding";
 import { t, type Locale } from "@/lib/i18n";
@@ -7,21 +8,39 @@ export function ProtectProgressPanel({
   state,
   currentStep,
   steps,
-  messages,
   showProgress,
+  startedAt,
+  finishedAt,
 }: {
   locale: Locale;
   state: "idle" | "prechecking" | "running" | "done" | "failed";
   currentStep: string;
   steps: string[];
-  messages: string[];
   showProgress: boolean;
+  startedAt?: number | null;
+  finishedAt?: number | null;
 }) {
+  const [tick, refresh] = useState(0);
+  useEffect(() => {
+    if (!startedAt || finishedAt) return;
+    const timer = window.setInterval(() => refresh((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [finishedAt, startedAt]);
+  const currentIndex = steps.indexOf(currentStep);
+  const percent = state === "done" ? 100 : currentIndex < 0 ? 0 : Math.min(99, Math.round(((currentIndex + 0.5) / steps.length) * 100));
+  const elapsed = (() => {
+    void tick;
+    if (!startedAt) return "";
+    const seconds = Math.max(0, Math.floor(((finishedAt ?? Date.now()) - startedAt) / 1000));
+    return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+  })();
   return (
     <aside className="rounded-[14px] border bg-card p-4">
-      <h2 className="mb-3 text-sm font-semibold">
-        {showProgress ? t(locale, "running") : t(locale, "ready")}
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">{showProgress ? t(locale, "running") : t(locale, "ready")}</h2>
+        {showProgress && <span className="text-xs tabular-nums text-muted-foreground">{percent}%{elapsed ? ` · ${elapsed}` : ""}</span>}
+      </div>
+      <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} /></div>
       <div className="space-y-2">
         {steps.map((step) => (
           <div key={step} className="flex items-center gap-2 rounded-md px-2 py-1.5">
@@ -36,18 +55,6 @@ export function ProtectProgressPanel({
           </div>
         ))}
       </div>
-      {messages.length > 0 && (
-        <div className="mt-4 rounded-xl bg-muted/50 p-3">
-          <div className="mb-2 text-xs font-medium text-muted-foreground">Log</div>
-          <div className="space-y-1 font-mono text-xs text-muted-foreground">
-            {messages.map((item, index) => (
-              <div key={`${item}-${index}`} className="break-words">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

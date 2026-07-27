@@ -1,5 +1,6 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clipboard, FolderKey, FolderOpen, Loader2, Play, RotateCcw, Square } from "lucide-react";
-import { AppButton, DropZone, SelectedApkCard, StatusMessage } from "@/components/app/common";
+import { AppButton, DropZone, SelectInput, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
@@ -8,14 +9,18 @@ import { t, type Locale } from "@/lib/i18n";
 import { api, type BuildInfo, type CertificateRecord } from "@/lib/tauri";
 
 export function ProtectPage({
+  active,
   locale,
+  certificates,
   defaultCertificate,
   certificatesLoaded,
   buildInfo,
   runtimeInfoLoaded,
   onOpenCertificates,
 }: {
+  active: boolean;
   locale: Locale;
+  certificates: CertificateRecord[];
   defaultCertificate: CertificateRecord | null;
   certificatesLoaded: boolean;
   buildInfo: BuildInfo | null;
@@ -23,17 +28,41 @@ export function ProtectPage({
   onOpenCertificates: () => void;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
+  const [signAfterProtect, setSignAfterProtect] = useState(false);
+  const [selectedCertificateId, setSelectedCertificateId] = useState("");
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (!certificatesLoaded || initialized.current) return;
+    initialized.current = true;
+    setSignAfterProtect(Boolean(defaultCertificate?.auto_sign_enabled));
+  }, [certificatesLoaded, defaultCertificate]);
+
+  useEffect(() => {
+    if (!certificates.length) { setSelectedCertificateId(""); return; }
+    if (certificates.some((item) => item.id === selectedCertificateId)) return;
+    setSelectedCertificateId(defaultCertificate?.id ?? certificates[0].id);
+  }, [certificates, defaultCertificate, selectedCertificateId]);
+
+  const signingCertificate = useMemo(
+    () => signAfterProtect ? certificates.find((item) => item.id === selectedCertificateId) ?? null : null,
+    [certificates, selectedCertificateId, signAfterProtect],
+  );
   const {
     input,
     output,
+    setOutput,
     state,
     dragActive,
     warning,
     error,
     precheck,
     currentStep,
-    messages,
+    startedAt,
+    finishedAt,
     autoSignReady,
+    activeCertificate,
+    taskLocked,
     steps,
     hasInput,
     showProgress,
@@ -42,8 +71,9 @@ export function ProtectPage({
     cancel,
     resetSelection,
   } = useProtectWorkflow({
+    active,
     locale,
-    certificate: defaultCertificate,
+    certificate: signingCertificate,
     buildInfo,
   });
 
@@ -61,7 +91,7 @@ export function ProtectPage({
               onBrowse={browse}
             />
           </div>
-          {certificatesLoaded && !defaultCertificate && (
+          {certificatesLoaded && certificates.length === 0 && (
             <div className="mt-5">
               <StatusMessage
                 kind="info"
@@ -102,7 +132,7 @@ export function ProtectPage({
             ) : (
               <AppButton
                 className="min-w-[136px]"
-                disabled={!input || !runtimeInfoLoaded || Boolean(precheck) || state === "prechecking"}
+                disabled={!input || !runtimeInfoLoaded || Boolean(precheck) || state === "prechecking" || (signAfterProtect && !signingCertificate)}
                 onClick={start}
               >
                 {state === "prechecking" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -116,18 +146,55 @@ export function ProtectPage({
               <SelectedApkCard
                 locale={locale}
                 path={input}
-                output={output}
-                disabled={state === "prechecking" || state === "running"}
+                disabled={taskLocked || state === "prechecking" || state === "running"}
                 onChange={browse}
               />
+              <div className="rounded-[14px] border bg-card p-4">
+                <label className="field-label" htmlFor="protect-output">{t(locale, "outputPath")}</label>
+                <TextInput
+                  id="protect-output"
+                  className="mt-2 font-mono text-xs"
+                  value={output}
+                  disabled={taskLocked || state === "prechecking" || state === "running"}
+                  onChange={(event) => setOutput(event.target.value)}
+                />
+              </div>
+              <div className="rounded-[14px] border bg-card p-4">
+                <label className="flex items-center justify-between gap-4 text-sm font-medium">
+                  <span>{t(locale, "signAfterProtect")}</span>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={signAfterProtect}
+                    disabled={taskLocked || state === "prechecking" || state === "running"}
+                    onChange={(event) => setSignAfterProtect(event.target.checked)}
+                  />
+                </label>
+                {signAfterProtect && (
+                  <div className="mt-4">
+                    <label className="field-label" htmlFor="protect-sign-certificate">{t(locale, "selectCertificate")}</label>
+                    <SelectInput
+                      id="protect-sign-certificate"
+                      className="mt-2"
+                      value={selectedCertificateId}
+                      disabled={taskLocked || state === "prechecking" || state === "running"}
+                      onChange={(event) => setSelectedCertificateId(event.target.value)}
+                    >
+                      {certificates.length === 0 ? <option value="">{t(locale, "noCertificates")}</option> : certificates.map((item) => (
+                        <option key={item.id} value={item.id}>{item.is_default ? `${item.name} · ${t(locale, "defaultCertificate")}` : item.name}</option>
+                      ))}
+                    </SelectInput>
+                  </div>
+                )}
+              </div>
               {warning && <StatusMessage kind="warning">{warning}</StatusMessage>}
-              {hasInput && autoSignReady && defaultCertificate && (
+              {hasInput && autoSignReady && activeCertificate && (
                 <StatusMessage kind="info">
-                  <b>{defaultCertificate.name}</b>
+                  <b>{activeCertificate.name}</b>
                   <span className="ml-1">{t(locale, "certificateWillAutoSign")}</span>
                 </StatusMessage>
               )}
-              {hasInput && !autoSignReady && (
+              {hasInput && signAfterProtect && !signingCertificate && (
                 <StatusMessage
                   kind="info"
                   action={
@@ -137,7 +204,7 @@ export function ProtectPage({
                     </AppButton>
                   }
                 >
-                  {t(locale, "noDefaultCertificate")}
+                  {t(locale, "noCertificates")}
                 </StatusMessage>
               )}
               {precheck && (
@@ -179,8 +246,9 @@ export function ProtectPage({
               state={state}
               currentStep={currentStep}
               steps={steps}
-              messages={messages}
               showProgress={showProgress}
+              startedAt={startedAt}
+              finishedAt={finishedAt}
             />
           </div>
         </div>
