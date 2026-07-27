@@ -377,7 +377,7 @@ f2  ←→  Ld.q(Context ctx, byte[] dexData) → byte[][]
 
 **核心原则：不创建任何中间 ClassLoader，所有 app 类的 defining loader 始终是原始 PathClassLoader。**
 
-优先路径（JNI，不受 hidden API 限制）：
+API 24 及以上优先使用 JNI 路径（不受 hidden API 限制）：
 
 ```rust
 // f1（Ld.p JNI 实现）
@@ -389,7 +389,7 @@ FindClass("dalvik/system/BaseDexClassLoader")
 → CallVoidMethod 调用
 ```
 
-降级路径（Java 反射，`p` 返回 false 时）：
+API 24 及以上的降级路径（Java 反射，`p` 返回 false 时）：
 
 ```java
 Method addDexPath = pathList.getClass().getDeclaredMethod("addDexPath", String.class, File.class);
@@ -399,9 +399,20 @@ addDexPath.invoke(pathList, dexFile.getAbsolutePath(), optDir);
 
 `addDexPath` 内部将 DEX 直接注册到 PathClassLoader（`definingContext`），天然避免 `multiple class loaders` 问题。
 
+API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用系统的 Element 工厂并前插到原 `PathClassLoader`：
+
+| 系统 | Element 工厂 | 参数签名 |
+|------|--------------|----------|
+| API 21～22 | `makeDexElements` | `ArrayList<File>, File, ArrayList<IOException>` |
+| API 23 | `makePathElements` | `List<File>, File, List<IOException>` |
+
+实现按系统版本确定首选方法名，并保留另一个名称作为厂商系统兼容回退。工厂返回的 Element 必须放在壳 Element 之前，确保业务类优先；构造过程中产生的 `dexElementsSuppressedExceptions` 会合并回系统字段并作为加载失败抛出，不允许静默丢失部分 DEX。
+
 **兼容性：**
-- `addDexPath(String, File)` 在 Android 7.0（API 24）~ 15（API 35）均存在
+- Android 5.0～6.0（API 21～23）：Element 工厂注入，已通过 API 21/23 官方 ARM64 模拟器的单 DEX、双 DEX 和应用启动回归，仍需厂商真机与复杂样本验证
+- Android 7.0（API 24）及以上：`addDexPath(String, File)` 注入
 - API 26+ `optimizedDirectory` 参数被忽略（传 null）
+- Android 4.4（API 19～20）：当前 Rust Native 库最低按 API 21 构建，暂不支持
 
 ### 5.4 ARouter 路由表补注册
 

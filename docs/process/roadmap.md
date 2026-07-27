@@ -37,6 +37,26 @@
 
 ## 一、已知缺陷（Bug）
 
+### Android 5.0～6.0 DEX 加载兼容
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 高 |
+| **状态** | 进行中 |
+| **涉及文件** | `shield-stub`、运行时兼容测试、使用与设计文档 |
+
+**目标**：在不创建第二个 ClassLoader、不改变 DEXB 格式的前提下，将运行时支持范围扩展到 Android 5.0（API 21）及以上。
+
+**实施方案**：
+
+1. API 24 及以上保持现有 JNI `addDexPath` 路径。
+2. API 21～22 反射调用 `makeDexElements`，API 23 反射调用 `makePathElements`。
+3. 所有版本均把解密 DEX Element 前插到原 `PathClassLoader`，保持唯一 defining loader。
+4. 单元测试覆盖版本路由和 Element 顺序；API 21、23 设备覆盖首次启动、清除数据、多 DEX、ARouter 和 Native 库。
+5. Android 4.4（API 19～20）因当前 Rust Native 构建下限和 Dalvik 差异单独评估，不纳入本轮实现。
+
+**完成条件**：API 21 与 API 23 真机或官方模拟器端到端加固产物可安装、冷启动并通过关键功能回归；在此之前只作为测试兼容路径，不更新正式最低支持声明。
+
 ### V2/V3-only APK 预检与加固签名提取不一致
 
 | 项 | 内容 |
