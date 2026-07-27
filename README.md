@@ -282,3 +282,11 @@ make build-all
 提交 issue 前建议阅读 [支持与问题反馈](docs/process/support.md)，本地排障可参考 [本地诊断与排障命令](docs/ops/troubleshooting.md)。反馈时请在关于页复制诊断信息，不要在公开 issue 中上传 APK、keystore、证书密码或签名密码。
 
 如果希望增加新能力或改进工作流，请使用[功能建议表单](https://github.com/mocikadev/mocika-shield/issues/new?template=feature_request.yml)。提交前先搜索已有建议；对于相同需求，请在原 issue 使用 👍 表示支持。需求统计与评审规则见[功能需求收集与评审](docs/process/feature-requests.md)。
+
+## 用户交流
+
+QQ 用户交流群：`1090352773`
+
+群聊用于使用交流、问题排查和测试版本验证。正式问题仍建议提交 [GitHub Issue](https://github.com/mocikadev/mocika-shield/issues)，方便记录复现信息和持续跟踪。请勿在群内发送签名密码、正式证书、业务数据或其他敏感材料。
+
+<img src="docs/assets/community/qq-group.png" alt="Mocika Shield QQ 用户交流群：1090352773" width="300">

@@ -439,6 +439,10 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
     .footnote {{ margin: 14px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.7; }}
     .status-note {{ margin: -8px 0 24px; border: 1px solid #f59e0b; border-radius: 12px; padding: 11px 14px; background: #fffbeb; color: #92400e; font-size: 13px; }}
     .live-note {{ margin: -8px 0 24px; border: 1px solid #bfdbfe; border-radius: 12px; padding: 11px 14px; background: #eff6ff; color: #1e40af; font-size: 13px; }}
+    .community-card {{ display: grid; grid-template-columns: minmax(0, 1fr) 260px; align-items: center; gap: 28px; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; background: #fff; box-shadow: 0 5px 18px rgba(15, 23, 42, .04); }}
+    .community-card h2 {{ margin-bottom: 12px; }}
+    .community-card p {{ margin: 8px 0 0; color: #64748b; line-height: 1.7; }}
+    .community-card img {{ display: block; width: 100%; height: auto; border-radius: 12px; }}
     footer {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 46px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }}
     @media (max-width: 760px) {{
       body {{ padding: 15px 14px 50px; }}
@@ -447,12 +451,15 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
       .hero {{ border-radius: 18px; padding: 28px 22px; }}
       .metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .section-heading {{ align-items: flex-start; flex-direction: column; gap: 6px; }}
+      .community-card {{ grid-template-columns: 1fr; }}
+      .community-card img {{ max-width: 300px; margin: 0 auto; }}
     }}
     @media (prefers-color-scheme: dark) {{
       :root, body {{ background: #0b1220; color: #e5e7eb; }}
       .brand {{ color: #e5e7eb; }}
-      .metric, .chart-card, .table-card {{ border-color: #263247; background: #111a2b; box-shadow: none; }}
+      .metric, .chart-card, .table-card, .community-card {{ border-color: #263247; background: #111a2b; box-shadow: none; }}
       .metric span, .section-heading p, .footnote, footer {{ color: #94a3b8; }}
+      .community-card p {{ color: #94a3b8; }}
       .status-note {{ border-color: #92400e; background: #2b1d0e; color: #fcd34d; }}
       .live-note {{ border-color: #1e40af; background: #101d3a; color: #bfdbfe; }}
       th {{ color: #94a3b8; background: #162033; }}
@@ -465,7 +472,7 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
 <body>
   <header class="topbar">
     <a class="brand" href="https://github.com/{html.escape(repository)}"><span class="brand-mark" aria-hidden="true">M</span><span>Mocika Shield</span></a>
-    <nav aria-label="页面导航"><a href="#overview">概览</a><a href="#charts">趋势图</a><a href="#versions">版本明细</a><a href="https://github.com/{html.escape(repository)}/issues/new?template=feature_request.yml">功能建议</a><a href="https://github.com/{html.escape(repository)}/releases">发布页</a><a href="https://github.com/{html.escape(repository)}">GitHub</a></nav>
+    <nav aria-label="页面导航"><a href="#overview">概览</a><a href="#charts">趋势图</a><a href="#versions">版本明细</a><a href="#community">用户交流</a><a href="https://github.com/{html.escape(repository)}/issues/new?template=feature_request.yml">功能建议</a><a href="https://github.com/{html.escape(repository)}/releases">发布页</a><a href="https://github.com/{html.escape(repository)}">GitHub</a></nav>
   </header>
   <main>
     <section class="hero" id="overview">
@@ -506,6 +513,14 @@ def render_index(repository: str, snapshots: list[dict[str, Any]]) -> str:
         </details>
       </div>
       <p class="footnote">下载次数包含重复下载和不同格式下载，不等于独立用户数。访客和克隆在 GitHub 权限不可用时显示为“—”，不会被当作零。</p>
+    </section>
+    <section class="section community-card" id="community">
+      <div>
+        <h2>用户交流</h2>
+        <p>QQ 用户交流群：<strong>1090352773</strong></p>
+        <p>用于使用交流、问题排查和测试版本验证。正式问题仍建议提交 <a href="https://github.com/{html.escape(repository)}/issues">GitHub Issue</a>，方便持续跟踪。</p>
+      </div>
+      <img src="assets/qq-group.png" alt="Mocika Shield QQ 用户交流群：1090352773" loading="lazy">
     </section>
   </main>
   <footer><span>数据来自 GitHub 聚合指标，以及用户允许上报的匿名客户端每日汇总；不包含 APK、路径、证书或密码。</span><span><a href="https://github.com/{html.escape(repository)}/blob/main/docs/ops/project-statistics.md">查看统计口径</a> · <a href="https://github.com/{html.escape(repository)}/blob/main/docs/process/feature-requests.md">需求评审规则</a></span></footer>

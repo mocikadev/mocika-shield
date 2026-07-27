@@ -82,6 +82,9 @@ class ProjectStatsTests(unittest.TestCase):
             self.assertIn("当前指标近实时", page)
             self.assertIn("issues/new?template=feature_request.yml", page)
             self.assertIn("需求评审规则", page)
+            self.assertIn('id="community"', page)
+            self.assertIn("QQ 用户交流群", page)
+            self.assertIn("assets/qq-group.png", page)
             self.assertNotIn("不包含客户端遥测", page)
 
     def test_unavailable_traffic_is_not_recorded_as_zero(self):
