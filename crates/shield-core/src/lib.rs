@@ -14,6 +14,7 @@ pub use apk_inspect::{
 pub use error::ShieldError;
 pub use protect_api::{protect_apk, ProgressEvent, ProgressStep, ProtectOptions};
 pub use signing::{
-    check_apksigner, find_apksigner, sign_apk, KeystoreType, SignOptions, SigningVersions,
+    check_apksigner, find_apksigner, sign_apk, sign_apk_with_progress, KeystoreType, SignOptions,
+    SigningProgressStep, SigningVersions,
 };
 pub use zipalign::{align_apk, verify_apk_alignment, AlignmentIssue};

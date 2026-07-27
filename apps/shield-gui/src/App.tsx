@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FolderKey, Info, PencilLine, Settings, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FolderKey, Info, LoaderCircle, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { Toaster } from "sonner";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
 import {
@@ -20,7 +20,7 @@ import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
 import { useCertificatesState } from "@/hooks/use-certificates";
 import { useRuntimeInfo } from "@/hooks/use-runtime-info";
 import { t } from "@/lib/i18n";
-import { api, type BuildInfo } from "@/lib/tauri";
+import { api, onTauriEvent, type BuildInfo, type TaskKind, type TaskSnapshot } from "@/lib/tauri";
 import { AboutPage } from "@/pages/about-page";
 import { CertificatesPage } from "@/pages/certificates-page";
 import { ProtectPage } from "@/pages/protect-page";
@@ -35,6 +35,14 @@ export function App() {
   const certificatesState = useCertificatesState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
   const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
+  const [runningTasks, setRunningTasks] = useState<Partial<Record<TaskKind, boolean>>>({});
+
+  useEffect(() => {
+    const unlisten = onTauriEvent<TaskSnapshot>("task-state", (task) => {
+      setRunningTasks((current) => ({ ...current, [task.kind]: task.status === "running" }));
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, []);
 
   useAppliedThemeMode(themeMode);
 
@@ -76,6 +84,7 @@ export function App() {
                       key={item.key}
                       page={page}
                       item={item}
+                      running={item.key === "protect" ? runningTasks.protect : item.key === "sign" ? runningTasks.sign : false}
                       onSelect={() => setPage(item.key)}
                     />
                   ))}
@@ -108,18 +117,21 @@ export function App() {
             onViewRelease={openRelease}
           />
           <div className="scrollbar-none min-h-0 flex-1 overflow-auto">
-            {page === "protect" && (
+            <div className={page === "protect" ? undefined : "hidden"} aria-hidden={page !== "protect"}>
               <ProtectPage
+                active={page === "protect"}
                 locale={locale}
+                certificates={certificatesState.certificates}
                 defaultCertificate={certificatesState.defaultCertificate}
                 certificatesLoaded={certificatesState.loaded}
                 buildInfo={buildInfo}
                 runtimeInfoLoaded={runtimeInfoLoaded}
                 onOpenCertificates={() => setPage("certificates")}
               />
-            )}
-            {page === "sign" && (
+            </div>
+            <div className={page === "sign" ? undefined : "hidden"} aria-hidden={page !== "sign"}>
               <SignPage
+                active={page === "sign"}
                 locale={locale}
                 certificates={certificatesState.certificates}
                 certificatesLoaded={certificatesState.loaded}
@@ -127,7 +139,7 @@ export function App() {
                 runtimeInfoLoaded={runtimeInfoLoaded}
                 onOpenCertificates={() => setPage("certificates")}
               />
-            )}
+            </div>
             {page === "certificates" && (
               <CertificatesPage
                 locale={locale}
@@ -191,6 +203,7 @@ function NavItem({
   page,
   item,
   onSelect,
+  running,
 }: {
   page: Page;
   item: {
@@ -199,6 +212,7 @@ function NavItem({
     label: string;
   };
   onSelect: () => void;
+  running?: boolean;
 }) {
   const Icon = item.icon;
 
@@ -216,6 +230,7 @@ function NavItem({
         <span className="min-w-0 flex-1 truncate transition-[opacity,transform,width] duration-200 group-data-[collapsible=icon]:hidden">
           {item.label}
         </span>
+        {running && <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary group-data-[collapsible=icon]:hidden" />}
       </SidebarMenuButton>
     </SidebarMenuItem>
   );

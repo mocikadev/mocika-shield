@@ -9,6 +9,7 @@ mod cert_store;
 mod file_ops;
 mod protect_runner;
 mod signing;
+mod task_manager;
 mod telemetry;
 mod updates;
 
@@ -34,23 +35,36 @@ use file_ops::{
     check_file_exists as check_file_exists_impl, delete_file as delete_file_impl,
     open_url as open_url_impl, show_in_folder as show_in_folder_impl,
 };
-use protect_runner::{execute_protect_apk, CancelHandle};
+use protect_runner::{execute_protect_apk, CancelHandle, ProtectExecution};
 use signing::{execute_sign_apk, query_keystore_aliases};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use task_manager::{TaskKind, TaskManager, TaskSnapshot, TaskStatus};
 use tauri::Manager;
 use updates::{check_update_impl, UpdateCheckResult};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProtectRequest {
+    task_id: String,
     input: String,
     output: String,
+    signed_output: Option<String>,
     apktool_path: Option<String>,
     resources_path: Option<String>,
     certificate_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SignRequest {
+    task_id: String,
+    apk_path: String,
+    output_path: Option<String>,
+    apksigner_path: Option<String>,
+    certificate_id: String,
 }
 
 #[tauri::command]
@@ -84,9 +98,10 @@ async fn protect_apk(
     certificate_state: tauri::State<'_, CertificateStoreState>,
     request: ProtectRequest,
     cancel_handle: tauri::State<'_, CancelHandle>,
+    task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<(), String> {
     let app = window.app_handle().clone();
-    let expected_signing_certificate = match request.certificate_id {
+    let signing_certificate = match request.certificate_id {
         Some(id) => Some(
             certificate_state
                 .get_certificate(&id)?
@@ -94,17 +109,52 @@ async fn protect_apk(
         ),
         None => None,
     };
+    task_manager.begin(
+        &window,
+        request.task_id.clone(),
+        TaskKind::Protect,
+        request.input.clone(),
+        request
+            .signed_output
+            .clone()
+            .unwrap_or_else(|| request.output.clone()),
+        "CheckTools",
+    )?;
     telemetry::record_event(&telemetry_state, "protect_start_count");
     let result = execute_protect_apk(
-        window,
-        request.input,
-        request.output,
-        request.apktool_path,
-        request.resources_path,
-        expected_signing_certificate,
+        window.clone(),
+        ProtectExecution {
+            task_id: request.task_id.clone(),
+            input: request.input,
+            output: request.output,
+            apktool_path: request.apktool_path,
+            resources_path: request.resources_path,
+            signing_certificate,
+            signed_output: request.signed_output,
+        },
         cancel_handle,
+        task_manager.inner().clone(),
     )
     .await;
+    let signing_started = task_manager
+        .snapshot(&request.task_id)?
+        .is_some_and(|task| {
+            matches!(
+                task.current_step.as_str(),
+                "PrepareSign" | "AlignApk" | "SignApk" | "Cleanup"
+            )
+        });
+    let status = match &result {
+        Ok(()) => TaskStatus::Succeeded,
+        Err(message) if message == "已取消" => TaskStatus::Cancelled,
+        Err(_) => TaskStatus::Failed,
+    };
+    task_manager.finish(
+        &window,
+        &request.task_id,
+        status,
+        result.as_ref().err().cloned(),
+    )?;
     telemetry::record_event(
         &telemetry_state,
         if result.is_ok() {
@@ -113,6 +163,16 @@ async fn protect_apk(
             "protect_failed_count"
         },
     );
+    if signing_started {
+        telemetry::record_event(
+            &telemetry_state,
+            if result.is_ok() {
+                "sign_success_count"
+            } else {
+                "sign_failed_count"
+            },
+        );
+    }
     telemetry::schedule_sync(app);
     result
 }
@@ -164,23 +224,57 @@ fn save_app_config(
 
 #[tauri::command]
 async fn sign_apk(
-    app: tauri::AppHandle,
+    window: tauri::Window,
     telemetry_state: tauri::State<'_, AppConfigState>,
     state: tauri::State<'_, CertificateStoreState>,
-    apk_path: String,
-    output_path: Option<String>,
-    apksigner_path: Option<String>,
-    certificate_id: String,
+    request: SignRequest,
+    task_manager: tauri::State<'_, TaskManager>,
 ) -> Result<(), String> {
+    let app = window.app_handle().clone();
     let telemetry_app = app.clone();
     let certificate = state
-        .get_certificate(&certificate_id)?
+        .get_certificate(&request.certificate_id)?
         .ok_or_else(|| "未找到签名证书".to_string())?;
+    let final_output = request
+        .output_path
+        .clone()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| request.apk_path.clone());
+    task_manager.begin(
+        &window,
+        request.task_id.clone(),
+        TaskKind::Sign,
+        request.apk_path.clone(),
+        final_output,
+        "PrepareSign",
+    )?;
+    let progress_manager = task_manager.inner().clone();
+    let progress_window = window.clone();
+    let progress_task_id = request.task_id.clone();
     let result = tokio::task::spawn_blocking(move || {
-        execute_sign_apk(&app, apk_path, output_path, apksigner_path, certificate)
+        execute_sign_apk(
+            &app,
+            request.apk_path,
+            request.output_path,
+            request.apksigner_path,
+            certificate,
+            |step, message| {
+                progress_manager.progress(&progress_window, &progress_task_id, step, message)
+            },
+        )
     })
     .await
-    .map_err(|err| format!("后台任务执行失败: {err}"))?;
+    .unwrap_or_else(|err| Err(format!("后台任务执行失败: {err}")));
+    task_manager.finish(
+        &window,
+        &request.task_id,
+        if result.is_ok() {
+            TaskStatus::Succeeded
+        } else {
+            TaskStatus::Failed
+        },
+        result.as_ref().err().cloned(),
+    )?;
     telemetry::record_event(
         &telemetry_state,
         if result.is_ok() {
@@ -191,6 +285,18 @@ async fn sign_apk(
     );
     telemetry::schedule_sync(telemetry_app);
     result
+}
+
+#[tauri::command]
+fn get_latest_task(
+    state: tauri::State<'_, TaskManager>,
+    kind: String,
+) -> Result<Option<TaskSnapshot>, String> {
+    state.latest(if kind == "sign" {
+        TaskKind::Sign
+    } else {
+        TaskKind::Protect
+    })
 }
 
 #[tauri::command]
@@ -327,6 +433,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(CancelHandle(Arc::new(AtomicBool::new(false))))
         .manage(telemetry::TelemetryRuntime::default())
+        .manage(TaskManager::default())
         .setup(|app| {
             let loaded = load_app_config(app.handle())?;
             save_app_config_file(&loaded.path, &loaded.config)?;
@@ -363,7 +470,8 @@ fn main() {
             get_dismissed_version,
             get_app_info,
             get_build_info,
-            get_diagnostic_info
+            get_diagnostic_info,
+            get_latest_task
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| panic!("启动 shield-gui 失败: {err}"));

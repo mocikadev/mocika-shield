@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clipboard, FolderKey, FolderOpen, KeyRound, Loader2, RotateCcw } from "lucide-react";
 import { AppButton, DropZone, SelectInput, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
+import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useSignWorkflow } from "@/hooks/use-sign-workflow";
 import { basename } from "@/lib/path";
@@ -8,6 +9,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { api, type BuildInfo, type CertificateRecord } from "@/lib/tauri";
 
 export function SignPage({
+  active,
   locale,
   certificates,
   certificatesLoaded,
@@ -15,6 +17,7 @@ export function SignPage({
   runtimeInfoLoaded,
   onOpenCertificates,
 }: {
+  active: boolean;
   locale: Locale;
   certificates: CertificateRecord[];
   certificatesLoaded: boolean;
@@ -50,11 +53,16 @@ export function SignPage({
     state,
     error,
     dragActive,
+    currentStep,
+    startedAt,
+    finishedAt,
+    taskLocked,
     hasApk,
     browseApk,
     sign,
     reset,
   } = useSignWorkflow({
+    active,
     locale,
     certificate: selectedCertificate,
     buildInfo,
@@ -122,14 +130,16 @@ export function SignPage({
             </div>
           </div>
 
-          <div className="mt-8 space-y-4">
-            <SelectedApkCard locale={locale} path={apkPath} disabled={state === "signing"} onChange={browseApk} />
+          <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-4">
+            <SelectedApkCard locale={locale} path={apkPath} disabled={taskLocked} onChange={browseApk} />
             <div className="rounded-[14px] border bg-card p-4">
               <label className="field-label" htmlFor="sign-certificate">{t(locale, "selectCertificate")}</label>
               <SelectInput
                 id="sign-certificate"
                 className="mt-2"
                 value={selectedCertificateId}
+                disabled={taskLocked}
                 onChange={(e) => setSelectedCertificateId(e.target.value)}
               >
                 {certificates.length === 0 ? (
@@ -164,6 +174,7 @@ export function SignPage({
                 id="sign-output"
                 className="mt-2 font-mono text-xs"
                 value={outputPath}
+                disabled={taskLocked}
                 onChange={(e) => setOutputPath(e.target.value)}
               />
             </div>
@@ -193,6 +204,16 @@ export function SignPage({
                 {error}
               </StatusMessage>
             )}
+            </div>
+            <ProtectProgressPanel
+              locale={locale}
+              state={state === "signing" ? "running" : state}
+              currentStep={currentStep}
+              steps={["PrepareSign", "AlignApk", "SignApk"]}
+              showProgress={state !== "idle" || Boolean(currentStep)}
+              startedAt={startedAt}
+              finishedAt={finishedAt}
+            />
           </div>
         </div>
       )}

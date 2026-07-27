@@ -12,4 +12,8 @@ export const stepLabels: Record<string, Record<Locale, string>> = {
   Repack: { zh: "重打包", en: "Repack" },
   AlignApk: { zh: "对齐 APK", en: "Align APK" },
   Sign: { zh: "自动签名", en: "Auto sign" },
+  PrepareSign: { zh: "准备签名", en: "Prepare signing" },
+  SignApk: { zh: "执行签名", en: "Sign APK" },
+  VerifySign: { zh: "验证签名", en: "Verify signing" },
+  Cleanup: { zh: "清理中间产物", en: "Clean up" },
 };

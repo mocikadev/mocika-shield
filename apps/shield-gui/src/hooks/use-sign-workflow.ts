@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isApk, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getSignJavaError } from "@/lib/java";
@@ -10,15 +10,18 @@ import {
   type BuildInfo,
   type CertificateRecord,
   type DragDropPayload,
+  type TaskSnapshot,
 } from "@/lib/tauri";
 
 export type SignState = "idle" | "signing" | "done" | "failed";
 
 export function useSignWorkflow({
+  active,
   locale,
   certificate,
   buildInfo,
 }: {
+  active: boolean;
   locale: Locale;
   certificate: CertificateRecord | null;
   buildInfo: BuildInfo | null;
@@ -28,12 +31,33 @@ export function useSignWorkflow({
   const [state, setState] = useState<SignState>("idle");
   const [error, setError] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState("");
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const [taskCertificate, setTaskCertificate] = useState<CertificateRecord | null>(null);
+  const taskId = useRef<string | null>(null);
+  const taskLocked = useRef(false);
+
+  const activeCertificate = taskCertificate ?? certificate;
 
   useEffect(() => {
+    const unlisten = onTauriEvent<TaskSnapshot>("task-state", (payload) => {
+      if (payload.kind !== "sign" || payload.task_id !== taskId.current) return;
+      setCurrentStep(payload.current_step);
+      setStartedAt(payload.started_at_ms);
+      setFinishedAt(payload.finished_at_ms ?? null);
+      if (payload.status === "failed") setState("failed");
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, []);
+
+  useEffect(() => {
+    if (!active) { setDragActive(false); return; }
     const unlisten = Promise.all([
       onTauriEvent<DragDropPayload>("tauri://drag-drop", (payload) => {
         const first = payload.paths?.[0];
         setDragActive(false);
+        if (taskLocked.current) return;
         if (first && isApk(first)) {
           setApkPath(first);
           setOutputPath(signedOutputPath(first));
@@ -51,9 +75,10 @@ export function useSignWorkflow({
     return () => {
       void unlisten.then((items) => items.forEach((fn) => fn()));
     };
-  }, [locale]);
+  }, [active, locale]);
 
   const browseApk = useCallback(async () => {
+    if (taskLocked.current) return;
     const path = await openFileDialog("APK", ["apk"]);
     if (path) {
       setApkPath(path);
@@ -63,11 +88,17 @@ export function useSignWorkflow({
     }
   }, []);
 
+  const updateOutputPath = useCallback((path: string) => {
+    if (!taskLocked.current) setOutputPath(path);
+  }, []);
+
   const sign = useCallback(async () => {
     if (!apkPath || !certificate) {
       return;
     }
     try {
+      setTaskCertificate(certificate);
+      taskLocked.current = true;
       const javaError = getSignJavaError(locale, buildInfo);
       if (javaError) {
         setError(javaError);
@@ -78,7 +109,12 @@ export function useSignWorkflow({
 
       setState("signing");
       setError("");
+      setCurrentStep("PrepareSign");
+      setStartedAt(Date.now());
+      setFinishedAt(null);
+      taskId.current = crypto.randomUUID();
       await api.signApk({
+        taskId: taskId.current,
         apkPath,
         outputPath: outputPath || null,
         apksignerPath: null,
@@ -100,31 +136,41 @@ export function useSignWorkflow({
     setOutputPath("");
     setState("idle");
     setError("");
+    setCurrentStep("");
+    setStartedAt(null);
+    setFinishedAt(null);
+    setTaskCertificate(null);
+    taskId.current = null;
+    taskLocked.current = false;
   }, []);
 
   const enabledVersions = useMemo(
     () =>
-      certificate
+      activeCertificate
         ? [
-            certificate.sign_v1 && "V1",
-            certificate.sign_v2 && "V2",
-            certificate.sign_v3 && "V3",
-            certificate.sign_v4 && "V4",
+            activeCertificate.sign_v1 && "V1",
+            activeCertificate.sign_v2 && "V2",
+            activeCertificate.sign_v3 && "V3",
+            activeCertificate.sign_v4 && "V4",
           ]
             .filter(Boolean)
             .join(" / ")
         : "",
-    [certificate],
+    [activeCertificate],
   );
 
   return {
     apkPath,
     outputPath,
-    setOutputPath,
+    setOutputPath: updateOutputPath,
     state,
     error,
     dragActive,
+    currentStep,
+    startedAt,
+    finishedAt,
     enabledVersions,
+    taskLocked: taskCertificate !== null || state === "failed",
     hasApk: Boolean(apkPath),
     browseApk,
     sign,
