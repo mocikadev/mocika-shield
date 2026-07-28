@@ -13,7 +13,8 @@
 #   2. 重新打开终端，让 PATH 生效
 
 param(
-    [string]$NdkVersion = "29.0.14206865"
+    [string]$NdkVersion = "29.0.14206865",
+    [string]$CompatNdkVersion = "25.2.9519653"
 )
 
 $ErrorActionPreference = "Stop"
@@ -130,6 +131,9 @@ Ensure-RustupTarget "aarch64-linux-android"
 Ensure-RustupTarget "armv7-linux-androideabi"
 Ensure-RustupTarget "i686-linux-android"
 Ensure-RustupTarget "x86_64-linux-android"
+Info "安装 Android 4.4 兼容 Rust 工具链 1.77.2..."
+rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
+Success "Android 4.4 兼容 Rust 工具链已就绪"
 
 # ============================================================
 Step 6 "安装 Rust cargo 工具"
@@ -174,7 +178,7 @@ if (-not $androidHome -or -not (Test-Path $androidHome)) {
     $env:ANDROID_SDK_ROOT = $androidHome
 
     # ============================================================
-    Step 9 "安装 Android NDK $NdkVersion（通过 sdkmanager）"
+    Step 9 "安装标准与 Android 4.4 兼容 NDK（通过 sdkmanager）"
 
     $sdkmanager = Get-Command sdkmanager -ErrorAction SilentlyContinue
     if (-not $sdkmanager) {
@@ -182,26 +186,26 @@ if (-not $androidHome -or -not (Test-Path $androidHome)) {
     }
 
     if ($sdkmanager) {
-        $ndkPath = Join-Path $androidHome "ndk\$NdkVersion"
-        if (Test-Path $ndkPath) {
-            Success "Android NDK $NdkVersion 已安装：$ndkPath"
-            [System.Environment]::SetEnvironmentVariable("ANDROID_NDK_ROOT", $ndkPath, "User")
-            $env:ANDROID_NDK_ROOT = $ndkPath
-        } else {
-            Info "安装 Android NDK $NdkVersion（需要网络，文件较大，请稍候）..."
-            # sdkmanager 需要接受许可证
-            "y" | & $sdkmanager.Source "ndk;$NdkVersion"
+        foreach ($version in @($NdkVersion, $CompatNdkVersion)) {
+            $ndkPath = Join-Path $androidHome "ndk\$version"
             if (Test-Path $ndkPath) {
-                Success "Android NDK $NdkVersion 安装完成：$ndkPath"
-                [System.Environment]::SetEnvironmentVariable("ANDROID_NDK_ROOT", $ndkPath, "User")
-                $env:ANDROID_NDK_ROOT = $ndkPath
+                Success "Android NDK $version 已安装：$ndkPath"
             } else {
-                Warn "NDK 安装后路径未找到，请手动确认：$ndkPath"
+                Info "安装 Android NDK $version（需要网络，文件较大，请稍候）..."
+                "y" | & $sdkmanager.Source "ndk;$version"
+                if (Test-Path $ndkPath) {
+                    Success "Android NDK $version 安装完成：$ndkPath"
+                } else {
+                    Warn "NDK 安装后路径未找到，请手动确认：$ndkPath"
+                }
             }
         }
+        $standardNdkPath = Join-Path $androidHome "ndk\$NdkVersion"
+        [System.Environment]::SetEnvironmentVariable("ANDROID_NDK_ROOT", $standardNdkPath, "User")
+        $env:ANDROID_NDK_ROOT = $standardNdkPath
     } else {
-        Warn "未找到 sdkmanager，请手动安装 NDK $NdkVersion"
-        Warn "  sdkmanager `"ndk;$NdkVersion`""
+        Warn "未找到 sdkmanager，请手动安装 NDK $NdkVersion 与 $CompatNdkVersion"
+        Warn "  sdkmanager `"ndk;$NdkVersion`" `"ndk;$CompatNdkVersion`""
     }
 }
 

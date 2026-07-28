@@ -21,14 +21,19 @@ if [[ -z "$ANDROID_SDK" ]]; then
     exit 1
 fi
 if [[ ! -f "$ANDROID_SDK/ndk/25.2.9519653/source.properties" ]]; then
-    echo "正在安装 Android 4.4 兼容构建所需的 NDK r25c..."
-    sdkmanager "ndk;25.2.9519653"
+    echo "错误：未安装 Android 4.4 兼容构建所需的 NDK r25c（25.2.9519653）"
+    echo '请先执行：sdkmanager "ndk;25.2.9519653"'
+    exit 1
 fi
 if ! rustup run 1.77.2 rustc --version >/dev/null 2>&1; then
-    rustup toolchain install 1.77.2 --profile minimal
+    echo "错误：未安装 Android 4.4 兼容构建所需的 Rust 1.77.2"
+    echo "请先执行：rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi"
+    exit 1
 fi
 if ! rustup target list --toolchain 1.77.2 --installed | grep -qx armv7-linux-androideabi; then
-    rustup target add --toolchain 1.77.2 armv7-linux-androideabi
+    echo "错误：Rust 1.77.2 未安装 armv7-linux-androideabi target"
+    echo "请先执行：rustup target add --toolchain 1.77.2 armv7-linux-androideabi"
+    exit 1
 fi
 
 for required in "$MAPPING_FILE" "$STANDARD_RESOURCES"; do

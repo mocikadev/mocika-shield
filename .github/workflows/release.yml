@@ -16,6 +16,7 @@ permissions:
 
 env:
   ANDROID_NDK_VERSION: 29.0.14206865
+  ANDROID_NDK_API19_VERSION: 25.2.9519653
 
 jobs:
   linux-tauri:
@@ -78,7 +79,7 @@ jobs:
           set +o pipefail
           yes | sdkmanager --licenses >/dev/null
           set -o pipefail
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}" "ndk;${ANDROID_NDK_API19_VERSION}"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
       - name: 配置 Rust target 与构建工具
@@ -91,6 +92,7 @@ jobs:
           cargo install cargo-ndk --locked
           cargo install tauri-cli --locked
           cargo install cargo-deb --locked
+          rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
 
       - name: 安装 GUI 前端依赖
         working-directory: apps/shield-gui
@@ -151,7 +153,7 @@ jobs:
           set +o pipefail
           yes | sdkmanager --licenses >/dev/null
           set -o pipefail
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}" "ndk;${ANDROID_NDK_API19_VERSION}"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
       - name: 配置 Rust target 与构建工具
@@ -165,6 +167,7 @@ jobs:
             x86_64-linux-android
           cargo install cargo-ndk --locked
           cargo install tauri-cli --locked
+          rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
 
       - name: 安装 GUI 前端依赖
         working-directory: apps/shield-gui
@@ -225,8 +228,12 @@ jobs:
         shell: pwsh
         run: |
           1..20 | ForEach-Object { "y" } | sdkmanager --licenses | Out-Null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;$env:ANDROID_NDK_VERSION"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;$env:ANDROID_NDK_VERSION" "ndk;$env:ANDROID_NDK_API19_VERSION"
           "ANDROID_NDK_ROOT=$env:ANDROID_HOME\ndk\$env:ANDROID_NDK_VERSION" >> $env:GITHUB_ENV
+
+      - name: 配置 Android 4.4 兼容 Rust 工具链
+        shell: pwsh
+        run: rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
 
       - name: 安装 GUI 前端依赖
         working-directory: apps/shield-gui
