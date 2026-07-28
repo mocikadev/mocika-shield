@@ -199,11 +199,13 @@ fi
 # 提取 native 方法和 getSignatureSha256 的混淆名
 OBF_METHOD_INJECT=$(parse_mapping_method "$ORIG_BINLOADER" "p" "$MAPPING_FILE")
 OBF_METHOD_EXTRACT=$(parse_mapping_method "$ORIG_BINLOADER" "q" "$MAPPING_FILE")
+OBF_METHOD_CHECK_ENV=$(parse_mapping_method "$ORIG_BINLOADER" "r" "$MAPPING_FILE")
 OBF_METHOD_GET_SIG=$(parse_mapping_method "$ORIG_BINLOADER" "getSignatureSha256" "$MAPPING_FILE")
 
 # 方法名解析失败时保留原名（R8 可能因覆盖关系保留原方法名）
 OBF_METHOD_INJECT="${OBF_METHOD_INJECT:-p}"
 OBF_METHOD_EXTRACT="${OBF_METHOD_EXTRACT:-q}"
+OBF_METHOD_CHECK_ENV="${OBF_METHOD_CHECK_ENV:-r}"
 OBF_METHOD_GET_SIG="${OBF_METHOD_GET_SIG:-getSignatureSha256}"
 
 # JVM 内部路径格式（点 → 斜线）
@@ -212,7 +214,7 @@ OBF_STUBAPP_DOTTED="$OBF_STUBAPP"
 
 echo -e "${GREEN}  Ld: ${ORIG_BINLOADER} → ${OBF_BINLOADER}${NC}"
 echo -e "${GREEN}  StubApp:   $(echo $ORIG_STUBAPP | sed 's/.*\.//') → ${OBF_STUBAPP}${NC}"
-echo -e "${GREEN}  方法: p→${OBF_METHOD_INJECT}, q→${OBF_METHOD_EXTRACT}, getSignatureSha256→${OBF_METHOD_GET_SIG}${NC}"
+echo -e "${GREEN}  方法: p→${OBF_METHOD_INJECT}, q→${OBF_METHOD_EXTRACT}, r→${OBF_METHOD_CHECK_ENV}, getSignatureSha256→${OBF_METHOD_GET_SIG}${NC}"
 echo ""
 
 # ==========================================
@@ -225,6 +227,7 @@ RUST_SRC="shield-stub/src/main/rust"
 export STUB_BINLOADER_CLASS="$OBF_BINLOADER_JVM"
 export STUB_METHOD_INJECT_DEX="$OBF_METHOD_INJECT"
 export STUB_METHOD_EXTRACT_DECRYPT="$OBF_METHOD_EXTRACT"
+export STUB_METHOD_CHECK_ENV="$OBF_METHOD_CHECK_ENV"
 export STUB_METHOD_GET_SIG="$OBF_METHOD_GET_SIG"
 export ANDROID_NDK_ROOT="$ANDROID_NDK_PATH"
 # 用项目根路径替换编译期嵌入的源码绝对路径，消除 .so 字符串段中的本机路径信息

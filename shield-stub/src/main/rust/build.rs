@@ -4,6 +4,7 @@ fn main() {
         ("STUB_BINLOADER_CLASS", "dev/mocika/shield/loader/Ld"),
         ("STUB_METHOD_INJECT_DEX", "p"),
         ("STUB_METHOD_EXTRACT_DECRYPT", "q"),
+        ("STUB_METHOD_CHECK_ENV", "r"),
         ("STUB_METHOD_GET_SIG", "getSignatureSha256"),
     ];
 

@@ -177,11 +177,13 @@ if (-not $obfBinLoader -or -not $obfStubApp) {
 
 $obfMethodInject  = Parse-MappingMethod $origBinLoader "p"                 $mappingFile
 $obfMethodExtract = Parse-MappingMethod $origBinLoader "q"                 $mappingFile
+$obfMethodCheckEnv = Parse-MappingMethod $origBinLoader "r"                $mappingFile
 $obfMethodGetSig  = Parse-MappingMethod $origBinLoader "getSignatureSha256" $mappingFile
 
 # 方法名解析失败时保留原名（R8 可能因覆盖关系保留原方法名）
 if (-not $obfMethodInject)  { $obfMethodInject  = "p" }
 if (-not $obfMethodExtract) { $obfMethodExtract = "q" }
+if (-not $obfMethodCheckEnv) { $obfMethodCheckEnv = "r" }
 if (-not $obfMethodGetSig)  { $obfMethodGetSig  = "getSignatureSha256" }
 
 # JVM 内部路径格式（点 → 斜线）
@@ -189,7 +191,7 @@ $obfBinLoaderJvm = $obfBinLoader.Replace(".", "/")
 
 Write-Host "  Ld:      $origBinLoader → $obfBinLoader" -ForegroundColor Green
 Write-Host "  StubApp: $origStubApp → $obfStubApp" -ForegroundColor Green
-Write-Host "  方法: p→$obfMethodInject, q→$obfMethodExtract, getSignatureSha256→$obfMethodGetSig" -ForegroundColor Green
+Write-Host "  方法: p→$obfMethodInject, q→$obfMethodExtract, r→$obfMethodCheckEnv, getSignatureSha256→$obfMethodGetSig" -ForegroundColor Green
 Write-Host ""
 
 # ==========================================
@@ -211,6 +213,7 @@ Write-Host "  Rust 本地编译缓存: $localTargetDir" -ForegroundColor Yellow
 $env:STUB_BINLOADER_CLASS        = $obfBinLoaderJvm
 $env:STUB_METHOD_INJECT_DEX      = $obfMethodInject
 $env:STUB_METHOD_EXTRACT_DECRYPT = $obfMethodExtract
+$env:STUB_METHOD_CHECK_ENV        = $obfMethodCheckEnv
 $env:STUB_METHOD_GET_SIG         = $obfMethodGetSig
 $env:ANDROID_NDK_ROOT            = $ndkPath
 $env:CARGO_TARGET_DIR            = $localTargetDir   # 强制输出到本地磁盘
@@ -235,6 +238,7 @@ try {
     Remove-Item Env:STUB_BINLOADER_CLASS        -ErrorAction SilentlyContinue
     Remove-Item Env:STUB_METHOD_INJECT_DEX      -ErrorAction SilentlyContinue
     Remove-Item Env:STUB_METHOD_EXTRACT_DECRYPT -ErrorAction SilentlyContinue
+    Remove-Item Env:STUB_METHOD_CHECK_ENV        -ErrorAction SilentlyContinue
     Remove-Item Env:STUB_METHOD_GET_SIG         -ErrorAction SilentlyContinue
     Remove-Item Env:RUSTFLAGS                   -ErrorAction SilentlyContinue
     Remove-Item Env:CARGO_TARGET_DIR            -ErrorAction SilentlyContinue
