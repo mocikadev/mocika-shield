@@ -100,6 +100,19 @@ bash tests/scripts/run-protect-e2e.sh
 - 工控兼容候选产物必须使用同一个 APK 在 API 19 和 API 23 设备验证，不能分别生成两份业务 APK 代替跨版本回归
 - API 28 对声明 `uses-library` 且业务 DEX 含同名编译桩的 APK，必须确认系统共享库类优先解析；Issue #17 Apache HTTP 样本不得出现 `RuntimeException: Stub!`
 
+## 运行时安全与 DEX 缓存
+
+- 首次启动与缓存命中的二次启动都必须执行环境安全检查
+- 解密入口保留纵深检查，不能只依赖 `StubApp` 单一调用点
+- 缓存文件数量、名称、路径、只读状态、大小和根摘要必须全部匹配后才能加载
+- 缓存缺失、多余、损坏或权限异常时必须整体失效并重新解密；无法安全清理时不得继续加载
+- 相同 `versionCode` 的不同 APK 覆盖安装后不得复用旧业务 DEX
+- DEX 文件打开后立即设为只读，再通过已打开的文件描述符写入
+- Root 兼容策略不得阻止普通启动；严格策略只根据高置信度信号阻止解密
+- Android 4.4 工控兼容任务默认使用兼容策略，不能因弱信号误杀
+- 标准资源与 Android 4.4 资源的 `runtime_protocol`、`cache_schema` 和策略能力必须一致
+- 内存 DEX 候选必须单独验证多 DEX、ARouter、API 28 共享库、Native 库、GC 后类加载、16 KB、冷启动耗时与峰值内存
+
 ## APK 对齐与 Google Play 兼容
 
 - 加固输出 APK 已执行 ZIP 对齐
