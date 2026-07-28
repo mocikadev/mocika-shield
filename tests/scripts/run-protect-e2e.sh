@@ -52,7 +52,8 @@ printf '%s\n' "$CHECK_RESULT" | grep -q '"is_signed":true'
 
 unzip -p "$FINAL" classes.dex > "$WORK/classes.dex"
 grep -a -q 'MSHD' "$WORK/classes.dex"
-unzip -l "$FINAL" | grep -q 'lib/arm64-v8a/libmocikashield.so'
+unzip -l "$FINAL" \
+  | awk '$NF == "lib/arm64-v8a/libmocikashield.so" { found = 1 } END { exit !found }'
 
 DECODED="$WORK/output-decoded"
 java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$FINAL" -o "$DECODED" -f --no-src >/dev/null
