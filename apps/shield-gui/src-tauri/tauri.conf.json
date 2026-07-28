@@ -40,7 +40,8 @@
     "resources": {
       "../../../tools/apktool_3.0.1.jar": "tools/apktool.jar",
       "../../../tools/apksigner.jar": "tools/apksigner.jar",
-      "../../../shield-stub/build/outputs/resources/resources.zip": "resources/resources.zip"
+      "../../../shield-stub/build/outputs/resources/resources.zip": "resources/resources.zip",
+      "../../../shield-stub/build/outputs/resources/resources-api19.zip": "resources/resources-api19.zip"
     },
     "linux": {
       "deb": {

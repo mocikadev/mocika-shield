@@ -29,13 +29,22 @@ pub(crate) fn find_apktool_path(app: &tauri::AppHandle) -> Option<PathBuf> {
 }
 
 pub(crate) fn find_resources_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    find_named_resources_path(app, "resources.zip")
+}
+
+pub(crate) fn find_named_resources_path(
+    app: &tauri::AppHandle,
+    file_name: &str,
+) -> Option<PathBuf> {
     for base in resource_dir(app).into_iter().chain(appimage_resource_dir()) {
-        let p = base.join("resources/resources.zip");
+        let p = base.join("resources").join(file_name);
         if p.exists() {
             return Some(p);
         }
     }
-    let dev = project_root_path().join("shield-stub/build/outputs/resources/resources.zip");
+    let dev = project_root_path()
+        .join("shield-stub/build/outputs/resources")
+        .join(file_name);
     if dev.exists() {
         return Some(dev);
     }

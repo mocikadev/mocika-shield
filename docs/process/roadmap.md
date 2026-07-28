@@ -1,7 +1,7 @@
 # ROADMAP.md — Mocika Shield 功能路线图
 
 > 记录待修复缺陷与待实现功能。技术细节见 [internals.md](../design/internals.md)。
-> 最后更新：2026-07-27
+> 最后更新：2026-07-28
 
 ---
 
@@ -56,6 +56,28 @@
 5. Android 4.4（API 19～20）因当前 Rust Native 构建下限和 Dalvik 差异单独评估，不纳入本轮实现。
 
 **完成条件**：API 21 与 API 23 真机或官方模拟器端到端加固产物可安装、冷启动并通过关键功能回归；在此之前只作为测试兼容路径，不更新正式最低支持声明。
+
+### Android 4.4 工控兼容模式
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 高 |
+| **状态** | 进行中 |
+| **涉及文件** | `shield-stub`、Native 实验构建、运行时兼容测试、目标模式预检 |
+
+**目标**：提供一个以 Android 4.4（API 19）为最低版本、可同时部署到 Android 4.4 与 Android 6.0 工控板的兼容加固产物，不降低现有标准模式的 NDK 与现代系统能力。
+
+**已确定边界**：
+
+1. 标准模式固定使用 NDK r29 `29.0.14206865` 和 API 21；工控兼容模式的 32 位 ABI 使用 NDK r25c `25.2.9519653` 和 API 19，64 位 ABI 继续使用 r29/API 21。
+2. 支持 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64`；暂不支持 `armeabi`、`mips` 和 `mips64`。
+3. API 19～20 单独实现 Dalvik 加载路径，API 21 以上复用已验证的 ART 路径；DEXB v5 和签名校验协议不分叉。
+4. 自动读取原 APK 的最低系统和 ABI 后推荐模式，由用户最终确认；包含 Native 库的 APK 只注入原有 ABI 对应的 Stub。
+5. r25c 的 `armeabi-v7a` 产物要求 NEON；真实设备无 NEON 时再评估 r23c，不预先引入第三套正式工具链。
+
+**当前进展**：现有 Rust Stub 已使用隔离的 r25c、Rust 1.77.2 工具链构建 `armeabi-v7a/API 19` 产物，ELF 确认为 ARMv7/NEON，仅依赖 `libc.so` 与 `libdl.so`。同一个双 DEX 兼容加固 APK 已在 Android 4.4.2/API 19 `armeabi-v7a`、Android 5.0/API 21 `arm64-v8a` 和 Android 6.0/API 23 `arm64-v8a` 模拟器通过 Native 加载、对应 DEX 注入路径、自定义 Application、首次安装、清除数据与同签名覆盖安装回归。GUI 已接入按任务选择的标准/Android 4.4 兼容模式，后端固定映射资源并校验 ABI，桌面安装包同时携带两套资源。当前 Rust 1.97 产物会引用 API 21 的 `dl_iterate_phdr`，兼容工具链不得跟随标准构建升级。下一步生成桌面候选版并在真实工控板验证。
+
+**完成条件**：同一次加固生成的 APK 在 Android 4.4.2 与 Android 6.0 真实工控板上通过首次安装、冷启动、清除数据、覆盖安装、多 DEX、Native 库和主要硬件交互回归。详细设计见 [Android 4.4 工控兼容设计](../design/android-4.4-compatibility.md)。
 
 ### V2/V3-only APK 预检与加固签名提取不一致
 

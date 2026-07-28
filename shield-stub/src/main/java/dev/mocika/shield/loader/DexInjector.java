@@ -4,6 +4,8 @@ import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
+import dalvik.system.DexClassLoader;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -36,8 +38,44 @@ final class DexInjector {
                     factoryMethodNames(Build.VERSION.SDK_INT));
             return;
         }
+        if (Build.VERSION.SDK_INT >= 19) {
+            Log.i(TAG, "dex-route:dalvik api=" + Build.VERSION.SDK_INT);
+            injectWithDalvikClassLoader(classLoader, dexFiles, optimizedDirectory);
+            return;
+        }
         throw new UnsupportedOperationException("Android API " + Build.VERSION.SDK_INT
-                + " 暂不支持 DEX 注入");
+                + " 低于最低兼容版本 19");
+    }
+
+    /**
+     * Dalvik 没有 ART 后续版本的 Element 工厂入口。让系统 DexClassLoader 完成
+     * DexFile.loadDex 与 Element 构造，再把生成的元素前插到应用 PathClassLoader。
+     */
+    private static void injectWithDalvikClassLoader(ClassLoader classLoader, List<File> dexFiles,
+                                                     File optimizedDirectory) throws Exception {
+        if (optimizedDirectory == null) {
+            throw new IOException("Dalvik DEX 优化目录为空");
+        }
+        StringBuilder dexPath = new StringBuilder();
+        for (File dexFile : dexFiles) {
+            if (dexPath.length() > 0) {
+                dexPath.append(File.pathSeparatorChar);
+            }
+            dexPath.append(dexFile.getAbsolutePath());
+        }
+
+        DexClassLoader source = new DexClassLoader(
+                dexPath.toString(), optimizedDirectory.getAbsolutePath(), null, classLoader);
+        Object sourcePathList = findField(source.getClass(), "pathList").get(source);
+        Field sourceElementsField = findField(sourcePathList.getClass(), "dexElements");
+        Object[] injected = (Object[]) sourceElementsField.get(sourcePathList);
+        if (injected == null || injected.length != dexFiles.size()) {
+            throw new IOException("Dalvik 构造的 DEX Element 数量异常");
+        }
+
+        Object targetPathList = findField(classLoader.getClass(), "pathList").get(classLoader);
+        Field targetElementsField = findField(targetPathList.getClass(), "dexElements");
+        prependElements(targetPathList, targetElementsField, injected);
     }
 
     private static void injectWithAddDexPath(ClassLoader classLoader, List<File> dexFiles,

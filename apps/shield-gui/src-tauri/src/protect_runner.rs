@@ -1,5 +1,6 @@
 use crate::app_paths::{
-    find_apksigner_path, find_apktool_path, find_resources_path, strip_unc_prefix,
+    find_apksigner_path, find_apktool_path, find_named_resources_path, find_resources_path,
+    strip_unc_prefix,
 };
 use crate::cert_store::CertificateRecord;
 use crate::signing::execute_sign_apk;
@@ -17,12 +18,28 @@ use tauri::Manager;
 
 pub(crate) struct CancelHandle(pub Arc<AtomicBool>);
 
+#[derive(Clone, Copy, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RuntimeMode {
+    #[default]
+    Standard,
+    AndroidApi19,
+}
+
+fn unsupported_api19_abis(native_abis: &[String]) -> Vec<String> {
+    native_abis
+        .iter()
+        .filter(|abi| abi.as_str() != "armeabi-v7a")
+        .cloned()
+        .collect()
+}
+
 pub(crate) struct ProtectExecution {
     pub(crate) task_id: String,
     pub(crate) input: String,
     pub(crate) output: String,
     pub(crate) apktool_path: Option<String>,
-    pub(crate) resources_path: Option<String>,
+    pub(crate) runtime_mode: RuntimeMode,
     pub(crate) signing_certificate: Option<CertificateRecord>,
     pub(crate) signed_output: Option<String>,
 }
@@ -43,11 +60,24 @@ pub(crate) async fn execute_protect_apk(
         .map(PathBuf::from)
         .or_else(|| find_apktool_path(&app));
 
-    let resolved_resources = request
-        .resources_path
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| find_resources_path(&app));
+    let resolved_resources = match request.runtime_mode {
+        RuntimeMode::Standard => find_resources_path(&app),
+        RuntimeMode::AndroidApi19 => {
+            let checked = shield_core::check_apk(
+                std::path::Path::new(&request.input),
+                find_apksigner_path(&app).as_deref(),
+            )
+            .map_err(|err| format!("检查 Android 4.4 兼容条件失败：{err}"))?;
+            let unsupported = unsupported_api19_abis(&checked.native_abis);
+            if !unsupported.is_empty() {
+                return Err(format!(
+                    "Android 4.4 兼容模式暂不支持 APK 中的原生架构：{}",
+                    unsupported.join("、")
+                ));
+            }
+            find_named_resources_path(&app, "resources-api19.zip")
+        }
+    };
     let resolved_apksigner = find_apksigner_path(&app);
 
     let cancel = Arc::clone(&cancel_handle.inner().0);
@@ -151,5 +181,28 @@ pub(crate) async fn execute_protect_apk(
         Ok(()) => Ok(()),
         Err(ShieldError::Cancelled) => Err("已取消".to_string()),
         Err(err) => Err(err.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unsupported_api19_abis;
+
+    #[test]
+    fn api19_允许无原生库或仅有_armv7() {
+        assert!(unsupported_api19_abis(&[]).is_empty());
+        assert!(unsupported_api19_abis(&["armeabi-v7a".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn api19_拒绝尚未验证的原生架构() {
+        assert_eq!(
+            unsupported_api19_abis(&[
+                "armeabi-v7a".to_string(),
+                "arm64-v8a".to_string(),
+                "x86".to_string(),
+            ]),
+            ["arm64-v8a", "x86"]
+        );
     }
 }

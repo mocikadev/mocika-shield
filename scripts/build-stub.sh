@@ -293,10 +293,10 @@ fi
 
 if [ -n "$ANDROID_JAR" ]; then
     echo -e "${YELLOW}使用 android.jar: $ANDROID_JAR${NC}"
-    "$D8_CMD" --output "$OUTPUT_DIR" "$TEMP_DIR/classes.jar" --min-api 21 --lib "$ANDROID_JAR"
+    "$D8_CMD" --output "$OUTPUT_DIR" "$TEMP_DIR/classes.jar" --min-api 19 --lib "$ANDROID_JAR"
 else
     echo -e "${YELLOW}警告: 未找到 android.jar，desugaring 可能产生警告${NC}"
-    "$D8_CMD" --output "$OUTPUT_DIR" "$TEMP_DIR/classes.jar" --min-api 21
+    "$D8_CMD" --output "$OUTPUT_DIR" "$TEMP_DIR/classes.jar" --min-api 19
 fi
 
 # 重命名为stub-classes.dex

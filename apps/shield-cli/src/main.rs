@@ -27,6 +27,9 @@ enum Commands {
         input: PathBuf,
         #[arg(short, long, value_name = "APK")]
         output: PathBuf,
+        /// 内部回归测试使用的运行时资源包。
+        #[arg(long, value_name = "ZIP", hide = true)]
+        resources: Option<PathBuf>,
         #[arg(long)]
         json_progress: bool,
         #[arg(short, long)]
@@ -52,9 +55,10 @@ fn main() -> Result<()> {
         Commands::Protect {
             input,
             output,
+            resources,
             json_progress,
             verbose,
-        } => run_protect(input, output, json_progress, verbose)?,
+        } => run_protect(input, output, resources, json_progress, verbose)?,
 
         Commands::CheckApk { path } => {
             let result = run_check_apk(path);

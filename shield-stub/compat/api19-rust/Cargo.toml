@@ -1,0 +1,33 @@
+[package]
+name = "mocikashield-api19"
+version = "1.2.7-rc.2"
+edition = "2021"
+build = "../../src/main/rust/build.rs"
+
+[workspace]
+
+[lib]
+name = "mocikashield"
+path = "../../src/main/rust/src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+zstd = { version = "0.13", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+hkdf = "0.12"
+sha2 = "0.10"
+
+# 兼容 Rust 1.77.2，阻止解析到要求 Rust 1.85 的版本。
+zeroize = "=1.8.2"
+
+[build-dependencies]
+# zstd 的构建链会使用 jobserver；固定版本以兼容 Rust 1.77.2。
+jobserver = "=0.1.32"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = "symbols"
+panic = "abort"
+codegen-units = 1

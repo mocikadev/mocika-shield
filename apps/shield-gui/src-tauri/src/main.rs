@@ -35,7 +35,7 @@ use file_ops::{
     check_file_exists as check_file_exists_impl, delete_file as delete_file_impl,
     open_url as open_url_impl, show_in_folder as show_in_folder_impl,
 };
-use protect_runner::{execute_protect_apk, CancelHandle, ProtectExecution};
+use protect_runner::{execute_protect_apk, CancelHandle, ProtectExecution, RuntimeMode};
 use signing::{execute_sign_apk, query_keystore_aliases};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -53,7 +53,8 @@ struct ProtectRequest {
     output: String,
     signed_output: Option<String>,
     apktool_path: Option<String>,
-    resources_path: Option<String>,
+    #[serde(default)]
+    runtime_mode: RuntimeMode,
     certificate_id: Option<String>,
 }
 
@@ -128,7 +129,7 @@ async fn protect_apk(
             input: request.input,
             output: request.output,
             apktool_path: request.apktool_path,
-            resources_path: request.resources_path,
+            runtime_mode: request.runtime_mode,
             signing_certificate,
             signed_output: request.signed_output,
         },

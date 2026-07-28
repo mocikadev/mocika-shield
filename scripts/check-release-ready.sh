@@ -56,6 +56,7 @@ version_files=(
   "crates/shield-core/Cargo.toml"
   "apps/shield-cli/Cargo.toml"
   "shield-stub/src/main/rust/Cargo.toml"
+  "shield-stub/compat/api19-rust/Cargo.toml"
   "apps/shield-gui/src-tauri/Cargo.toml"
   "apps/shield-gui/src-tauri/tauri.conf.json"
   "apps/shield-gui/package.json"
@@ -84,6 +85,7 @@ info "检查构建必需资源"
 expect_file "tools/apktool_3.0.1.jar" "开发工具 apktool 存在"
 expect_file "tools/apksigner.jar" "开发工具 apksigner 存在"
 expect_file "shield-stub/build/outputs/resources/resources.zip" "resources.zip 已生成"
+expect_file "shield-stub/build/outputs/resources/resources-api19.zip" "resources-api19.zip 已生成"
 
 info "检查 README 截图引用"
 screenshot_refs=()

@@ -412,7 +412,7 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 - Android 5.0～6.0（API 21～23）：Element 工厂注入，已通过 API 21/23 官方 ARM64 模拟器的单 DEX、双 DEX 和应用启动回归，仍需厂商真机与复杂样本验证
 - Android 7.0（API 24）及以上：`addDexPath(String, File)` 注入
 - API 26+ `optimizedDirectory` 参数被忽略（传 null）
-- Android 4.4（API 19～20）：当前 Rust Native 库最低按 API 21 构建，暂不支持
+- Android 4.4（API 19～20）：正式资源仍暂不支持；r25c、Rust 1.77.2 的 Native 构建、Dalvik 双 DEX 注入、自定义 Application、首次安装、清除数据和覆盖安装已在 API 19 模拟器通过，同一 APK 也已通过 API 21、23 跨版本回归，详见 [Android 4.4 工控兼容设计](android-4.4-compatibility.md)
 
 ### 5.4 ARouter 路由表补注册
 
