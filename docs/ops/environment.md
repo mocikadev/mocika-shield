@@ -7,7 +7,7 @@
 | Rust | 1.70+ | 含 `rustup` |
 | Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均在 PATH |
 | Android SDK | API 21+ | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
-| Android NDK | 29.0.14206865（必须与此版本一致） | `build.gradle.kts` 硬编码，版本不同需设 `ANDROID_NDK_ROOT` 覆盖 |
+| Android NDK | 29.0.14206865 + 25.2.9519653 | 标准模式使用 r29；Android 4.4 兼容模式的 ARMv7 使用 r25c |
 | cargo-ndk | 最新 | `cargo install cargo-ndk` |
 | Android build-tools | 任意版本含 `d8` | 用于 JAR→DEX 转换 |
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
@@ -94,6 +94,7 @@ rustup default stable-msvc
 # Rust targets
 rustup target add x86_64-pc-windows-msvc   # Windows CLI/GUI
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android  # Android 壳
+rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi  # Android 4.4 兼容壳
 ```
 
 #### 第四步：安装 cargo 工具
@@ -111,7 +112,7 @@ $env:ANDROID_HOME = "$env:USERPROFILE\scoop\apps\android-clt\current"
 [System.Environment]::SetEnvironmentVariable("ANDROID_HOME", $env:ANDROID_HOME, "User")
 
 # 通过 sdkmanager 安装指定版本 NDK
-"y" | sdkmanager "ndk;29.0.14206865"
+"y" | sdkmanager "ndk;29.0.14206865" "ndk;25.2.9519653"
 ```
 
 #### 第六步：安装 Visual Studio Build Tools 2022（必须手动）
