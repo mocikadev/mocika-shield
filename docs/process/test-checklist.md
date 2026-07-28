@@ -109,6 +109,9 @@ bash tests/scripts/run-protect-e2e.sh
 - 相同 `versionCode` 的不同 APK 覆盖安装后不得复用旧业务 DEX
 - DEX 文件打开后立即设为只读，再通过已打开的文件描述符写入
 - Root 兼容策略不得阻止普通启动；严格策略只根据高置信度信号阻止解密
+- 缓存摘要只验证来源和完整性，不得把通过认证的明文缓存视为不可读取
+- 不可调试正式包通过普通 ADB 访问私有目录应失败；可调试包需验证并记录 `run-as` 提取边界
+- Root 文件管理器、ADB Root 和进程注入场景需分别记录首次、二次及重启后的完整业务 DEX 暴露情况
 - Android 4.4 工控兼容任务默认使用兼容策略，不能因弱信号误杀
 - 标准资源与 Android 4.4 资源的 `runtime_protocol`、`cache_schema` 和策略能力必须一致
 - 内存 DEX 候选必须单独验证多 DEX、ARouter、API 28 共享库、Native 库、GC 后类加载、16 KB、冷启动耗时与峰值内存
