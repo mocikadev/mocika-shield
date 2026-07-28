@@ -9,7 +9,7 @@ make build-stub
 bash tests/scripts/run-protect-e2e.sh
 ```
 
-连接 Android 设备后，可以额外验证未加固双 DEX 基线，以及使用同一证书覆盖安装加固包后的运行时加载：
+连接 Android 设备后，可以额外验证未加固双 DEX 基线，以及使用同一证书覆盖安装加固包后的首次解密和缓存命中二次启动：
 
 ```bash
 RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh

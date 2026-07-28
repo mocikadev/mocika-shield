@@ -98,7 +98,8 @@ if [[ "${RUN_DEVICE_TEST:-0}" == "1" ]]; then
   adb "${ADB_ARGS[@]}" install "$SIGNED" | grep -q '^Success'
   verify_launch "未加固双 DEX 基线"
   adb "${ADB_ARGS[@]}" install -r "$FINAL" | grep -q '^Success'
-  verify_launch "同签名覆盖安装加固包"
+  verify_launch "同签名覆盖安装加固包首次启动"
+  verify_launch "加固包缓存命中后二次启动"
 fi
 
 echo "端到端加固回归测试通过"

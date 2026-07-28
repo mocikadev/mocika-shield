@@ -35,10 +35,24 @@ pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) 
             sig: "(Landroid/content/Context;[B)[[B".into(),
             fn_ptr: f2 as *mut c_void,
         },
+        NativeMethod {
+            name: env!("STUB_METHOD_CHECK_ENV").into(),
+            sig: "()Z".into(),
+            fn_ptr: f3 as *mut c_void,
+        },
     ];
     match env.register_native_methods(&class, &methods) {
         Ok(_) => jni::sys::JNI_VERSION_1_6,
         Err(_) => jni::sys::JNI_ERR,
+    }
+}
+
+/// 每次进程启动的环境检查入口。具体命中规则只保留在 Native 内部。
+extern "C" fn f3(_env: JNIEnv, _class: JClass) -> jboolean {
+    if anti_debug::check() {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
     }
 }
 

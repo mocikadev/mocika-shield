@@ -59,6 +59,9 @@ public class Ld {
     /** 从 classes.dex 末尾提取 MSHD 封装的加密 payload，解密解压后返回各 DEX 字节数组。 */
     private static native byte[][] q(Context ctx, byte[] dexData);
 
+    /** 每次启动的环境安全检查；返回 true 表示当前环境不安全。 */
+    static native boolean r();
+
     /**
      * 解密 app.bin 并将各 DEX 文件落地到私有目录。
      * 以 versionCode 为缓存键：同一版本只解密解压一次，升级后自动失效并清理旧缓存。

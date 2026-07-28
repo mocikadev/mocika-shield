@@ -305,6 +305,7 @@ StubApp.attachBaseContext(base)
     │         豁免所有 Android 9+ 隐藏 API 限制
     │
     ├─[3] Ld.extractDexFiles(ctx)
+│         每次启动先执行 Native 环境安全检查
 │         检查 app_dex/v{versionCode}/ 缓存目录
 │         ├─ 命中缓存：直接返回已落地的 DEX 列表
 │         └─ 未命中：

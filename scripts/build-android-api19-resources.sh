@@ -59,6 +59,7 @@ ORIGINAL_LD="dev.mocika.shield.loader.Ld"
 OBFUSCATED_LD="$(parse_mapping_class "$ORIGINAL_LD")"
 OBFUSCATED_INJECT="$(parse_mapping_method "$ORIGINAL_LD" "p")"
 OBFUSCATED_EXTRACT="$(parse_mapping_method "$ORIGINAL_LD" "q")"
+OBFUSCATED_CHECK_ENV="$(parse_mapping_method "$ORIGINAL_LD" "r")"
 OBFUSCATED_SIGNATURE="$(parse_mapping_method "$ORIGINAL_LD" "getSignatureSha256")"
 
 if [[ -z "$OBFUSCATED_LD" ]]; then
@@ -69,6 +70,7 @@ fi
 STUB_BINLOADER_CLASS="${OBFUSCATED_LD//.//}" \
 STUB_METHOD_INJECT_DEX="${OBFUSCATED_INJECT:-p}" \
 STUB_METHOD_EXTRACT_DECRYPT="${OBFUSCATED_EXTRACT:-q}" \
+STUB_METHOD_CHECK_ENV="${OBFUSCATED_CHECK_ENV:-r}" \
 STUB_METHOD_GET_SIG="${OBFUSCATED_SIGNATURE:-getSignatureSha256}" \
     "$PROJECT_ROOT/scripts/verify-android-api19-native.sh"
 
