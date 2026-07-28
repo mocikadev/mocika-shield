@@ -67,6 +67,14 @@ ls "$ANDROID_HOME/build-tools"
 
 Google Play 16 KB 对齐问题反馈时，请同时提供 Google Play 的拒绝提示或 `zipalign` 检查输出。
 
+`zipalign` 校验通过只代表 APK 内条目偏移正确，不代表 `.so` 一定未压缩，也不代表 ELF `LOAD` 段支持 16 KB 页面。原 APK 设置 `android:extractNativeLibs="false"` 时，还需要确认 Native 库使用不压缩存储：
+
+```bash
+unzip -lv app.apk | grep -E "lib/.+\\.so$"
+```
+
+输出中的 `.so` 应显示为 `Stored`，不能显示为 `Defl:N` 等压缩方式。完整设计和判断边界见 [Android Native 库打包与加载兼容设计](../design/native-library-packaging.md)。
+
 ## APK 结构检查
 
 检查加固后是否注入壳 DEX 和 native 库：
@@ -99,6 +107,7 @@ adb install -r protected_signed.apk
 
 - `INSTALL_FAILED_UPDATE_INCOMPATIBLE`：通常是签名证书与已安装版本不一致
 - `INSTALL_PARSE_FAILED_NO_CERTIFICATES`：APK 未签名或签名损坏
+- `INSTALL_FAILED_INVALID_APK` 且包含 `Failed to extract native libraries`：检查 `extractNativeLibs=false`、`.so` 压缩方式、ZIP 对齐和 ABI 是否一致
 - ABI 相关错误：检查 APK 中的 `lib/<abi>/` 是否覆盖目标设备 ABI
 
 ## 加固后启动崩溃

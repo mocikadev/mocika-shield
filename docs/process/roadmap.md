@@ -38,6 +38,20 @@
 
 ## 一、已知缺陷（Bug）
 
+### `extractNativeLibs=false` 时新增壳库被压缩导致安装失败
+
+| 项 | 内容 |
+|----|------|
+| **优先级** | 高 |
+| **状态** | 待修复 |
+| **涉及文件** | `crates/shield-core` Manifest 解析、ZIP 重写与端到端测试 |
+
+**复现结果**：原 APK 显式设置 `android:extractNativeLibs="false"` 且本身不含 Native 库时，加固新增的四架构 `libmocikashield.so` 会被 apktool 重打包为压缩条目。产物虽通过现有 16 KB ZIP 偏移校验，仍在 Android 16 真机安装时报 `INSTALL_FAILED_INVALID_APK: Failed to extract native libraries`。
+
+**修复方向**：保留原 Manifest 三态语义；仅在显式 `false` 时强制全部 `lib/**/*.so` 使用不压缩存储并按 16 KB 对齐，同时独立验证 Stub ELF `LOAD` 段。不得以无条件改成 `extractNativeLibs=true` 作为正式修复。
+
+**完成条件**：有/无原生 Native 库的显式 `false` 样本均保持 Manifest 不变，所有 `.so` 为不压缩且 16 KB 对齐；完成自动结构测试、Android 16 真机安装启动，以及候选版本设备矩阵回归。详细设计见 [Android Native 库打包与加载兼容设计](../design/native-library-packaging.md)。
+
 ### Android 5.0～6.0 DEX 加载兼容
 
 | 项 | 内容 |

@@ -163,6 +163,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/ops/project-statistics.md](docs/ops/project-statistics.md) | 项目关注度统计口径、自动化流程与维护方式 |
 | [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
+| [docs/design/native-library-packaging.md](docs/design/native-library-packaging.md) | Native 库打包：`extractNativeLibs`、ZIP 压缩/对齐与 ELF 页大小兼容方案 |
 | [docs/design/runtime-security.md](docs/design/runtime-security.md) | Android 运行时安全：每次启动检查、DEX 缓存认证、Root 策略与内存 DEX 规划 |
 | [docs/design/android-4.4-compatibility.md](docs/design/android-4.4-compatibility.md) | Android 4.4 工控兼容：双 NDK、ABI、运行时分流与验证方案 |
 | [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |
