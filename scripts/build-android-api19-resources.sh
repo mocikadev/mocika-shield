@@ -79,12 +79,43 @@ unzip -q "$STANDARD_RESOURCES" -d "$WORK_DIR"
 cp "$API19_OUTPUT/jniLibs/armeabi-v7a/libmocikashield.so" \
     "$WORK_DIR/lib/armeabi-v7a/libmocikashield.so"
 perl -pi -e 's/"min_android_api": 21/"min_android_api": 19/' "$WORK_DIR/metadata.json"
+if ! grep -q '"min_android_api": 19' "$WORK_DIR/metadata.json"; then
+    echo "错误：Android 4.4 兼容资源元数据未正确设置 min_android_api=19"
+    exit 1
+fi
 
 mkdir -p "$API19_OUTPUT"
 rm -f "$LEGACY_RESOURCES"
-(
-    cd "$WORK_DIR"
-    zip -qr "$LEGACY_RESOURCES" stub-classes.dex lib metadata.json
-)
+if [[ "${OS:-}" == "Windows_NT" ]]; then
+    WINDOWS_WORK_DIR="$(cygpath -w "$WORK_DIR")"
+    WINDOWS_RESOURCES="$(cygpath -w "$LEGACY_RESOURCES")"
+    MOCIKA_WORK_DIR="$WINDOWS_WORK_DIR" \
+    MOCIKA_RESOURCES="$WINDOWS_RESOURCES" \
+        powershell.exe -NoProfile -NonInteractive -Command '
+            $ErrorActionPreference = "Stop"
+            $files = @(
+                (Join-Path $env:MOCIKA_WORK_DIR "stub-classes.dex"),
+                (Join-Path $env:MOCIKA_WORK_DIR "lib"),
+                (Join-Path $env:MOCIKA_WORK_DIR "metadata.json")
+            )
+            Compress-Archive -Path $files -DestinationPath $env:MOCIKA_RESOURCES -Force
+        '
+else
+    (
+        cd "$WORK_DIR"
+        zip -qr "$LEGACY_RESOURCES" stub-classes.dex lib metadata.json
+    )
+fi
+
+if ! unzip -tq "$LEGACY_RESOURCES" >/dev/null; then
+    echo "错误：Android 4.4 兼容资源包 ZIP 完整性校验失败"
+    exit 1
+fi
+for required_entry in stub-classes.dex lib/armeabi-v7a/libmocikashield.so metadata.json; do
+    if ! unzip -Z1 "$LEGACY_RESOURCES" | grep -qx "$required_entry"; then
+        echo "错误：Android 4.4 兼容资源包缺少 $required_entry"
+        exit 1
+    fi
+done
 
 echo "Android API 19 兼容资源包构建完成：$LEGACY_RESOURCES"

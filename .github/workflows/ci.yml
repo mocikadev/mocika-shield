@@ -20,20 +20,77 @@ env:
   ANDROID_NDK_API19_VERSION: 25.2.9519653
 
 jobs:
-  rust:
-    name: Rust 与前端检查
+  changes:
+    name: 变更范围检查
+    runs-on: ubuntu-24.04
+    outputs:
+      run_checks: ${{ steps.scope.outputs.run_checks }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 判断是否需要快速检查
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run_checks=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base_sha="$PR_BASE_SHA"
+          if [[ -z "$base_sha" ]]; then
+            base_sha="$BEFORE_SHA"
+          fi
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          run_checks=false
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              docs/*|*.md|LICENSE|LICENSE.*)
+                ;;
+              *)
+                run_checks=true
+                ;;
+            esac
+          done < <(git diff --name-only "$base_sha" HEAD)
+
+          echo "run_checks=$run_checks" >> "$GITHUB_OUTPUT"
+
+  quick-checks:
+    name: 基础快速检查
+    needs: changes
+    if: needs.changes.outputs.run_checks == 'true'
     runs-on: ubuntu-24.04
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
 
-      - name: 配置 Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
+      - name: 检查 Rust 格式
+        run: cargo fmt --all --check
+
+      - name: 运行发布与统计脚本测试
+        run: python3 -m unittest discover -s scripts/tests -v
+
+  full-quality:
+    name: 完整代码质量检查
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
 
       - name: 配置 Node.js
         uses: actions/setup-node@v6
@@ -42,20 +99,13 @@ jobs:
           cache: npm
           cache-dependency-path: apps/shield-gui/package-lock.json
 
-      - name: 检查 Rust 格式
-        run: cargo fmt --all --check
-
       - name: 检查 Rust Clippy
         run: cargo clippy -p shield-core --all-targets -- -D warnings
 
-      - name: 运行核心单元测试
-        run: cargo test -p shield-core
-
-      - name: 运行 stub Rust 单元测试
-        run: cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml
-
-      - name: 运行发布与统计脚本测试
-        run: python3 -m unittest discover -s scripts/tests -v
+      - name: 运行 Rust 单元测试
+        run: |
+          cargo test -p shield-core
+          cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml
 
       - name: 安装 GUI 前端依赖
         working-directory: apps/shield-gui
@@ -70,6 +120,7 @@ jobs:
 
   linux-gui-bundle:
     name: Linux Tauri 打包冒烟检查
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
 
     steps:
@@ -145,6 +196,7 @@ jobs:
 
   stub:
     name: Android 壳构建
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
 
     steps:
@@ -189,6 +241,51 @@ jobs:
 
       - name: 运行端到端加固回归测试
         run: bash tests/scripts/run-protect-e2e.sh
+
+  windows-api19-resources:
+    name: Windows Android 4.4 资源构建
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: 配置 Android 命令行工具
+        uses: android-actions/setup-android@v4
+
+      - name: 配置 Android SDK / NDK
+        shell: pwsh
+        run: |
+          1..20 | ForEach-Object { "y" } | sdkmanager --licenses | Out-Null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;$env:ANDROID_NDK_VERSION" "ndk;$env:ANDROID_NDK_API19_VERSION"
+          "ANDROID_NDK_ROOT=$env:ANDROID_HOME\ndk\$env:ANDROID_NDK_VERSION" >> $env:GITHUB_ENV
+
+      - name: 配置 Rust Android 工具链
+        shell: pwsh
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
+          cargo install cargo-ndk --locked
+
+      - name: 构建标准与 Android 4.4 兼容资源
+        shell: pwsh
+        run: |
+          .\scripts\build-stub.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:SKIP_STANDARD_STUB_BUILD = "1"
+          & bash "scripts/build-android-api19-resources.sh"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "shield-stub\build\outputs\resources\resources-api19.zip")) {
+            throw "resources-api19.zip 未生成"
+          }
 
   release-readiness:
     name: 发布前检查

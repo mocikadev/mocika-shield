@@ -57,11 +57,9 @@ GitHub 的 `main` 分支必须保持保护状态，正式代码统一通过临�
 
 Pull Request 合并前必须通过以下 CI 检查：
 
-- `Rust 与前端检查`
-- `Android 壳构建`
-- `Linux Tauri 打包冒烟检查`
+- `基础快速检查`
 
-`发布前检查` 不设置为普通 PR 的必需检查，因为非发布事件中该任务会按设计跳过。
+普通 PR 只执行 Rust 格式和脚本契约测试，避免每次提交重复等待完整编译与跨平台打包。完整代码质量检查、Android 壳构建、Linux Tauri 打包冒烟检查、Windows Android 4.4 资源构建和发布前检查仅在手动触发 CI 时执行；版本发布仍由 Release 工作流完整构建三个平台。
 
 日常开发流程：
 
@@ -196,7 +194,7 @@ make build-stub  →  make build-cli / make build-gui / make release / make rele
 
 | 工作流 | 文件 | 触发 | 内容 |
 |--------|------|------|------|
-| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | Rust 格式检查、`shield-core` 单元测试、stub Rust 单元测试、Android 壳构建、Tauri GUI 检查 |
+| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | 普通提交与 PR 执行基础快速检查；手动触发时执行完整代码质量、Android 壳、Linux Tauri、Windows Android 4.4 资源及发布前检查 |
 | Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows GUI 产物，汇总上传到 GitHub Release |
 
 > GitHub Release 面向普通开源用户，只上传 GUI 安装包与校验和；CLI 包仍可通过本地发布脚本生成，但不会由 CI 上传到 Release。
