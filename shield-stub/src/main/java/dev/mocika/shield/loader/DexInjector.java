@@ -23,6 +23,7 @@ final class DexInjector {
     private DexInjector() {}
 
     static void inject(Context context, List<File> dexFiles) throws Exception {
+        SharedLibraryCompat.prepare(context, dexFiles);
         ClassLoader classLoader = context.getClassLoader();
         File optimizedDirectory = Build.VERSION.SDK_INT < 26
                 ? context.getDir("dex_opt", Context.MODE_PRIVATE) : null;

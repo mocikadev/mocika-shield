@@ -544,6 +544,16 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 ---
 
+### Bug 11：Android 9 动态 DEX 覆盖系统共享库类 ✅ 已修复
+
+- **现象**：原 APK 声明 `org.apache.http.legacy` 且自身包含同名编译桩时可以正常运行，加固后在 Android 9 启动并调用 Apache HTTP 类会抛出 `RuntimeException: Stub!`；Android 16 不受影响。
+- **根因**：Android 9 依赖安装期特殊类加载上下文提供共享库优先级，动态注入的解密 DEX 不会自动继承相同解析语义，业务 DEX 中的同名类可能覆盖系统共享库实现。
+- **修复**：API 28 在注入业务 DEX 前，根据 `ApplicationInfo.sharedLibraryFiles` 确认应用声明 `org.apache.http.legacy`，扫描已解密但尚未注入的业务 DEX，并通过应用原类加载器预解析其中 `org.apache.http.*` 与 `android.net.http.*` 类；此时业务 DEX 尚不可见，只能命中系统共享库。随后保持原有业务 DEX 前插顺序，其他系统版本不改变现有路径。
+- **验证要求**：Issue #17 样本在 API 28 调用 Apache HTTP 不再加载编译桩，同时回归 API 23、API 36、ARouter 和业务类优先级。
+- **验证记录**：Issue #17 样本在官方 API 28 模拟器成功预解析 376 个共享库类，启动后未再出现 `RuntimeException: Stub!`；同一加固 APK 已在 API 23 模拟器和 API 36 真机正常启动。
+
+---
+
 ### 代码健壮性修复 ✅ 已修复
 
 - `payload.len() as u32` 改为 `u32::try_from()`，超 4GiB 时报错而非截断
