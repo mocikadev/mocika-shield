@@ -38,20 +38,8 @@ PROTECTED="$WORK_DIR/output-protected.apk"
 FINAL="$WORK_DIR/output-protected-signed.apk"
 KEYSTORE="$WORK_DIR/smoke.p12"
 
-BUILD_TOOLS_VERSION="$(ls "$ANDROID_HOME/build-tools" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)"
-PLATFORM_VERSION="$(ls "$ANDROID_HOME/platforms" | sort -t- -k2,2n | tail -n 1)"
-D8="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/d8"
-ANDROID_JAR="$ANDROID_HOME/platforms/$PLATFORM_VERSION/android.jar"
-SECONDARY_CLASSES="$WORK_DIR/secondary-classes"
-SECONDARY_DEX="$WORK_DIR/secondary-dex"
-mkdir -p "$SECONDARY_CLASSES" "$SECONDARY_DEX"
-javac -source 8 -target 8 -cp "$ANDROID_JAR" -d "$SECONDARY_CLASSES" \
-    "$FIXTURE/secondary-src/dev/mocika/shield/smoke/SecondaryMarker.java"
-"$D8" --min-api 19 --lib "$ANDROID_JAR" --output "$SECONDARY_DEX" \
-    "$SECONDARY_CLASSES/dev/mocika/shield/smoke/SecondaryMarker.class"
-cp "$UNSIGNED" "$MULTIDEX_UNSIGNED"
-cp "$SECONDARY_DEX/classes.dex" "$WORK_DIR/classes2.dex"
-zip -qj "$MULTIDEX_UNSIGNED" "$WORK_DIR/classes2.dex"
+"$PROJECT_ROOT/tests/scripts/build-smoke-multidex.sh" \
+    "$UNSIGNED" "$MULTIDEX_UNSIGNED" 19
 
 keytool -genkeypair -noprompt -storetype PKCS12 \
     -keystore "$KEYSTORE" -storepass "$PASSWORD" -keypass "$PASSWORD" \
