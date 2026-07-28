@@ -528,9 +528,19 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 - **位置**：`ARouterCompat.java`、`StubApp.java`、`route_scanner.rs`
 - **问题**：壳在真实 `Application.onCreate()` 返回后才补注册路由表。ARouter 1.5.1 已在 `ARouter.init()` 内缓存空的 `InterceptorService`，导致首次安装或清除数据后路由跳转空指针；覆盖安装可能因旧缓存暂时正常。
-- **修复**：在真实 Application 启动前预注册 `Root`、`Providers`、`Interceptors` 三类入口，并仅在成功注册后设置 `registerByPlugin`；排除 `Group` 和内部类等无效扫描结果。
+- **修复**：在真实 Application 启动前准备 `Root`、`Providers`、`Interceptors` 三类入口；排除 `Group` 和内部类等无效扫描结果。
 - **验证**：用户多模块 Demo 的未加固基线、加固后首次安装、清除数据后重启均通过同一套真机端到端测试，覆盖两次跨模块跳转和四种参数注入。
 - **教训**：第三方框架若在初始化过程中缓存服务实例，兼容注入必须发生在其初始化入口之前，事后补齐注册表无法修复已缓存的空状态。
+
+---
+
+### Bug 10：跨加固方案升级后 ARouter 读取旧缓存 ✅ 已修复
+
+- **位置**：`ARouterCompat.java`
+- **问题**：旧版本经其他工具加固，新版本改用 Mocika Shield 后覆盖安装，ARouter 会保留旧版本的 `SP_AROUTER_CACHE`。壳层提前反射注册当前路由后，`ARouter.init()` 仍会重置 `registerByPlugin` 并读取旧缓存，导致新旧路由状态混合；清除应用数据后暂时恢复。
+- **修复**：不再反射调用 ARouter 私有注册方法。真实 Application 启动前，将当前 APK 提取的路由快照同步替换到 ARouter 自有 `ROUTER_MAP`，并同步 `LAST_VERSION_NAME`、`LAST_VERSION_CODE`，由 ARouter 按原生初始化流程只加载一次。
+- **兼容**：可调试包因 ARouter 强制扫描而保留提前注册路径；未使用 ARouter、没有路由资产或使用编译期注册的应用不受影响；缓存写入失败只记录警告，不阻断应用启动。
+- **验证要求**：覆盖全新安装、清除数据后启动、Mocika Shield 版本间覆盖升级、其他加固方案迁移到 Mocika Shield 四条路径；迁移验证必须保持新旧 APK 签名一致。
 
 ---
 
@@ -558,4 +568,4 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 ---
 
-*最后更新：2026-04-17*
+*最后更新：2026-07-27*
