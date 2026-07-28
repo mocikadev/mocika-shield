@@ -82,6 +82,9 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 ### Windows 子进程无控制台窗口
 调用 `java`、`keytool`、`apksigner` 等子进程时，必须通过 `no_window_command(prog)` 辅助函数创建 `Command`，该函数在 `#[cfg(target_os = "windows")]` 下设置 `CREATE_NO_WINDOW` flag（其他平台零开销）。
 
+### Native 库打包
+原 APK 显式设置 `android:extractNativeLibs="false"` 时，加固输出必须保留该值，并确保全部 `lib/**/*.so` 使用 ZIP `Stored` 不压缩存储且按 16 KB 对齐。不得通过无条件改成 `true` 规避安装失败；签名链路继续保留原压缩策略。
+
 ### shield-gui 后端结构
 `apps/shield-gui/src-tauri` 是 Tauri binary crate，`main.rs` 只做启动、状态注入和 command 注册。后端逻辑按职责拆到 `app_config.rs`、`cert_service.rs`、`signing.rs`、`protect_runner.rs`、`updates.rs` 等模块；不要再把业务逻辑堆回 `main.rs`。
 

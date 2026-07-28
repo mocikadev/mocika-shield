@@ -2,7 +2,7 @@
 
 `fixtures/android-smoke-app` 是项目自有的最小 Android 测试夹具，只负责提供包含自定义 `Application` 和启动 `Activity` 的稳定输入 APK，不承载产品示例或业务功能。
 
-`scripts/run-protect-e2e.sh` 负责无设备回归链路：编译测试 APK、临时生成测试证书、签名原始 APK、执行加固、再次签名，并验证签名、MSHD 块、壳 Native 库和 `check-apk` 结果。
+`scripts/run-protect-e2e.sh` 负责无设备回归链路：编译显式设置 `extractNativeLibs=false` 且原本不含 Native 库的测试 APK，临时生成测试证书、签名原始 APK、执行加固、再次签名，并验证签名、MSHD 块、壳 Native 库、Manifest 保留和全部 `.so` 不压缩存储，以及 `check-apk` 结果。
 
 ```bash
 make build-stub

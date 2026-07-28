@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 use tempfile::NamedTempFile;
 use zip::write::SimpleFileOptions;
-use zip::{DateTime, ZipArchive, ZipWriter};
+use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 const DEFAULT_ALIGNMENT: u16 = 4;
 const SHARED_LIB_ALIGNMENT: u16 = 16 * 1024;
@@ -16,8 +16,18 @@ pub struct AlignmentIssue {
     pub actual: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeLibraryPackaging {
+    Preserve,
+    Store,
+}
+
+fn is_native_library(name: &str) -> bool {
+    name.starts_with("lib/") && name.ends_with(".so")
+}
+
 fn required_alignment(name: &str) -> u16 {
-    if name.starts_with("lib/") && name.ends_with(".so") {
+    if is_native_library(name) {
         SHARED_LIB_ALIGNMENT
     } else {
         DEFAULT_ALIGNMENT
@@ -28,9 +38,19 @@ fn is_directory_name(name: &str) -> bool {
     name.ends_with('/')
 }
 
-fn build_file_options(file: &zip::read::ZipFile<'_>, alignment: u16) -> SimpleFileOptions {
+fn build_file_options(
+    file: &zip::read::ZipFile<'_>,
+    alignment: u16,
+    native_packaging: NativeLibraryPackaging,
+) -> SimpleFileOptions {
+    let compression =
+        if native_packaging == NativeLibraryPackaging::Store && is_native_library(file.name()) {
+            CompressionMethod::Stored
+        } else {
+            file.compression()
+        };
     let mut options = SimpleFileOptions::default()
-        .compression_method(file.compression())
+        .compression_method(compression)
         .last_modified_time(
             file.last_modified()
                 .filter(DateTime::is_valid)
@@ -79,13 +99,20 @@ pub fn verify_apk_alignment(path: &Path) -> Result<Vec<AlignmentIssue>> {
 }
 
 pub fn align_apk(path: &Path) -> Result<()> {
+    align_apk_with_native_packaging(path, NativeLibraryPackaging::Preserve)
+}
+
+pub(crate) fn align_apk_with_native_packaging(
+    path: &Path,
+    native_packaging: NativeLibraryPackaging,
+) -> Result<()> {
     let parent = path
         .parent()
         .with_context(|| format!("无法确定 APK 父目录: {}", path.display()))?;
     let mut temp = NamedTempFile::new_in(parent)
         .with_context(|| format!("创建临时对齐文件失败: {}", parent.display()))?;
 
-    rewrite_aligned(path, temp.as_file_mut())?;
+    rewrite_aligned(path, temp.as_file_mut(), native_packaging)?;
     temp.as_file_mut()
         .flush()
         .context("刷新对齐后的 APK 失败")?;
@@ -110,7 +137,40 @@ pub fn align_apk(path: &Path) -> Result<()> {
         );
     }
 
+    if native_packaging == NativeLibraryPackaging::Store {
+        let compressed = find_compressed_native_libraries(path)?;
+        if !compressed.is_empty() {
+            anyhow::bail!(
+                "Native 库打包与 extractNativeLibs=false 不一致，仍存在压缩条目：{}",
+                compressed
+                    .into_iter()
+                    .take(5)
+                    .collect::<Vec<_>>()
+                    .join("；")
+            );
+        }
+    }
+
     Ok(())
+}
+
+pub(crate) fn find_compressed_native_libraries(path: &Path) -> Result<Vec<String>> {
+    let file =
+        fs::File::open(path).with_context(|| format!("打开 APK 失败: {}", path.display()))?;
+    let mut archive = ZipArchive::new(file)
+        .with_context(|| format!("解析 APK ZIP 结构失败: {}", path.display()))?;
+    let mut compressed = Vec::new();
+
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .with_context(|| format!("读取 ZIP 条目失败: index={index}"))?;
+        if is_native_library(entry.name()) && entry.compression() != CompressionMethod::Stored {
+            compressed.push(entry.name().to_string());
+        }
+    }
+
+    Ok(compressed)
 }
 
 fn format_alignment_issues(issues: &[AlignmentIssue]) -> String {
@@ -132,7 +192,11 @@ fn format_alignment_issues(issues: &[AlignmentIssue]) -> String {
     parts.join("；")
 }
 
-fn rewrite_aligned(path: &Path, output: &mut fs::File) -> Result<()> {
+fn rewrite_aligned(
+    path: &Path,
+    output: &mut fs::File,
+    native_packaging: NativeLibraryPackaging,
+) -> Result<()> {
     let input =
         fs::File::open(path).with_context(|| format!("打开 APK 失败: {}", path.display()))?;
     let mut archive = ZipArchive::new(input)
@@ -152,7 +216,7 @@ fn rewrite_aligned(path: &Path, output: &mut fs::File) -> Result<()> {
             .with_context(|| format!("读取 ZIP 条目失败: index={i}"))?;
         let name = file.name().to_string();
         let alignment = required_alignment(&name);
-        let options = build_file_options(&file, alignment);
+        let options = build_file_options(&file, alignment, native_packaging);
 
         if file.is_dir() || is_directory_name(&name) {
             writer
@@ -183,7 +247,6 @@ mod tests {
     use std::path::PathBuf;
     use std::process::Command;
     use tempfile::tempdir;
-    use zip::CompressionMethod;
 
     fn make_sample_apk(path: &Path) {
         let file = fs::File::create(path).unwrap();
@@ -313,6 +376,47 @@ mod tests {
 
         let payload_offset = archive.by_name("res/raw/payload.bin").unwrap().data_start();
         assert_eq!(payload_offset % DEFAULT_ALIGNMENT as u64, 0);
+    }
+
+    #[test]
+    fn store_native_libraries_rewrites_only_so_as_stored() {
+        let dir = tempdir().unwrap();
+        let apk = dir.path().join("sample.apk");
+        make_sample_apk(&apk);
+
+        align_apk_with_native_packaging(&apk, NativeLibraryPackaging::Store).unwrap();
+
+        assert!(find_compressed_native_libraries(&apk).unwrap().is_empty());
+        let file = fs::File::open(&apk).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        assert_eq!(
+            archive
+                .by_name("lib/arm64-v8a/libdemo.so")
+                .unwrap()
+                .compression(),
+            CompressionMethod::Stored
+        );
+        assert_eq!(
+            archive
+                .by_name("AndroidManifest.xml")
+                .unwrap()
+                .compression(),
+            CompressionMethod::Deflated
+        );
+    }
+
+    #[test]
+    fn preserve_native_libraries_keeps_compression_method() {
+        let dir = tempdir().unwrap();
+        let apk = dir.path().join("sample.apk");
+        make_sample_apk(&apk);
+
+        align_apk(&apk).unwrap();
+
+        assert_eq!(
+            find_compressed_native_libraries(&apk).unwrap(),
+            vec!["lib/arm64-v8a/libdemo.so"]
+        );
     }
 
     #[test]

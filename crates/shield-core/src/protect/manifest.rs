@@ -2,6 +2,36 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeLibPackagingPolicy {
+    Disabled,
+    Enabled,
+    Unspecified,
+}
+
+pub(crate) fn read_native_lib_packaging_policy(apk_dir: &Path) -> Result<NativeLibPackagingPolicy> {
+    let manifest_path = apk_dir.join("AndroidManifest.xml");
+    let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
+    let app_tag_start = content
+        .find("<application")
+        .context("AndroidManifest.xml 中未找到 <application> 标签")?;
+    let app_tag_end = find_tag_end(&content, app_tag_start)
+        .context("AndroidManifest.xml <application> 标签未正常关闭")?;
+    let app_tag = &content[app_tag_start..app_tag_end];
+
+    Ok(
+        match extract_xml_attr(app_tag, "android:extractNativeLibs").as_deref() {
+            Some("false") => NativeLibPackagingPolicy::Disabled,
+            Some("true") => NativeLibPackagingPolicy::Enabled,
+            Some(value) => {
+                log::warn!("无法解析 extractNativeLibs 值 {value}，将保留原打包策略");
+                NativeLibPackagingPolicy::Unspecified
+            }
+            None => NativeLibPackagingPolicy::Unspecified,
+        },
+    )
+}
+
 pub(crate) fn modify_manifest(apk_dir: &Path, stub_app: &str) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
     let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
@@ -208,6 +238,40 @@ mod tests {
         let tag = r#"<application android:name="App">"#;
         let result = remove_xml_attr(tag, "android:nonExistent");
         assert_eq!(result, tag);
+    }
+
+    #[test]
+    fn read_native_lib_packaging_policy_distinguishes_three_states() {
+        for (value, expected) in [
+            (Some("false"), NativeLibPackagingPolicy::Disabled),
+            (Some("true"), NativeLibPackagingPolicy::Enabled),
+            (None, NativeLibPackagingPolicy::Unspecified),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let attribute = value
+                .map(|it| format!(r#" android:extractNativeLibs="{it}""#))
+                .unwrap_or_default();
+            let manifest =
+                format!(r#"<manifest><application{attribute} android:name="App" /></manifest>"#);
+            fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
+
+            assert_eq!(
+                read_native_lib_packaging_policy(dir.path()).unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn modify_manifest_preserves_extract_native_libs() {
+        let dir = tempfile::tempdir().unwrap();
+        let manifest = r#"<manifest><application android:name="App" android:extractNativeLibs="false" /></manifest>"#;
+        fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
+
+        modify_manifest(dir.path(), "dev.mocika.StubApp").unwrap();
+
+        let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
+        assert!(result.contains(r#"android:extractNativeLibs="false""#));
     }
 
     #[test]

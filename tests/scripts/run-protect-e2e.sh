@@ -49,4 +49,15 @@ unzip -p "$FINAL" classes.dex > "$WORK/classes.dex"
 grep -a -q 'MSHD' "$WORK/classes.dex"
 unzip -l "$FINAL" | grep -q 'lib/arm64-v8a/libmocikashield.so'
 
+DECODED="$WORK/output-decoded"
+java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$FINAL" -o "$DECODED" -f --no-src >/dev/null
+grep -q 'android:extractNativeLibs="false"' "$DECODED/AndroidManifest.xml"
+
+COMPRESSED_SO="$(unzip -lv "$FINAL" | awk '$NF ~ /^lib\/.+\.so$/ && $2 != "Stored" { print $NF }')"
+if [ -n "$COMPRESSED_SO" ]; then
+  echo "extractNativeLibs=false 时存在压缩 Native 库：" >&2
+  printf '%s\n' "$COMPRESSED_SO" >&2
+  exit 1
+fi
+
 echo "端到端加固回归测试通过"
