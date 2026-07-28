@@ -114,7 +114,8 @@ if ! unzip -tq "$LEGACY_RESOURCES" >/dev/null; then
     exit 1
 fi
 for required_entry in stub-classes.dex lib/armeabi-v7a/libmocikashield.so metadata.json; do
-    if ! unzip -Z1 "$LEGACY_RESOURCES" | grep -qx "$required_entry"; then
+    if ! unzip -Z1 "$LEGACY_RESOURCES" \
+        | awk -v required="$required_entry" '$0 == required { found = 1 } END { exit !found }'; then
         echo "错误：Android 4.4 兼容资源包缺少 $required_entry"
         exit 1
     fi
