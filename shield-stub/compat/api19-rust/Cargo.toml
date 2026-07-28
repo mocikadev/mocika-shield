@@ -1,6 +1,6 @@
 [package]
 name = "mocikashield-api19"
-version = "1.2.7-rc.2"
+version = "1.2.7-rc.3"
 edition = "2021"
 build = "../../src/main/rust/build.rs"
 
