@@ -16,7 +16,9 @@ It provides a cross-platform desktop GUI for Windows, macOS, and Linux, plus a R
 
 - **DEX encryption:** Zstd compression and ChaCha20-Poly1305 authenticated encryption, with keys derived through HKDF-SHA256
 - **Certificate-bound anti-tampering:** the original signing certificate participates in key derivation; unauthorized re-signing prevents payload decryption
-- **Runtime anti-debugging:** native Rust checks for ptrace attachment, Frida mappings, and Frida GLib thread names
+- **Runtime anti-debugging:** every process start checks for ptrace attachment, Frida mappings, and Frida GLib thread names before reading the DEX cache; the decrypt path keeps a second defensive check
+- **Android compatibility handling:** standard mode supports Android 5.0 (API 21) and later, including legacy ART DEX injection, ARouter runtime scanning, and the Android 9 `org.apache.http.legacy` class-loading conflict
+- **Android 4.4 candidate mode:** the GUI can use a dedicated industrial-device compatibility runtime; this remains a candidate until final validation on a physical Android 4.4.2 board
 - **Low-profile payload storage:** encrypted data is appended beyond the declared DEX `file_size`, with no visible `assets/app.bin`
 - **APK signing and certificate management:** import or create signing certificates directly in the desktop application
 - **Built-in ZIP alignment:** protected and signed outputs are aligned for 4 KB and 16 KB Android page-size requirements
@@ -47,10 +49,20 @@ xattr -rd com.apple.quarantine /Applications/MocikaShield.app
 1. Download and install the desktop application for your platform.
 2. Open **Certificates** and import the certificate used to sign the original APK, or create a new PKCS12 keystore.
 3. Optionally set the certificate as the default for automatic signing.
-4. Open **Protect**, select an already signed APK, and start protection.
-5. The output is created next to the original APK as `{name}_protected.apk` or `{name}_protected_signed.apk`.
+4. Open **Protect**, select an already signed APK, and choose the target Android compatibility mode.
+5. Keep the default Android 5.0+ mode unless the target fleet includes Android 4.4 industrial devices.
+6. The output is created next to the original APK as `{name}_protected.apk` or `{name}_protected_signed.apk`.
 
 The certificate must match the original application. Protected DEX data is bound to that certificate, so signing the output with a different certificate will prevent the application from starting.
+
+### Android Compatibility
+
+| Mode | Target | Status | Constraints |
+|---|---|---|---|
+| Android 5.0 and later (default) | API 21+ | Standard | Four ABIs; relevant regression coverage includes Android 5.0, 6.0, 9, 15, and 16 |
+| Android 4.4 industrial compatibility | API 19+ | Candidate | The input APK must contain no native libraries, or only `armeabi-v7a` native libraries; final physical Android 4.4.2 board validation is still pending |
+
+Compatibility mode does not lower the application's own `minSdkVersion`. See the [usage guide](docs/usage.md) and [Android 4.4 compatibility design](docs/design/android-4.4-compatibility.md) for details.
 
 ## How It Works
 
@@ -72,7 +84,7 @@ Rebuild and align the protected APK
 Sign with the original application's certificate
 ```
 
-At runtime, the stub performs anti-debugging checks, extracts the encrypted payload, derives the decryption key from the embedded material and installed certificate, decrypts the DEX files in native Rust code, injects them into the class loader, and starts the original `Application`.
+At runtime, the stub performs an environment check before reading the DEX cache. A cache hit proceeds directly to class-loader injection; a cache miss performs the same check again at the native decrypt boundary, extracts and decrypts the payload, writes the private DEX cache, injects the DEX files, and starts the original `Application`.
 
 ## Security Scope
 
@@ -88,7 +100,7 @@ For defense in depth, keep sensitive secrets and authorization decisions on a tr
 - An APK that has already been protected cannot be protected again
 - The GUI currently processes one APK at a time and has no batch queue
 - Windows, macOS, and Linux packages are not commercially code-signed or notarized
-- Compatibility may vary for frameworks that rely on runtime DEX scanning; please report reproducible cases
+- Frameworks with custom runtime DEX scanning may still require compatibility handling; ARouter 1.5.1 runtime scanning is supported, and other reproducible cases should be reported
 
 ## Build from Source
 
