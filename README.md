@@ -12,19 +12,15 @@
 
 > 本项目仅用于保护你拥有合法权利的 Android 应用。请勿用于绕过第三方应用保护、规避平台安全机制或其他未授权场景。
 
-## 项目关注趋势
-
-[![各系统平台累计下载](https://raw.githubusercontent.com/mocikadev/mocika-shield/stats/charts/platform-downloads.svg)](https://mocikadev.github.io/mocika-shield/)
-
-> 当前星标、复刻、未关闭事项与累计下载接近实时更新，历史趋势每日更新。下载次数不等于独立用户数；应用使用数据仅包含用户允许上报的匿名每日汇总。[查看统计口径](docs/ops/project-statistics.md)
-
 ---
 
 ## 功能特性
 
-- **DEX 加密保护**：Zstd 压缩 + ChaCha20-Poly1305 认证加密（AEAD），密钥通过 HKDF-SHA256 派生，签名指纹绑定密钥派生，防逆向重用
+- **DEX 加密保护**：Zstd 压缩 + ChaCha20-Poly1305 认证加密（AEAD），密钥通过 HKDF-SHA256 派生并绑定原 APK 签名证书，篡改或使用其他证书重签后无法解密
 - **签名校验**：证书指纹写入 DEXB v5 头部并参与密钥派生，运行时 timing-safe 比对，重打包后解密必然失败
-- **运行时反调试**：Rust native 层检测 ptrace 附加（TracerPid）、Frida maps 特征、Frida GLib 线程名，检测到立即中止
+- **运行时反调试**：每次进程启动都会在读取 DEX 缓存前检测 ptrace 附加（TracerPid）、Frida maps 特征和 Frida GLib 线程名，解密入口保留纵深检查
+- **Android 兼容处理**：标准模式支持 Android 5.0（API 21）及以上，已适配旧版 ART DEX 注入、ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 类加载冲突
+- **Android 4.4 候选模式**：GUI 可按任务选择工控兼容资源；该能力仍等待 Android 4.4.2 真实工控板完成最终验证，不属于稳定支持范围
 - **低特征**：加密数据追加到 `classes.dex` 末尾（DEX `file_size` 边界外），apktool / jadx 完全不可见，无 `assets/app.bin`；壳类名、JNI 符号、日志字符串均经过混淆，静态分析难以定位入口
 - **GUI 签名工具**：内置 APK 签名标签页，支持拖拽、自动清理 `.idsig`，无需额外工具
 - **内置 APK 对齐**：加固输出与 GUI 签名链路会自动执行 4 KB / 16 KB ZIP 对齐，无需额外运行 `zipalign`
@@ -57,10 +53,10 @@
 > ```
 
 界面包含五个页面：
-- **加固**：拖入或选择 APK → 预检验证（非 APK 文件立即提示）→ 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
+- **加固**：拖入或选择 APK → 选择运行系统兼容性 → 预检验证 → 点击加固 → 实时进度 → 自动生成 `{name}_protected.apk`；加固失败时错误信息支持一键复制
 - **签名**：拖入或选择 APK → 选择证书页维护的证书 → 点击签名 → 生成 `{name}_signed.apk`；签名成功后只保留“继续签名”入口
 - **证书**：统一管理签名证书，支持导入、新建、校验、设为默认、删除；创建证书时 Keystore 密码至少 6 位，Key 密码可留空
-- **设置**：切换深色 / 浅色主题、切换界面语言（中文 / 英文）
+- **设置**：切换深色 / 浅色主题、界面语言（中文 / 英文）和匿名使用统计开关
 - **关于**：显示当前版本号、构建 git hash、构建日期、Java 环境状态，支持手动重新检测环境和复制诊断信息
 
 界面预览：
@@ -92,7 +88,17 @@
 2. 在 **证书** 页面导入已有证书，或创建新的 PKCS12 证书
 3. 将常用证书设为默认；加固页会在自动签名时使用默认证书
 4. 回到 **加固** 页面选择已签名 APK，按需使用自动签名
-5. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
+5. 默认选择“Android 5.0 及以上”；仅当目标包含 Android 4.4 工控设备时选择候选兼容模式
+6. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
+
+### Android 运行兼容性
+
+| 模式 | 目标系统 | 当前状态 | 约束 |
+|------|----------|----------|------|
+| Android 5.0 及以上（默认） | API 21+ | 正式模式 | 支持四种 ABI；Android 5.0、6.0、9、15/16 已完成对应回归 |
+| Android 4.4 工控兼容 | API 19+ | 候选模式 | 当前只接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；仍需真实 Android 4.4.2 工控板最终验证 |
+
+兼容模式不会降低原应用自身声明的 `minSdkVersion`。同一个兼容模式产物用于 Android 4.4～6.0 设备，不需要为每个系统版本分别加固。详细边界见[使用指南](docs/usage.md)和 [Android 4.4 工控兼容设计](docs/design/android-4.4-compatibility.md)。
 
 ### 签名材料准备
 
@@ -180,11 +186,11 @@ adb install -r protected.apk
     ↓
 [1. StubApp.attachBaseContext] → 壳 Application 启动
     ↓
-[2. 反调试检测] → Rust native 层检测 ptrace / Frida，命中立即抛异常中止
+[2. 环境安全检查] → 每次启动在读取缓存前检测 ptrace / Frida，命中立即中止
     ↓
-[3. 读取 classes.dex] → 扫描末尾 MSHD magic，提取加密 payload
+[3. 检查 DEX 缓存] → 命中则直接进入注入；未命中才读取 classes.dex 中的 MSHD payload
     ↓
-[4. JNI → Rust] → HKDF 派生密钥 → ChaCha20-Poly1305 解密 → Zstd 解压
+[4. JNI → Rust] → 再次执行安全检查 → HKDF 派生密钥 → ChaCha20-Poly1305 解密 → Zstd 解压并写入私有缓存
     ↓
 [5. 签名校验] → 读取设备实际签名参与密钥派生，并与 payload 头部指纹 timing-safe 比对，不匹配则 SecurityException
     ↓
@@ -201,11 +207,11 @@ adb install -r protected.apk
 |------|------|
 | AEAD 加密 | ChaCha20-Poly1305，密文篡改立即检测，不返回明文 |
 | 每次加固随机 nonce | HKDF-SHA256(ikm, nonce) 派生密钥，相同 APK 每次加固产生不同密文 |
-| 签名指纹绑定密钥派生 | IKM 随机生成并与证书指纹联合派生，逆向 CLI/stub 无法重建其他 APK 的解密密钥 |
+| 签名指纹绑定密钥派生 | IKM 与证书指纹联合派生，篡改 APK 或使用其他证书重签后无法得到正确明文 |
 | 签名指纹绑定加密密钥 | 指纹写入 DEXB v5 头部并参与 HKDF info，重签后派生密钥不同，AEAD 解密失败 |
 | Timing-safe 签名比对 | 常数时间比对，防时序攻击 |
 | 低特征 | 无 `assets/app.bin`，加密数据对静态工具不可见；壳类名、JNI 符号经混淆处理 |
-| 运行时反调试 | Rust native 层检测 ptrace、Frida maps 特征与 Frida GLib 线程名，检测到立即中止 |
+| 运行时反调试 | 每次进程启动先检测 ptrace、Frida maps 特征与 Frida GLib 线程名，解密入口再次检查 |
 
 ---
 
@@ -261,11 +267,21 @@ make build-all
 
 ## 当前限制
 
+- 当前只支持 APK 输入，不支持直接加固 AAB 或 APKS
+- 默认标准模式最低支持 Android 5.0（API 21）；Android 4.4（API 19～20）仅提供工控兼容候选模式，尚未声明稳定支持
 - 输入 APK 必须已经签名；未签名 APK 会在预检阶段被拒绝
 - 不支持对已加固 APK 再次加固
 - GUI 当前以单 APK 工作流为主，不支持批量队列
 - Windows 端当前主要提供 GUI 发布产物；CLI 使用建议从源码编译
 - 加固依赖本地 `apktool` / `apksigner` / `resources.zip`，从源码编译前必须先执行 `make build-stub`
+
+---
+
+## 隐私说明
+
+APK、证书、密钥库和签名密码只在本机处理，不会上传。桌面应用默认启用匿名汇总统计，用于了解启动及加固、签名任务的成功或失败情况；可随时在“设置”页面关闭。统计内容不包含 APK 内容、包名、文件路径、证书、密码或密钥库。
+
+具体数据范围见[匿名使用统计说明](docs/ops/telemetry.md)。
 
 ---
 
