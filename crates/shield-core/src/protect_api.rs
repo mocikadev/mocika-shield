@@ -278,6 +278,7 @@ mod tests {
         let outcome = ApkCheckOutcome {
             already_protected: true,
             is_signed: true,
+            native_abis: Vec::new(),
         };
         let error = validate_apk_eligibility(&outcome).unwrap_err();
         assert!(error.to_string().contains("禁止重复加固"));
@@ -288,6 +289,7 @@ mod tests {
         let outcome = ApkCheckOutcome {
             already_protected: false,
             is_signed: false,
+            native_abis: Vec::new(),
         };
         let error = validate_apk_eligibility(&outcome).unwrap_err();
         assert!(error.to_string().contains("尚未签名"));

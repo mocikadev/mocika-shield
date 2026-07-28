@@ -41,7 +41,14 @@ build-cli:
 build-stub:
 	@echo "🤖 构建 shield-stub..."
 	$(BUILD_STUB_CMD)
+
+ifeq ($(OS),Windows_NT)
+	set SKIP_STANDARD_STUB_BUILD=1&& bash scripts/build-android-api19-resources.sh
+else
+	SKIP_STANDARD_STUB_BUILD=1 ./scripts/build-android-api19-resources.sh
+endif
 	@echo "✅ 产物: shield-stub/build/outputs/resources/resources.zip"
+	@echo "✅ 兼容产物: shield-stub/build/outputs/resources/resources-api19.zip"
 
 build-gui:
 	@echo "🖥️  构建 shield-gui（Tauri）..."

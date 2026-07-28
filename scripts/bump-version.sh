@@ -56,6 +56,9 @@ echo "  ✓ apps/shield-gui/src-tauri/Cargo.toml"
 si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/shield-stub/src/main/rust/Cargo.toml"
 echo "  ✓ shield-stub/src/main/rust/Cargo.toml"
 
+si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/shield-stub/compat/api19-rust/Cargo.toml"
+echo "  ✓ shield-stub/compat/api19-rust/Cargo.toml"
+
 # tauri.conf.json 顶层 "version" 字段缩进固定为 2 空格
 si "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$VERSION\"/" "$ROOT/apps/shield-gui/src-tauri/tauri.conf.json"
 echo "  ✓ apps/shield-gui/src-tauri/tauri.conf.json"
@@ -73,6 +76,7 @@ grep '^version'   "$ROOT/crates/shield-core/Cargo.toml"        | head -1 | sed '
 grep '^version'   "$ROOT/apps/shield-cli/Cargo.toml"           | head -1 | sed 's/^/    apps\/shield-cli\/Cargo.toml     : /'
 grep '^version'   "$ROOT/apps/shield-gui/src-tauri/Cargo.toml" | head -1 | sed 's/^/    apps\/shield-gui\/Cargo.toml     : /'
 grep '^version'   "$ROOT/shield-stub/src/main/rust/Cargo.toml" | head -1 | sed 's/^/    shield-stub\/Cargo.toml         : /'
+grep '^version'   "$ROOT/shield-stub/compat/api19-rust/Cargo.toml" | head -1 | sed 's/^/    API19兼容Cargo.toml           : /'
 grep '"version"'  "$ROOT/apps/shield-gui/src-tauri/tauri.conf.json" | head -1 | sed 's/^/    tauri.conf.json                 : /'
 grep '"version"'  "$ROOT/apps/shield-gui/package.json"         | head -1 | sed 's/^/    apps\/shield-gui\/package.json : /'
 echo ""

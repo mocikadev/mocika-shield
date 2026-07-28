@@ -10,6 +10,7 @@ use crate::utils::{find_apksigner, find_java, find_keytool, no_window_command};
 pub struct ApkCheckOutcome {
     pub already_protected: bool,
     pub is_signed: bool,
+    pub native_abis: Vec<String>,
 }
 
 pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckOutcome> {
@@ -19,6 +20,7 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
         .map_err(|err| anyhow::anyhow!("{}", classify_apk_zip_error(path, &err)))?;
 
     let mut already_protected = false;
+    let mut native_abis = Vec::new();
     for i in 0..archive.len() {
         let mut entry = match archive.by_index(i) {
             Ok(entry) => entry,
@@ -30,15 +32,22 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
             already_protected = contains_valid_mshd_block(&mut entry, entry_size)
                 .context("读取 classes.dex 失败")?;
         }
-
-        if already_protected {
-            break;
+        if let Some(abi) = entry
+            .name()
+            .strip_prefix("lib/")
+            .and_then(|name| name.split_once('/').map(|(abi, _)| abi))
+        {
+            if !native_abis.iter().any(|item| item == abi) {
+                native_abis.push(abi.to_string());
+            }
         }
     }
+    native_abis.sort();
 
     Ok(ApkCheckOutcome {
         already_protected,
         is_signed: check_apk_signed(path, apksigner_path)?,
+        native_abis,
     })
 }
 

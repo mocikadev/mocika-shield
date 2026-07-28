@@ -8,7 +8,8 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        minSdk = 21
+        // 保留 API 19～20 的 Dalvik 分支；正式兼容资源仍使用独立的 r25c Native 库。
+        minSdk = 19
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")

@@ -57,6 +57,9 @@ export function ProtectPage({
     warning,
     error,
     precheck,
+    runtimeMode,
+    setRuntimeMode,
+    nativeAbis,
     currentStep,
     startedAt,
     finishedAt,
@@ -158,6 +161,23 @@ export function ProtectPage({
                   disabled={taskLocked || state === "prechecking" || state === "running"}
                   onChange={(event) => setOutput(event.target.value)}
                 />
+              </div>
+              <div className="rounded-[14px] border bg-card p-4">
+                <label className="field-label" htmlFor="protect-runtime-mode">{t(locale, "runtimeCompatibility")}</label>
+                <SelectInput
+                  id="protect-runtime-mode"
+                  className="mt-2"
+                  value={runtimeMode}
+                  disabled={taskLocked || state === "prechecking" || state === "running"}
+                  onChange={(event) => setRuntimeMode(event.target.value as "standard" | "android_api19")}
+                >
+                  <option value="standard">{t(locale, "runtimeStandard")}</option>
+                  <option value="android_api19">{t(locale, "runtimeAndroid44")}</option>
+                </SelectInput>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44Hint") : t(locale, "runtimeStandardHint")}
+                  {nativeAbis.length > 0 ? ` · ABI: ${nativeAbis.join(", ")}` : ""}
+                </p>
               </div>
               <div className="rounded-[14px] border bg-card p-4">
                 <label className="flex items-center justify-between gap-4 text-sm font-medium">

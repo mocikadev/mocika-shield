@@ -156,11 +156,16 @@ function Build-Stub {
     try {
         & "scripts\build-stub.ps1" -ShieldVersion $Version
         if ($LASTEXITCODE -ne 0) { Err "shield-stub 构建失败" }
+        $env:SKIP_STANDARD_STUB_BUILD = "1"
+        & bash "scripts/build-android-api19-resources.sh"
+        if ($LASTEXITCODE -ne 0) { Err "Android 4.4 兼容资源构建失败" }
     } finally {
         Pop-Location
     }
     $zip = Join-Path $Root "shield-stub\build\outputs\resources\resources.zip"
     if (-not (Test-Path $zip)) { Err "shield-stub 构建失败，resources.zip 未生成" }
+    $api19Zip = Join-Path $Root "shield-stub\build\outputs\resources\resources-api19.zip"
+    if (-not (Test-Path $api19Zip)) { Err "shield-stub 构建失败，resources-api19.zip 未生成" }
     Success "shield-stub 构建完成"
 }
 

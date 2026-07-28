@@ -15,6 +15,7 @@ import {
 } from "@/lib/tauri";
 
 export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
+export type RuntimeMode = "standard" | "android_api19";
 
 function precheckMessage(locale: Locale, result: ApkCheckResult) {
   if (result.error) {
@@ -47,6 +48,8 @@ export function useProtectWorkflow({
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [precheck, setPrecheck] = useState("");
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("standard");
+  const [nativeAbis, setNativeAbis] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState("");
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
@@ -83,6 +86,8 @@ export function useProtectWorkflow({
     setFinishedAt(null);
     setTaskAutoSign(null);
     setTaskCertificate(null);
+    setRuntimeMode("standard");
+    setNativeAbis([]);
     taskId.current = null;
     taskLocked.current = false;
   }, []);
@@ -119,6 +124,7 @@ export function useProtectWorkflow({
       setPrecheck("");
       try {
         const result = await api.checkApk(path);
+        setNativeAbis(result.native_abis);
         let message = precheckMessage(locale, result);
         if (!message && autoSignCertificateId) {
           const compare = await api.compareCertFingerprints({
@@ -231,6 +237,7 @@ export function useProtectWorkflow({
         taskId.current,
         input,
         unsignedOutput,
+        runtimeMode,
         autoSignReady ? output : null,
         autoSignReady && certificate ? certificate.id : null,
       );
@@ -243,7 +250,7 @@ export function useProtectWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [autoSignReady, buildInfo, certificate, input, locale, output, precheck]);
+  }, [autoSignReady, buildInfo, certificate, input, locale, output, precheck, runtimeMode]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -263,6 +270,9 @@ export function useProtectWorkflow({
     warning,
     error,
     precheck,
+    runtimeMode,
+    setRuntimeMode,
+    nativeAbis,
     currentStep,
     startedAt,
     finishedAt,

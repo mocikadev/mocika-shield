@@ -53,6 +53,8 @@ Windows 发布需在 Windows 原生环境执行：
 ### NDK 版本
 `shield-stub/build.gradle.kts` 硬编码 NDK `29.0.14206865`；版本不同需修改或设置 `ANDROID_NDK_ROOT`。
 
+Android 4.4 实验兼容构建固定使用 NDK r25c `25.2.9519653`、Rust `1.77.2` 和 API 19，不得替换标准构建的 r29。验证入口为 `scripts/verify-android-api19-native.sh` 与 `tests/scripts/run-api19-native-probe.sh`。
+
 ### Rust targets
 首次编译 `shield-stub` 前需：
 ```bash
@@ -60,7 +62,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。
@@ -161,6 +163,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/ops/project-statistics.md](docs/ops/project-statistics.md) | 项目关注度统计口径、自动化流程与维护方式 |
 | [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
+| [docs/design/android-4.4-compatibility.md](docs/design/android-4.4-compatibility.md) | Android 4.4 工控兼容：双 NDK、ABI、运行时分流与验证方案 |
 | [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |
 | [docs/design/gui.md](docs/design/gui.md) | GUI 设计：唯一正式桌面 GUI、页面结构、签名配置与维护约束 |
 | [docs/process/commit-convention.md](docs/process/commit-convention.md) | Commit Message 规范 |

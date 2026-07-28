@@ -94,7 +94,10 @@ bash tests/scripts/run-protect-e2e.sh
 - API 24 及以上继续使用 `addDexPath` 路径，日志包含 `dex-route:addDexPath`
 - API 21、23 分别验证单 DEX、多 DEX、真实 Application、ARouter 和 Native 库加载
 - 同一测试 APK 在 API 21、23、24 设备上完成冷启动、清除数据后首次启动和覆盖安装启动
-- API 19～20 明确拒绝或保持不支持，不将 API 21 构建的 Native 库作为兼容产物交付
+- API 19～20 在工控兼容模式正式完成前仍明确标记不支持，不将 API 21 构建的 Native 库作为兼容产物交付
+- API 19 实验 Native 库必须由 r25c、Rust 1.77.2、`--platform 19` 构建，并通过 `scripts/verify-android-api19-native.sh` 的架构、依赖、动态符号与 ELF 审计
+- API 19 Native 依赖升级后必须执行 `tests/scripts/run-api19-native-probe.sh`，确认生产库能够进入 `JNI_OnLoad`，不能只以链接成功作为兼容结论
+- 工控兼容候选产物必须使用同一个 APK 在 API 19 和 API 23 设备验证，不能分别生成两份业务 APK 代替跨版本回归
 
 ## APK 对齐与 Google Play 兼容
 

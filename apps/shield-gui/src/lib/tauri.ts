@@ -100,6 +100,7 @@ export type CreateManagedCertificateInput = {
 export type ApkCheckResult = {
   already_protected: boolean;
   is_signed: boolean;
+  native_abis: string[];
   error?: string | null;
 };
 
@@ -163,7 +164,7 @@ export type DragDropPayload = {
 
 export const api = {
   checkApk: (path: string) => invoke<ApkCheckResult>("check_apk", { path }),
-  protectApk: (taskId: string, input: string, output: string, signedOutput?: string | null, certificateId?: string | null) =>
+  protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", signedOutput?: string | null, certificateId?: string | null) =>
     invoke<void>("protect_apk", {
       request: {
         taskId,
@@ -171,7 +172,7 @@ export const api = {
         output,
         signedOutput: signedOutput ?? null,
         apktoolPath: null,
-        resourcesPath: null,
+        runtimeMode,
         certificateId: certificateId ?? null,
       },
     }),

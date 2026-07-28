@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 pub(crate) struct ApkCheckResult {
     pub already_protected: bool,
     pub is_signed: bool,
+    pub native_abis: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -79,11 +80,13 @@ pub(crate) fn do_check_apk(path: String, apksigner_path: Option<PathBuf>) -> Apk
         Ok(result) => ApkCheckResult {
             already_protected: result.already_protected,
             is_signed: result.is_signed,
+            native_abis: result.native_abis,
             error: None,
         },
         Err(error) => ApkCheckResult {
             already_protected: false,
             is_signed: false,
+            native_abis: Vec::new(),
             error: Some(error.to_string()),
         },
     }

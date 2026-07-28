@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.mocika.shield.smoke"
-        minSdk = 21
+        minSdk = 19
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

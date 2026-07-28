@@ -10,3 +10,21 @@ bash tests/scripts/run-protect-e2e.sh
 ```
 
 测试证书只在系统临时目录中生成，脚本退出时自动清理，不向仓库提交任何私钥。日常 CI 不启动模拟器；首次安装、清除数据、框架路由和真实运行时加载仍按发布测试清单在真机完成。
+
+## Android 4.4 Native 加载探针
+
+`fixtures/android-api19-native-probe` 只负责验证 NDK r25c、Rust 1.77.2、API 19 构建的生产 `libmocikashield.so` 能够被 Android 4.4 的动态链接器加载，并成功执行 `JNI_OnLoad` 动态注册。它不包含 DEX 解密、Dalvik 注入或业务兼容逻辑。
+
+先启动一个 API 19、`armeabi-v7a` 的模拟器或设备，再执行：
+
+```bash
+bash tests/scripts/run-api19-native-probe.sh
+```
+
+脚本会重复执行 Native ELF 审计、构建探针 APK、安装并启动，然后检查 `MOCIKA_API19_NATIVE_OK` 日志。存在多个在线设备时通过 `ANDROID_SERIAL` 指定目标设备。
+
+完整 Dalvik 加固回归使用双 DEX 测试 APK，验证 Native 解密、Element 前插、自定义 Application、第二 DEX 类、首次安装、清除数据和同签名覆盖安装：
+
+```bash
+ANDROID_SERIAL=emulator-5554 bash tests/scripts/run-api19-protect-e2e.sh
+```

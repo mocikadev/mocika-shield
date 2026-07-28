@@ -18,6 +18,7 @@ use crate::cli_json::{
 pub(crate) fn run_protect(
     input: PathBuf,
     output: PathBuf,
+    resources_path: Option<PathBuf>,
     json_progress: bool,
     verbose: bool,
 ) -> Result<()> {
@@ -38,7 +39,7 @@ pub(crate) fn run_protect(
         input,
         output,
         apktool_path: None,
-        resources_path: None,
+        resources_path,
         apksigner_path: None,
         expected_output_cert_fingerprint: None,
     };
