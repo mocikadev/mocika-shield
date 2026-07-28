@@ -13,6 +13,12 @@ bash tests/scripts/run-protect-e2e.sh
 
 脚本使用项目自有最小 Android 测试夹具，验证从源码 APK 到已签名加固产物的完整无设备链路。手动触发完整 CI 时，“Android 壳构建”任务也会执行该测试。
 
+连接测试设备后执行以下命令，分别启动未加固双 DEX 基线，并以同一签名覆盖安装加固包。两次启动都必须观察到 `Application`、`Activity` 和 `classes2.dex` 中 `SecondaryMarker` 的成功标记：
+
+```bash
+RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
+```
+
 ## 使用时机
 
 - 发布 `rc` 或稳定版本前
