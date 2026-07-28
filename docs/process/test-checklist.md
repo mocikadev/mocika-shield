@@ -121,6 +121,10 @@ bash tests/scripts/run-protect-e2e.sh
 - 加固输出 APK 已执行 ZIP 对齐
 - 普通条目按 4 字节对齐
 - `lib/**/*.so` 按 16 KB 对齐
+- 原 APK 显式设置 `extractNativeLibs=false` 时，加固后保持该值不变，全部 `lib/**/*.so` 必须使用 ZIP `Stored` 不压缩存储
+- 显式 `extractNativeLibs=false` 的回归必须同时覆盖原 APK 已有 Native 库和原 APK 不含 Native 库两种样本
+- `.so` 的 ZIP 压缩方式、ZIP 数据偏移和 ELF `LOAD` 段页大小对齐必须分别验证，不能互相替代
+- 原 APK 为 `extractNativeLibs=true` 或未设置时，不得为了修复显式 `false` 场景而无条件改写 Manifest 或放大全部业务 Native 库
 - 签名流程中的临时对齐不会破坏最终签名
 - 如用户反馈 Google Play 16 KB 对齐问题，优先用同一 APK 复现并验证加固前后对齐差异
 
