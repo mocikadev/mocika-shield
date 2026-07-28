@@ -6,10 +6,10 @@
 |------|----------|------|
 | Rust | 1.70+ | 含 `rustup` |
 | Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均在 PATH |
-| Android SDK | API 21+ | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
+| Android SDK | Platform 35 | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
 | Android NDK | 29.0.14206865 + 25.2.9519653 | 标准模式使用 r29；Android 4.4 兼容模式的 ARMv7 使用 r25c |
 | cargo-ndk | 最新 | `cargo install cargo-ndk` |
-| Android build-tools | 任意版本含 `d8` | 用于 JAR→DEX 转换 |
+| Android build-tools | 35.0.0 | 用于 JAR→DEX 转换及发布构建 |
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
 

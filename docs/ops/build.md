@@ -8,8 +8,9 @@
 |------|----------|------|
 | Rust | 1.70+ | 含 rustup |
 | Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均需在 PATH |
-| Android SDK | API 21+ | 需设置 `ANDROID_HOME` |
-| Android NDK | 29.0.14206865（硬编码） | 见下方说明 |
+| Android SDK | Platform 35 | 需设置 `ANDROID_HOME` |
+| Android build-tools | 35.0.0 | 提供 `d8` 等 Android 构建工具 |
+| Android NDK | 29.0.14206865 + 25.2.9519653 | 标准资源使用 r29；Android 4.4 兼容资源使用 r25c |
 | cargo-ndk | 最新 | Android 交叉编译 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
 | tauri-cli | 最新 | GUI 构建驱动（Tauri GUI 需要） |
@@ -156,7 +157,7 @@ Windows 发布脚本会自动检测并安装缺失的 cargo 工具。
 - `librsvg2-dev`
 - `libfuse2`
 
-仓库的普通 `CI` 已新增 Linux Tauri bundle 冒烟检查；如果这里失败，通常不需要等到打 tag 再排查。
+仓库的完整手动 `CI` 包含 Linux Tauri bundle 冒烟检查；修改 Tauri 打包链路后应主动运行，无需等到打 tag 再排查。
 
 ### NDK 未找到
 

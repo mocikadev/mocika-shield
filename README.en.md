@@ -83,6 +83,7 @@ For defense in depth, keep sensitive secrets and authorization decisions on a tr
 ## Current Limitations
 
 - APK is currently the supported input format; production AAB protection is not yet available
+- Standard mode targets Android 5.0 (API 21) and later. Android 4.4 (API 19–20) is available only through the industrial-device compatibility candidate mode and is not yet declared stable
 - Input APKs must already be signed
 - An APK that has already been protected cannot be protected again
 - The GUI currently processes one APK at a time and has no batch queue

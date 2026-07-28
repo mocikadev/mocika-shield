@@ -257,7 +257,7 @@ make build-all
 |------|------|
 | 使用 CLI（源码构建或维护者本地包） | Java 17+（需完整 JDK，`java` / `keytool` / `javac` 可用） |
 | 使用发布包（GUI） | Linux / macOS / Windows，Java 17+（加固、签名、Alias 识别需要完整 JDK） |
-| 从源码编译 | Rust 1.70+，Node.js 22+，Java 17+，Android SDK (API 21+)，Android NDK 29.0.14206865，cargo-ndk，tauri-cli |
+| 从源码编译 | Rust 1.70+，Node.js 22+，Java 17+，Android SDK Platform 35、Build Tools 35.0.0，Android NDK 29.0.14206865；构建 Android 4.4 兼容资源还需 NDK 25.2.9519653 与 Rust 1.77.2 |
 
 ## 当前限制
 

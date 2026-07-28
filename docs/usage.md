@@ -2,7 +2,7 @@
 
 ## GUI 用法（推荐）
 
-从 [Releases](../../releases) 下载对应平台的安装包，安装后直接使用。
+从 [Releases](https://github.com/mocikadev/mocika-shield/releases/latest) 下载对应平台的安装包，安装后直接使用。
 
 > **macOS 首次打开（未签名版本）**
 >
@@ -169,7 +169,7 @@ ls -lh input.apk protected.apk
    adb shell getprop ro.product.cpu.abi
    ```
 
-4. 正式版本当前按 Android 7.0（API 24）及以上验证；Android 5.0～6.0（API 21～23）的兼容路径已通过官方 ARM64 模拟器基础回归，厂商真机测试产物需确认日志中出现 `dex-route:elementFactory`
+4. 标准模式按 Android 5.0（API 21）及以上设计：API 21、23 已通过官方 ARM64 模拟器回归，Android 6.0 工控设备已验证首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务功能；Android 4.4（API 19～20）须选择“Android 4.4 工控兼容”候选模式，正式支持前仍需真实工控板回归
 
 ### 能否重复加固？
 
