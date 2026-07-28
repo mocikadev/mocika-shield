@@ -98,6 +98,7 @@ bash tests/scripts/run-protect-e2e.sh
 - API 19 实验 Native 库必须由 r25c、Rust 1.77.2、`--platform 19` 构建，并通过 `scripts/verify-android-api19-native.sh` 的架构、依赖、动态符号与 ELF 审计
 - API 19 Native 依赖升级后必须执行 `tests/scripts/run-api19-native-probe.sh`，确认生产库能够进入 `JNI_OnLoad`，不能只以链接成功作为兼容结论
 - 工控兼容候选产物必须使用同一个 APK 在 API 19 和 API 23 设备验证，不能分别生成两份业务 APK 代替跨版本回归
+- API 28 对声明 `uses-library` 且业务 DEX 含同名编译桩的 APK，必须确认系统共享库类优先解析；Issue #17 Apache HTTP 样本不得出现 `RuntimeException: Stub!`
 
 ## APK 对齐与 Google Play 兼容
 
