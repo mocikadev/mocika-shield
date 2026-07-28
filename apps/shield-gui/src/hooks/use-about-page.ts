@@ -10,7 +10,7 @@ type AppInfo = {
 };
 
 const defaultAppInfo: AppInfo = {
-  version: "1.2.7-rc.3",
+  version: "1.2.7-rc.4",
   git_hash: "dev",
   build_date: "unknown",
 };
