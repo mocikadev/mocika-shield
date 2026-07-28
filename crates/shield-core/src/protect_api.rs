@@ -13,7 +13,7 @@ use crate::apk_inspect::{
 use crate::error::ShieldError;
 use crate::protect::{
     dex::process_dex,
-    manifest::modify_manifest,
+    manifest::{modify_manifest, read_native_lib_packaging_policy, NativeLibPackagingPolicy},
     runtime::{inject_runtime, read_stub_application},
 };
 use crate::utils::is_json_mode;
@@ -21,7 +21,7 @@ use crate::utils::{
     create_temp_dir, find_apksigner, find_apktool, find_java, find_runtime_resources, human_size,
     print_step, print_success, run_command,
 };
-use crate::zipalign::align_apk;
+use crate::zipalign::{align_apk_with_native_packaging, NativeLibraryPackaging};
 
 #[derive(Debug, Clone)]
 pub struct ProtectOptions {
@@ -143,6 +143,8 @@ pub fn protect_apk(
     print_success("解包完成");
 
     let stub_app = read_stub_application(&runtime_resources).map_err(ShieldError::from)?;
+    let native_lib_policy =
+        read_native_lib_packaging_policy(&apk_dir).map_err(ShieldError::from)?;
 
     emit_progress(
         &on_progress,
@@ -212,10 +214,20 @@ pub fn protect_apk(
 
     emit_progress(&on_progress, &cancel, ProgressStep::AlignApk, "对齐APK数据")?;
     print_step("对齐APK数据");
-    align_apk(&opts.output).map_err(ShieldError::from)?;
+    align_apk_with_native_packaging(&opts.output, native_library_packaging(native_lib_policy))
+        .map_err(ShieldError::from)?;
     print_success("APK数据对齐完成");
 
     Ok(())
+}
+
+fn native_library_packaging(policy: NativeLibPackagingPolicy) -> NativeLibraryPackaging {
+    match policy {
+        NativeLibPackagingPolicy::Disabled => NativeLibraryPackaging::Store,
+        NativeLibPackagingPolicy::Enabled | NativeLibPackagingPolicy::Unspecified => {
+            NativeLibraryPackaging::Preserve
+        }
+    }
 }
 
 fn validate_apk_eligibility(outcome: &ApkCheckOutcome) -> anyhow::Result<()> {
@@ -270,8 +282,26 @@ fn check_cancel(cancel: &Arc<AtomicBool>) -> std::result::Result<(), ShieldError
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_apk_eligibility, validate_output_certificate};
+    use super::{native_library_packaging, validate_apk_eligibility, validate_output_certificate};
     use crate::apk_inspect::ApkCheckOutcome;
+    use crate::protect::manifest::NativeLibPackagingPolicy;
+    use crate::zipalign::NativeLibraryPackaging;
+
+    #[test]
+    fn extract_native_libs_false_映射为不压缩策略() {
+        assert_eq!(
+            native_library_packaging(NativeLibPackagingPolicy::Disabled),
+            NativeLibraryPackaging::Store
+        );
+        assert_eq!(
+            native_library_packaging(NativeLibPackagingPolicy::Enabled),
+            NativeLibraryPackaging::Preserve
+        );
+        assert_eq!(
+            native_library_packaging(NativeLibPackagingPolicy::Unspecified),
+            NativeLibraryPackaging::Preserve
+        );
+    }
 
     #[test]
     fn 已加固_apk_被核心入口拒绝() {

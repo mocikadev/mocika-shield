@@ -2,6 +2,8 @@
 
 本文定义 Mocika Shield 加固过程中对 `android:extractNativeLibs`、APK 内 `.so` 压缩方式、ZIP 对齐和 ELF 页大小兼容性的处理规则。该设计用于修复原 APK 显式设置 `extractNativeLibs=false` 且原本不包含 Native 库时，加固产物无法安装的问题。
 
+当前状态：核心修复与自动结构回归已经实现，Android 16/API 36 已完成有/无原始 Native 库两类真机安装验证；API 23 和 API 35 16 KB 设备矩阵仍在候选版本阶段执行。
+
 ## 问题与复现证据
 
 已使用项目 Smoke APK 在 Android 16/API 36 真机复现：
@@ -81,7 +83,7 @@ apktool 解包
 
 ## ZIP 重写规则
 
-现有 `align_apk()` 默认保留每个 ZIP 条目的压缩方式。后续实现应增加内部策略参数，不改变签名等其他调用方的默认行为：
+现有 `align_apk()` 默认保留每个 ZIP 条目的压缩方式。加固流程通过内部策略参数选择 Native 库处理方式，不改变签名等其他调用方的默认行为：
 
 ```text
 Preserve
@@ -126,20 +128,20 @@ StoreNativeLibraries
 
 ## 实施阶段
 
-### 打包策略与核心修复
+### 打包策略与核心修复（已完成）
 
 - 增加 Manifest 三态解析及单元测试。
 - 为 ZIP 重写增加内部 Native 库存储策略。
 - 在加固流程中传递策略，原 APK 显式为 `false` 时强制全部 `.so` 不压缩。
 - 保持 `true` 和未设置样本的原有压缩策略，记录加固前后体积变化。
 
-### 产物验证与诊断
+### 产物验证与诊断（进行中）
 
 - 扩展对齐验证结果，区分压缩方式和数据偏移错误。
 - 将 Stub ELF 审计与发布资源检查关联，但不在每次普通文档 CI 中执行重型构建。
 - 补充 `INSTALL_FAILED_INVALID_APK` 与 `Failed to extract native libraries` 的排障提示。
 
-### 自动与设备回归
+### 自动与设备回归（进行中）
 
 - 扩展 Smoke 夹具，至少生成显式 `false` 的有 Native 库和无 Native 库两种输入。
 - 断言加固后 Manifest 仍为 `false`，全部 `.so` 为 `Stored` 且 16 KB 对齐。
