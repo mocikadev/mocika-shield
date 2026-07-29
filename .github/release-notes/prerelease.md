@@ -12,7 +12,7 @@ This is a **pre-release** for validating build artifacts and core workflows. It 
 
 ## 使用须知 / Notes
 
-- 需要 Java 17 或更高版本 / Java 17 or later is required
+- 需要完整 JDK 8 或更高版本（含 `java` 与 `keytool`） / A full JDK 8 or later with `java` and `keytool` is required
 - 加固、签名和证书资料均在本地处理，不会上传用户文件 / APKs, signing keys, and certificates are processed locally and never uploaded
 - 安装包尚未进行商业代码签名或公证 / Installers are not currently code-signed or notarized
 - 当前正式支持 APK；Release 仅提供桌面 GUI / APK is currently supported; Releases provide desktop GUI packages only

@@ -20,10 +20,6 @@ export function getJavaStatusText(locale: Locale, buildInfo: BuildInfo | null) {
     return tf(locale, "javaMissingKeytool", { min: buildInfo.min_java_major });
   }
 
-  if (!buildInfo.javac_ready) {
-    return tf(locale, "javaMissingJavac", { min: buildInfo.min_java_major });
-  }
-
   return tf(locale, "javaReadyDetail", { version: buildInfo.java_version });
 }
 

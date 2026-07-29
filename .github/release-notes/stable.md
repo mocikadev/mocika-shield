@@ -12,7 +12,7 @@ This is the current **stable release**. See the generated changelog below for ve
 
 ## 使用须知 / Notes
 
-- 需要 Java 17 或更高版本 / Java 17 or later is required
+- 需要完整 JDK 8 或更高版本（含 `java` 与 `keytool`） / A full JDK 8 or later with `java` and `keytool` is required
 - 加固、签名和证书资料均在本地处理，不会上传用户文件 / APKs, signing keys, and certificates are processed locally and never uploaded
 - 安装包尚未进行商业代码签名或公证；首次运行请参考 README / Installers are not currently code-signed or notarized; see the README before the first launch
 - 当前正式支持 APK；CLI 可从源码构建，但 Release 仅提供桌面 GUI / APK is currently supported; the CLI can be built from source, while Releases provide desktop GUI packages only

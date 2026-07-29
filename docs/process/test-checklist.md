@@ -30,11 +30,13 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 
 | 项 | 检查点 |
 |----|--------|
-| Java | 已安装 JDK 17+，`java`、`keytool`、`javac` 可执行 |
+| Java | 已安装 JDK 8+，`java`、`keytool` 可执行 |
 | Android 工具 | 发布包内置 `apktool.jar`、`apksigner.jar`、`resources.zip` |
 | 测试 APK | 使用自己拥有合法权利、可安装启动的已签名 APK |
 | 测试证书 | 使用测试 keystore / p12，不使用生产证书 |
 | 发布包 | 优先使用 GitHub Release 下载的安装包验证，不只验证本地裸二进制 |
+
+Java 兼容下限调整或内置 JAR 升级后，必须使用真实 JDK 8 完成 `apktool` 解包/回编、PKCS12 创建、APK 签名及 v1/v2/v3 校验；源码和 Android 壳构建仍使用 JDK 17。
 
 ## GUI 基础检查
 
@@ -142,7 +144,7 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 - Windows 产物包含 NSIS 安装包与校验和
 - 安装包内包含运行必需资源：`apktool.jar`、`apksigner.jar`、`resources.zip`
 - 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`.env` 或本地缓存
-- Release Notes 已说明 Java 17+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
+- Release Notes 已说明 Java 8+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
 
 ## CLI 与核心库
 

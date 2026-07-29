@@ -279,7 +279,7 @@ fn classify_apksigner_error(stderr: &str, stdout: &str) -> String {
     } else if lower.contains("java.lang.unsupportedclassversionerror")
         || lower.contains("unsupported major.minor version")
     {
-        "当前 Java 版本过低，请安装并使用完整 JDK 17+"
+        "当前 Java 版本过低，请安装并使用完整 JDK 8+"
     } else {
         "apksigner 未返回可识别的错误类型"
     };

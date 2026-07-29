@@ -4,21 +4,19 @@
 
 ## Java / JDK 检查
 
-签名、Alias 识别和加固流程需要完整 JDK 17+，不是只包含 `java` 的 JRE。
+签名、Alias 识别和加固流程需要完整 JDK 8+，不是只包含 `java` 的 JRE。
 
 ```bash
 java -version
 keytool -help
-javac -version
 ```
 
 期望结果：
 
-- `java -version` 显示 17 或更高版本
+- `java -version` 显示 8 或更高版本
 - `keytool -help` 可以正常输出帮助
-- `javac -version` 可以正常输出版本
 
-如果 GUI 关于页提示缺少 `keytool` 或 `javac`，通常说明当前 PATH 指向的是不完整运行时，或系统里安装了多个 Java 版本。
+如果 GUI 关于页提示缺少 `keytool`，通常说明当前 PATH 指向的是不完整运行时，或系统里安装了多个 Java 版本。
 
 ## APK 签名检查
 

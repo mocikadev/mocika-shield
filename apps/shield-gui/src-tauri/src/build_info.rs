@@ -11,7 +11,6 @@ pub(crate) struct BuildInfo {
     pub java_version: String,
     pub java_ready: bool,
     pub keytool_ready: bool,
-    pub javac_ready: bool,
     pub java_major: Option<u32>,
     pub min_java_major: u32,
 }
@@ -95,7 +94,6 @@ pub(crate) fn get_build_info(app: tauri::AppHandle) -> BuildInfo {
         java_version,
         java_ready,
         keytool_ready: java_info.keytool_ready(),
-        javac_ready: java_info.javac_ready(),
         java_major: java_info.major_version,
         min_java_major: MIN_JAVA_MAJOR_VERSION,
     }
@@ -122,7 +120,6 @@ pub(crate) fn get_diagnostic_info(app: tauri::AppHandle) -> String {
         format!("Java: {}", build_info.java_version),
         format!("Java 就绪: {}", yes_no(build_info.java_ready)),
         format!("keytool 就绪: {}", yes_no(build_info.keytool_ready)),
-        format!("javac 就绪: {}", yes_no(build_info.javac_ready)),
         format!("最低 Java 要求: {}", build_info.min_java_major),
         format!("apktool: {}", build_info.apktool_version),
         format!("apktool 文件: {apktool_status}"),

@@ -187,7 +187,7 @@ pub(crate) fn create_managed_certificate(
             &input.key_size.to_string(),
         ])
         .output()
-        .map_err(|e| format!("启动 keytool 失败，请确认 JDK 17+ 已安装: {e}"))?;
+        .map_err(|e| format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
