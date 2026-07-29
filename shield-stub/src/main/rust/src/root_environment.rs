@@ -48,6 +48,7 @@ fn has_root_adb() -> bool {
     false
 }
 
+#[cfg(any(target_os = "android", test))]
 fn is_root_adb_value(value: &str) -> bool {
     value == "1"
 }

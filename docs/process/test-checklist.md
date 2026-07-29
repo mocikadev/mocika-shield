@@ -152,6 +152,8 @@ Java 兼容下限调整或内置 JAR 升级后，必须使用真实 JDK 8 完成
 - `cargo clippy -p shield-core --all-targets -- -D warnings` 通过
 - `cargo test -p shield-core` 通过
 - `cargo test -p shield-cli` 通过
+- `cargo test -p mocikashield` 通过
+- `cd shield-stub && ./gradlew testDebugUnitTest --no-daemon` 通过；源码级 JVM 测试使用未混淆的 debug 变体，release 变体由资源构建、Stub DEX 指标和端到端加固回归覆盖
 - `make build-stub` 能生成最新 `resources.zip`
 - `make build-cli` 能生成 `shield` 二进制
 - `shield protect -i input.apk -o protected.apk` 可完成基础加固
@@ -167,6 +169,22 @@ Java 兼容下限调整或内置 JAR 升级后，必须使用真实 JDK 8 完成
 - 匿名统计接口不可用时，任务日志出现警告且页面明确标记不可用，GitHub 下载统计仍正常生成
 
 ## 关键改动验证记录
+
+### 2026-07-29：1.3.0 Beta 功能冻结回归
+
+| 项 | 结果 |
+|----|------|
+| 自动检查 | Rust 格式、核心 Clippy、核心 95 项、Native 15 项、Stub JVM 22 项、维护脚本 19 项测试全部通过；前端生产构建通过 |
+| 双资源与静态治理 | 标准/API 19 双资源构建通过；API 19 ELF 审计通过；Stub DEX 指标守门通过 |
+| 端到端加固 | 显式 `extractNativeLibs=false` 的双 DEX 样本完成编译、签名、加固、重签、签名校验、Native 库不压缩与 16 KB ZIP 对齐验证 |
+| 普通环境严格策略 | OnePlus 5 / LineageOS / API 35 / arm64-v8a，普通 ADB 下未加固基线、严格策略首次解密、同签名覆盖安装和缓存命中二次启动均通过 |
+| ADB Root 双向策略 | 同一设备开启 ADB Root 后，严格策略返回 `S01` 并拒绝启动；兼容策略完成首次解密和缓存命中启动 |
+| 缓存恢复 | Root 下篡改 `c1.dex` 首字节后，下一次冷启动识别异常、重建缓存并恢复原 SHA-256；真实 Application、Activity 与第二 DEX 类全部加载成功，缓存文件恢复只读 |
+| 私有目录边界 | 切回普通 ADB 后读取 `/data/user/0/dev.mocika.shield.smoke/app_app_dex` 被拒绝，符合不可调试正式包沙箱边界 |
+| 启动耗时 | 缓存命中路径连续三次冷启动 `TotalTime` 为 185、177、184 毫秒；本轮用于建立当前设备基线，不作为跨设备性能承诺 |
+| 历史矩阵 | Android 4.4、6.0、9、16 KB 与真实用户样本沿用 1.2.7 收尾审计中的有效证据；本轮没有对应模拟器在线，不记为重新执行 |
+
+**Beta 判断**：缓存与 Root 策略新增风险面已经完成自动化和真机覆盖，功能与资源协议可以冻结。API 29 以上内存 DEX 实验保持关闭，不进入 Beta 运行路径。
 
 ### 2026-07-29：1.2.7 发布前收尾审计
 
