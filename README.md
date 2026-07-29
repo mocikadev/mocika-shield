@@ -16,18 +16,16 @@
 
 ## 功能特性
 
-- **DEX 加密保护**：Zstd 压缩 + ChaCha20-Poly1305 认证加密（AEAD），密钥通过 HKDF-SHA256 派生并绑定原 APK 签名证书，篡改或使用其他证书重签后无法解密
-- **签名校验**：证书指纹写入 DEXB v5 头部并参与密钥派生，运行时 timing-safe 比对，重打包后解密必然失败
-- **运行时反调试**：每次进程启动都会在读取 DEX 缓存前检测 ptrace 附加（TracerPid）、Frida maps 特征和 Frida GLib 线程名，解密入口保留纵深检查
-- **Android 兼容处理**：标准模式支持 Android 5.0（API 21）及以上，已适配旧版 ART DEX 注入、ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 类加载冲突
-- **Android 4.4 候选模式**：GUI 可按任务选择工控兼容资源；该能力仍等待 Android 4.4.2 真实工控板完成最终验证，不属于稳定支持范围
-- **低特征**：加密数据追加到 `classes.dex` 末尾（DEX `file_size` 边界外），apktool / jadx 完全不可见，无 `assets/app.bin`；壳类名、JNI 符号、日志字符串均经过混淆，静态分析难以定位入口
-- **GUI 签名工具**：内置 APK 签名标签页，支持拖拽、自动清理 `.idsig`，无需额外工具
-- **内置 APK 对齐**：加固输出与 GUI 签名链路会自动执行 4 KB / 16 KB ZIP 对齐，无需额外运行 `zipalign`
-- **完全离线**：加固、签名和校验均在本地完成，不上传 APK 或密钥库
-- **版本更新提示**：启动时自动检查 GitHub Releases，有新版本时分级提示（patch/minor 横幅、major 弹窗）
-- **多架构支持**：arm64-v8a / armeabi-v7a / x86 / x86_64
-- **中英双语界面**：GUI 跟随系统语言，可手动切换
+- **APK 加固**：对业务 DEX 加密保护，并绑定原应用签名，降低静态反编译、篡改和非法重签风险
+- **运行时保护**：提供基础反调试与运行环境检查，提高常见动态分析成本
+- **Android 兼容**：标准模式支持 Android 5.0 及以上；另提供经过真机验证的 Android 4.4 工控兼容模式
+- **加固与签名一体化**：桌面 GUI 支持 APK 加固、证书管理、自动签名和独立签名
+- **安装兼容处理**：自动完成 4 KB / 16 KB ZIP 对齐，并处理常见 Native 库与框架兼容问题
+- **多平台与多架构**：桌面端支持 Windows、macOS、Linux；Android 端支持四种主流 ABI
+- **本地离线处理**：APK、证书、密钥库和密码均在本机处理，不上传业务文件
+- **中英双语界面**：GUI 跟随系统语言，也可手动切换
+
+具体加密协议、运行时加载、安全边界与兼容实现见[技术内参](docs/design/internals.md)和[设计文档导航](docs/README.md)。
 
 ---
 
@@ -88,7 +86,7 @@
 2. 在 **证书** 页面导入已有证书，或创建新的 PKCS12 证书
 3. 将常用证书设为默认；加固页会在自动签名时使用默认证书
 4. 回到 **加固** 页面选择已签名 APK，按需使用自动签名
-5. 默认选择“Android 5.0 及以上”；仅当目标包含 Android 4.4 工控设备时选择候选兼容模式
+5. 默认选择“Android 5.0 及以上”；仅当目标包含 Android 4.4 工控设备时选择工控兼容模式
 6. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
 
 ### Android 运行兼容性
@@ -96,7 +94,7 @@
 | 模式 | 目标系统 | 当前状态 | 约束 |
 |------|----------|----------|------|
 | Android 5.0 及以上（默认） | API 21+ | 正式模式 | 支持四种 ABI；Android 5.0、6.0、9、15/16 已完成对应回归 |
-| Android 4.4 工控兼容 | API 19+ | 候选模式 | 当前只接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；仍需真实 Android 4.4.2 工控板最终验证 |
+| Android 4.4 工控兼容 | API 19+ | 已验证（限定范围） | 当前只接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；已验证 Android 4.4.2 `armeabi-v7a`/NEON 工控设备 |
 
 兼容模式不会降低原应用自身声明的 `minSdkVersion`。同一个兼容模式产物用于 Android 4.4～6.0 设备，不需要为每个系统版本分别加固。详细边界见[使用指南](docs/usage.md)和 [Android 4.4 工控兼容设计](docs/design/android-4.4-compatibility.md)。
 
@@ -268,7 +266,7 @@ make build-all
 ## 当前限制
 
 - 当前只支持 APK 输入，不支持直接加固 AAB 或 APKS
-- 默认标准模式最低支持 Android 5.0（API 21）；Android 4.4（API 19～20）仅提供工控兼容候选模式，尚未声明稳定支持
+- 默认标准模式最低支持 Android 5.0（API 21）；Android 4.4（API 19～20）通过工控兼容模式支持，当前真机验证范围为 `armeabi-v7a`/NEON，其他硬件组合需单独验证
 - 输入 APK 必须已经签名；未签名 APK 会在预检阶段被拒绝
 - 不支持对已加固 APK 再次加固
 - GUI 当前以单 APK 工作流为主，不支持批量队列

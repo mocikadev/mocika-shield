@@ -14,17 +14,16 @@ It provides a cross-platform desktop GUI for Windows, macOS, and Linux, plus a R
 
 ## Highlights
 
-- **DEX encryption:** Zstd compression and ChaCha20-Poly1305 authenticated encryption, with keys derived through HKDF-SHA256
-- **Certificate-bound anti-tampering:** the original signing certificate participates in key derivation; unauthorized re-signing prevents payload decryption
-- **Runtime anti-debugging:** every process start checks for ptrace attachment, Frida mappings, and Frida GLib thread names before reading the DEX cache; the decrypt path keeps a second defensive check
-- **Android compatibility handling:** standard mode supports Android 5.0 (API 21) and later, including legacy ART DEX injection, ARouter runtime scanning, and the Android 9 `org.apache.http.legacy` class-loading conflict
-- **Android 4.4 candidate mode:** the GUI can use a dedicated industrial-device compatibility runtime; this remains a candidate until final validation on a physical Android 4.4.2 board
-- **Low-profile payload storage:** encrypted data is appended beyond the declared DEX `file_size`, with no visible `assets/app.bin`
-- **APK signing and certificate management:** import or create signing certificates directly in the desktop application
-- **Built-in ZIP alignment:** protected and signed outputs are aligned for 4 KB and 16 KB Android page-size requirements
-- **Fully offline processing:** APKs, keystores, certificates, and passwords are never uploaded
-- **Four Android ABIs:** arm64-v8a, armeabi-v7a, x86, and x86_64
+- **APK hardening:** encrypts application DEX files and binds protected output to the original signing certificate
+- **Runtime protection:** includes baseline anti-debugging and environment checks to raise the cost of common dynamic analysis
+- **Android compatibility:** standard mode supports Android 5.0 and later, with a separately verified Android 4.4 industrial mode
+- **Integrated signing workflow:** the desktop GUI covers APK hardening, certificate management, automatic signing, and standalone signing
+- **Installation compatibility:** performs 4 KB / 16 KB ZIP alignment and handles common native-library and framework compatibility cases
+- **Cross-platform and multi-ABI:** desktop packages support Windows, macOS, and Linux; Android output supports four mainstream ABIs
+- **Local offline processing:** APKs, certificates, keystores, and passwords remain on the local computer
 - **Bilingual interface:** Simplified Chinese and English
+
+For protocol details, runtime loading, security boundaries, and compatibility internals, see the [technical internals](docs/design/internals.md) and [documentation index](docs/README.md).
 
 ## Download
 
@@ -60,7 +59,7 @@ The certificate must match the original application. Protected DEX data is bound
 | Mode | Target | Status | Constraints |
 |---|---|---|---|
 | Android 5.0 and later (default) | API 21+ | Standard | Four ABIs; relevant regression coverage includes Android 5.0, 6.0, 9, 15, and 16 |
-| Android 4.4 industrial compatibility | API 19+ | Candidate | The input APK must contain no native libraries, or only `armeabi-v7a` native libraries; final physical Android 4.4.2 board validation is still pending |
+| Android 4.4 industrial compatibility | API 19+ | Verified with limits | The input APK must contain no native libraries, or only `armeabi-v7a` native libraries; verified on an Android 4.4.2 `armeabi-v7a`/NEON industrial board |
 
 Compatibility mode does not lower the application's own `minSdkVersion`. See the [usage guide](docs/usage.md) and [Android 4.4 compatibility design](docs/design/android-4.4-compatibility.md) for details.
 
@@ -95,7 +94,7 @@ For defense in depth, keep sensitive secrets and authorization decisions on a tr
 ## Current Limitations
 
 - APK is currently the supported input format; production AAB protection is not yet available
-- Standard mode targets Android 5.0 (API 21) and later. Android 4.4 (API 19–20) is available only through the industrial-device compatibility candidate mode and is not yet declared stable
+- Standard mode targets Android 5.0 (API 21) and later. Android 4.4 (API 19–20) is supported through the industrial compatibility mode; physical-device coverage currently focuses on `armeabi-v7a`/NEON hardware
 - Input APKs must already be signed
 - An APK that has already been protected cannot be protected again
 - The GUI currently processes one APK at a time and has no batch queue

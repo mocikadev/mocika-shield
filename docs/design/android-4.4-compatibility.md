@@ -1,6 +1,6 @@
 # Android 4.4 工控兼容设计
 
-本文记录 Android 4.4（API 19～20）工控设备兼容方案、构建边界和验证要求。该能力仍处于可行性验证阶段，不代表当前稳定版本已经支持 Android 4.4。
+本文记录 Android 4.4（API 19～20）工控设备兼容方案、构建边界和验证要求。Android 4.4.2 `armeabi-v7a`/NEON 工控真机已完成核心运行验证；该结论不自动覆盖其他 CPU、厂商系统和未测试的硬件业务场景。
 
 ## 目标与非目标
 
@@ -104,6 +104,7 @@ GUI 已提供按任务选择的“标准模式”和“Android 4.4 工控兼容�
 - 首次安装、清除数据后启动、同签名覆盖安装均已通过。
 - 同一个双 DEX 兼容加固 APK 已在 API 19 `armeabi-v7a`、API 21 `arm64-v8a` 和 API 23 `arm64-v8a` 模拟器通过，分别命中 Dalvik 与 ART Element 工厂路径，证明兼容资源不要求用户维护多份业务 APK。
 - 加载段当前按 4 KB 对齐；该产物只用于 API 19 实验，不替代现代 16 KB 对齐产物。
+- Issue #15 用户已通过 QQ 群反馈：使用工控兼容模式重新加固后，Android 4.4.2 `armeabi-v7a`/NEON 工控板能够正常运行。用户未逐项完成全部业务测试，因此结论记为核心兼容验证通过，不扩展为所有 Android 4.4 设备的无条件保证。
 
 可重复执行：
 
@@ -121,8 +122,8 @@ ANDROID_SERIAL=emulator-5554 ./tests/scripts/run-api19-protect-e2e.sh
 2. **最小加载验证**：已在 API 19 模拟器确认 Native 库能够由系统加载并进入 `JNI_OnLoad`。
 3. **Dalvik 加载实现**：已实现 API 19～20 的 Element 前插，并在 API 19 验证双 DEX 与真实 Application 恢复。
 4. **模拟器回归**：API 19、21、23 已使用同一加固 APK 通过首次安装、清除数据、同签名覆盖安装。
-5. **真实工控板回归**：Android 6.0 工控板已验证；仍需使用同一次加固产物在用户 Android 4.4.2 工控板验证主要业务及硬件交互。
-6. **产品接入**：GUI 双资源选择和 ABI 预检已完成；最低版本自动建议与公开 CLI 模式暂未实现，稳定支持前不作为必需项。
+5. **真实工控板回归**：Android 6.0 已完成详细回归；Android 4.4.2 工控板已确认正常运行，未逐项覆盖的业务和硬件交互按限定范围记录。
+6. **产品接入**：GUI 双资源选择和 ABI 预检已完成；最低版本自动建议与公开 CLI 模式暂未实现，不作为当前支持结论的必需项。
 
 ## 完成条件
 
@@ -130,3 +131,5 @@ ANDROID_SERIAL=emulator-5554 ./tests/scripts/run-api19-protect-e2e.sh
 - 单 DEX、多 DEX、Native 库、真实 Application、首次安装、清除数据、覆盖安装全部通过。
 - 不回归 API 21 以上现有 ART、ARouter、签名校验和 16 KB 对齐能力。
 - 用户无需为 Android 4.4 与 Android 6.0 维护两份业务 APK。
+
+以上完成条件由自动化、模拟器、Android 6.0 工控真机详细回归和 Android 4.4.2 工控真机核心运行反馈共同满足。后续新增 ABI、非 NEON 设备或厂商特定问题仍作为独立兼容项处理。
