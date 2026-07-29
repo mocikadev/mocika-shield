@@ -7,7 +7,7 @@
 提交 issue 前建议先确认：
 
 1. 已使用 [最新 Release](https://github.com/mocikadev/mocika-shield/releases/latest)。
-2. 本机已安装完整 JDK 17+，且 `java`、`keytool`、`javac` 可用。
+2. 本机已安装完整 JDK 8+，且 `java`、`keytool` 可用。
 3. 输入 APK 已签名，且不是已经加固过的 APK。
 4. 如果涉及签名或自动签名，证书页中的证书已校验通过。
 5. 如果是 macOS 未签名应用无法打开，已按 README 中的 `xattr` 说明移除隔离标记。
@@ -31,7 +31,7 @@ GUI 的 **关于** 页面提供“复制诊断信息”按钮。提交 issue 时
 
 - Mocika Shield 版本、Git hash、构建日期
 - 系统平台与 CPU 架构
-- Java / `keytool` / `javac` 状态
+- Java / `keytool` 状态
 - `apktool` / `apksigner` 状态
 - 配置目录与数据目录是否可用
 

@@ -36,8 +36,8 @@ body:
     id: java
     attributes:
       label: Java / JDK 状态
-      description: 可在关于页查看；签名、Alias 识别和加固需要完整 JDK 17+。
-      placeholder: "例如：Java 17.0.15，keytool 可用，javac 可用"
+      description: 可在关于页查看；签名、Alias 识别和加固需要完整 JDK 8+。
+      placeholder: "例如：Java 8u452，keytool 可用"
     validations:
       required: false
 

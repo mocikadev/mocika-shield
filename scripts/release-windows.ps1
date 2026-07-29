@@ -250,7 +250,7 @@ bin\shield.exe -i input.apk -o protected.apk
 ## 要求
 
 - Windows 10/11 (64-bit)
-- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 须在 PATH 中）
+- Java 8+（需完整 JDK，`java` / `keytool` 须在 PATH 中）
 
 ## 目录结构
 

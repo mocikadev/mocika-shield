@@ -179,7 +179,7 @@ Linux x86_64 静态链接版本，无需安装依赖。
 ## 要求
 
 - Linux x86_64
-- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 需可用）
+- Java 8+（需完整 JDK，`java` / `keytool` 需可用）
 
 ## 目录结构
 

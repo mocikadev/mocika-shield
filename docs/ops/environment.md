@@ -186,4 +186,4 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 如果只是使用发布包（不从源码编译），仅需：
 
 - Linux / macOS / Windows 系统
-- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 在 PATH）
+- Java 8+（需完整 JDK，`java` / `keytool` 在 PATH）

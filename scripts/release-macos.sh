@@ -220,7 +220,7 @@ macOS ${ARCH_LABEL} 版本。
 ## 要求
 
 - macOS 10.13+
-- Java 17+（需完整 JDK，`java` / `javac` / `keytool` 需可用）
+- Java 8+（需完整 JDK，`java` / `keytool` 需可用）
 
 ## 目录结构
 

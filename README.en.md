@@ -35,7 +35,7 @@ Download the latest desktop package from [GitHub Releases](https://github.com/mo
 | macOS | `MocikaShield_x.y.z_macos_universal.dmg` |
 | Linux | `MocikaShield_x.y.z_linux_amd64.AppImage` or `.deb` |
 
-Java 17 or later is required for APK protection, signing, and certificate alias detection. A complete JDK is recommended.
+A full JDK 8 or later with `java` and `keytool` is required for APK protection, signing, and certificate alias detection. The runtime workflow does not require `javac`.
 
 The installers are not currently commercially code-signed or notarized. On macOS, if the system reports that the developer cannot be verified, remove the quarantine attribute after moving the application to `/Applications`:
 

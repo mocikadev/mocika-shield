@@ -7,13 +7,12 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static JSON_MODE: AtomicBool = AtomicBool::new(false);
-pub const MIN_JAVA_MAJOR_VERSION: u32 = 17;
+pub const MIN_JAVA_MAJOR_VERSION: u32 = 8;
 
 #[derive(Debug, Clone)]
 pub struct JavaEnvironmentInfo {
     pub java_path: Option<PathBuf>,
     pub keytool_path: Option<PathBuf>,
-    pub javac_path: Option<PathBuf>,
     pub version_text: Option<String>,
     pub major_version: Option<u32>,
 }
@@ -25,10 +24,6 @@ impl JavaEnvironmentInfo {
 
     pub fn keytool_ready(&self) -> bool {
         self.keytool_path.is_some()
-    }
-
-    pub fn javac_ready(&self) -> bool {
-        self.javac_path.is_some()
     }
 
     pub fn version_label(&self) -> &str {
@@ -217,31 +212,13 @@ fn system_data_hint() -> &'static str {
 }
 
 fn install_java_hint() -> String {
-    #[cfg(target_os = "macos")]
-    {
-        "建议安装：brew install --cask temurin17".to_string()
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        "建议安装：scoop install temurin17-jdk".to_string()
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string()
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        "请安装 JDK 17+，并确保 java / keytool / javac 可执行。".to_string()
-    }
+    "请安装完整 JDK 8+，并确保 java / keytool 可执行。".to_string()
 }
 
 fn missing_java_message() -> String {
     format!(
         "未检测到 Java {}+ 运行环境，签名、Alias 识别和加固流程无法继续。\n\
-         请安装完整 JDK {}+，并确保 java / keytool / javac 在 PATH 中。\n{}",
+         请安装完整 JDK {}+，并确保 java / keytool 在 PATH 中。\n{}",
         MIN_JAVA_MAJOR_VERSION,
         MIN_JAVA_MAJOR_VERSION,
         install_java_hint()
@@ -329,14 +306,9 @@ pub fn find_keytool() -> Result<PathBuf> {
     Ok(ensure_keytool()?.keytool_path.unwrap())
 }
 
-pub fn find_javac() -> Result<PathBuf> {
-    Ok(ensure_javac()?.javac_path.unwrap())
-}
-
 pub fn probe_java_environment() -> JavaEnvironmentInfo {
     let java_path = find_java_binary("java");
     let keytool_path = find_java_binary("keytool");
-    let javac_path = find_java_binary("javac");
     let (version_text, major_version) = java_path
         .as_ref()
         .and_then(|path| read_java_version(path).ok())
@@ -345,7 +317,6 @@ pub fn probe_java_environment() -> JavaEnvironmentInfo {
     JavaEnvironmentInfo {
         java_path,
         keytool_path,
-        javac_path,
         version_text,
         major_version,
     }
@@ -375,18 +346,6 @@ pub fn ensure_keytool() -> Result<JavaEnvironmentInfo> {
     if !info.keytool_ready() {
         anyhow::bail!(
             "未检测到 keytool，请安装完整 JDK {}+，并确保 java / keytool 在 PATH 中。\n{}",
-            MIN_JAVA_MAJOR_VERSION,
-            install_java_hint()
-        );
-    }
-    Ok(info)
-}
-
-pub fn ensure_javac() -> Result<JavaEnvironmentInfo> {
-    let info = ensure_java_runtime()?;
-    if !info.javac_ready() {
-        anyhow::bail!(
-            "未检测到 javac，请安装完整 JDK {}+，并确保 java / javac 在 PATH 中。\n{}",
             MIN_JAVA_MAJOR_VERSION,
             install_java_hint()
         );
@@ -505,7 +464,11 @@ pub fn find_runtime_resources() -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_java_version_token, parse_java_major_version, parse_java_version_text};
+    use super::{
+        extract_java_version_token, parse_java_major_version, parse_java_version_text,
+        JavaEnvironmentInfo,
+    };
+    use std::path::PathBuf;
 
     #[test]
     fn parse_modern_java_version() {
@@ -523,6 +486,31 @@ mod tests {
             Some("1.8.0_412")
         );
         assert_eq!(parse_java_major_version("1.8.0_412"), Some(8));
+    }
+
+    #[test]
+    fn java_8_meets_runtime_minimum() {
+        let info = JavaEnvironmentInfo {
+            java_path: Some(PathBuf::from("java")),
+            keytool_path: Some(PathBuf::from("keytool")),
+            version_text: Some("1.8.0_452".to_string()),
+            major_version: Some(8),
+        };
+
+        assert!(info.java_ready());
+        assert!(info.keytool_ready());
+    }
+
+    #[test]
+    fn java_7_is_rejected() {
+        let info = JavaEnvironmentInfo {
+            java_path: Some(PathBuf::from("java")),
+            keytool_path: Some(PathBuf::from("keytool")),
+            version_text: Some("1.7.0_80".to_string()),
+            major_version: Some(7),
+        };
+
+        assert!(!info.java_ready());
     }
 
     #[test]
