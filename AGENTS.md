@@ -168,6 +168,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
 | [docs/design/native-library-packaging.md](docs/design/native-library-packaging.md) | Native 库打包：`extractNativeLibs`、ZIP 压缩/对齐与 ELF 页大小兼容方案 |
 | [docs/design/native-library-alias.md](docs/design/native-library-alias.md) | Native 库名去品牌化：任务别名、DEX 联动改写、冲突规避与兼容回归方案 |
+| [docs/design/stub-dex-minimization.md](docs/design/stub-dex-minimization.md) | Stub DEX 最小化：能力变体、职责下沉、二阶段加载实验与停止条件 |
 | [docs/design/runtime-security.md](docs/design/runtime-security.md) | Android 运行时安全：每次启动检查、DEX 缓存认证、Root 策略与内存 DEX 规划 |
 | [docs/design/dex-code-separation.md](docs/design/dex-code-separation.md) | DEX 代码保护研究：结构/方法代码分离、内存重建、分片恢复与停止条件 |
 | [docs/design/android-4.4-compatibility.md](docs/design/android-4.4-compatibility.md) | Android 4.4 工控兼容：双 NDK、ABI、运行时分流与验证方案 |
