@@ -36,6 +36,7 @@ class AndroidApi19BuildContractTests(unittest.TestCase):
         content = (ROOT / "scripts/build-android-api19-resources.sh").read_text(
             encoding="utf-8"
         )
+        standard_content = (ROOT / "scripts/build-stub.sh").read_text(encoding="utf-8")
         commands = [line.strip() for line in content.splitlines()]
         self.assertNotIn('sdkmanager "ndk;25.2.9519653"', commands)
         self.assertFalse(any(line.startswith("rustup toolchain install") for line in commands))
@@ -43,6 +44,9 @@ class AndroidApi19BuildContractTests(unittest.TestCase):
         self.assertIn("Compress-Archive -Path $files", content)
         self.assertIn('$ErrorActionPreference = "Stop"', content)
         self.assertIn('zip -qr "$LEGACY_RESOURCES"', content)
+        self.assertIn("-x '*.DS_Store' '__MACOSX/*'", standard_content)
+        self.assertIn("find \"$WORK_DIR\" -type f -name '.DS_Store' -delete", content)
+        self.assertIn('rm -rf "$WORK_DIR/__MACOSX"', content)
         self.assertNotIn("jar --create", content)
         self.assertIn('unzip -tq "$LEGACY_RESOURCES"', content)
         self.assertIn('"min_android_api": 19', content)
