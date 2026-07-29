@@ -6,8 +6,8 @@ use crate::cert_store::CertificateRecord;
 use crate::signing::execute_sign_apk;
 use crate::task_manager::TaskManager;
 use shield_core::{
-    extract_keystore_cert_fingerprint, protect_apk as shield_protect_apk, ProgressEvent,
-    ProtectOptions, ShieldError,
+    extract_keystore_cert_fingerprint, protect_apk as shield_protect_apk, EnvironmentPolicy,
+    ProgressEvent, ProtectOptions, ShieldError,
 };
 use std::path::PathBuf;
 use std::sync::{
@@ -26,6 +26,14 @@ pub(crate) enum RuntimeMode {
     AndroidApi19,
 }
 
+#[derive(Clone, Copy, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum EnvironmentPolicyRequest {
+    #[default]
+    Compatible,
+    Strict,
+}
+
 fn unsupported_api19_abis(native_abis: &[String]) -> Vec<String> {
     native_abis
         .iter()
@@ -40,6 +48,7 @@ pub(crate) struct ProtectExecution {
     pub(crate) output: String,
     pub(crate) apktool_path: Option<String>,
     pub(crate) runtime_mode: RuntimeMode,
+    pub(crate) environment_policy: EnvironmentPolicyRequest,
     pub(crate) signing_certificate: Option<CertificateRecord>,
     pub(crate) signed_output: Option<String>,
 }
@@ -107,6 +116,10 @@ pub(crate) async fn execute_protect_apk(
             resources_path: resolved_resources,
             apksigner_path: resolved_apksigner,
             expected_output_cert_fingerprint,
+            environment_policy: match request.environment_policy {
+                EnvironmentPolicyRequest::Compatible => EnvironmentPolicy::Compatible,
+                EnvironmentPolicyRequest::Strict => EnvironmentPolicy::Strict,
+            },
         };
         let cancel_for_progress = Arc::clone(&cancel);
         let cancel_for_protect = Arc::clone(&cancel);

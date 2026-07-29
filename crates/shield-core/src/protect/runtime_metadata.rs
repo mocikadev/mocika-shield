@@ -9,6 +9,7 @@ const CACHE_SCHEMA: u32 = 1;
 pub(crate) struct RuntimeMetadata {
     pub(crate) stub_application: String,
     pub(crate) native_alias: NativeAliasProtocol,
+    pub(crate) environment_policy: bool,
 }
 
 impl RuntimeMetadata {
@@ -17,7 +18,7 @@ impl RuntimeMetadata {
             parse_u32(json, "runtime_protocol").context("metadata.json 缺少 runtime_protocol")?;
         let cache_schema =
             parse_u32(json, "cache_schema").context("metadata.json 缺少 cache_schema")?;
-        let _environment_policy = parse_bool(json, "environment_policy")
+        let environment_policy = parse_bool(json, "environment_policy")
             .context("metadata.json 缺少 environment_policy")?;
         let memory_dex = parse_bool(json, "memory_dex").context("metadata.json 缺少 memory_dex")?;
         if runtime_protocol != RUNTIME_PROTOCOL {
@@ -33,6 +34,7 @@ impl RuntimeMetadata {
             stub_application: parse_string(json, "stub_application")
                 .context("metadata.json 缺少 stub_application")?,
             native_alias: NativeAliasProtocol::parse(json)?,
+            environment_policy,
         })
     }
 }
@@ -91,6 +93,7 @@ mod tests {
         let metadata = RuntimeMetadata::parse(METADATA).unwrap();
         assert_eq!(metadata.stub_application, "msk.d");
         assert_eq!(metadata.native_alias.name_length, 16);
+        assert!(!metadata.environment_policy);
     }
 
     #[test]

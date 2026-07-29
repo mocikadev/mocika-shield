@@ -16,6 +16,7 @@ import {
 
 export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
 export type RuntimeMode = "standard" | "android_api19";
+export type EnvironmentPolicy = "compatible" | "strict";
 
 function precheckMessage(locale: Locale, result: ApkCheckResult) {
   if (result.error) {
@@ -49,6 +50,7 @@ export function useProtectWorkflow({
   const [error, setError] = useState("");
   const [precheck, setPrecheck] = useState("");
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("standard");
+  const [environmentPolicy, setEnvironmentPolicy] = useState<EnvironmentPolicy>("compatible");
   const [nativeAbis, setNativeAbis] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState("");
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -87,6 +89,7 @@ export function useProtectWorkflow({
     setTaskAutoSign(null);
     setTaskCertificate(null);
     setRuntimeMode("standard");
+    setEnvironmentPolicy("compatible");
     setNativeAbis([]);
     taskId.current = null;
     taskLocked.current = false;
@@ -238,6 +241,7 @@ export function useProtectWorkflow({
         input,
         unsignedOutput,
         runtimeMode,
+        environmentPolicy,
         autoSignReady ? output : null,
         autoSignReady && certificate ? certificate.id : null,
       );
@@ -250,7 +254,7 @@ export function useProtectWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [autoSignReady, buildInfo, certificate, input, locale, output, precheck, runtimeMode]);
+  }, [autoSignReady, buildInfo, certificate, environmentPolicy, input, locale, output, precheck, runtimeMode]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -272,6 +276,8 @@ export function useProtectWorkflow({
     precheck,
     runtimeMode,
     setRuntimeMode,
+    environmentPolicy,
+    setEnvironmentPolicy,
     nativeAbis,
     currentStep,
     startedAt,

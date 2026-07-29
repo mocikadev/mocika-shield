@@ -10,6 +10,7 @@ use crate::protect::native_alias::{
 };
 use crate::protect::runtime_metadata::RuntimeMetadata;
 use crate::utils::{human_size, print_success};
+use crate::EnvironmentPolicy;
 
 pub(crate) fn inject_runtime(
     apk_dir: &Path,
@@ -162,12 +163,19 @@ pub(crate) fn inject_runtime(
     })
 }
 
-pub(crate) fn read_stub_application(resources_path: &Path) -> Result<String> {
+pub(crate) fn read_stub_application(
+    resources_path: &Path,
+    environment_policy: EnvironmentPolicy,
+) -> Result<String> {
     let file = fs::File::open(resources_path).context("打开 resources.zip 失败")?;
     let mut archive = zip::ZipArchive::new(file).context("解析 resources.zip 失败")?;
     let content = read_archive_text(&mut archive, "metadata.json")?;
 
-    Ok(RuntimeMetadata::parse(&content)?.stub_application)
+    let metadata = RuntimeMetadata::parse(&content)?;
+    if environment_policy == EnvironmentPolicy::Strict && !metadata.environment_policy {
+        anyhow::bail!("所选 Runtime 资源不支持严格环境策略，请更新资源包或改用兼容模式");
+    }
+    Ok(metadata.stub_application)
 }
 
 fn read_archive_text<R: std::io::Read + std::io::Seek>(
@@ -250,6 +258,33 @@ mod tests {
             ),
             "lib/arm64-v8a/libbusiness.so"
         );
+    }
+
+    #[test]
+    fn 严格策略拒绝不具备环境策略能力的资源() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().join("resources.zip");
+        let file = fs::File::create(&resources).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let metadata = r#"{
+            "stub_application":"msk.d",
+            "native_library":"libmocikashield.so",
+            "native_name_placeholder":"mocikanativeslot",
+            "native_name_length":16,
+            "native_name_scheme":1,
+            "runtime_protocol":2,
+            "cache_schema":1,
+            "environment_policy":false,
+            "memory_dex":false
+        }"#;
+        zip.start_file("metadata.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(metadata.as_bytes()).unwrap();
+        zip.finish().unwrap();
+
+        assert!(read_stub_application(&resources, EnvironmentPolicy::Compatible).is_ok());
+        let error = read_stub_application(&resources, EnvironmentPolicy::Strict).unwrap_err();
+        assert!(error.to_string().contains("不支持严格环境策略"));
     }
 
     #[test]

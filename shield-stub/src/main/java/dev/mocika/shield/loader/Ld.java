@@ -53,8 +53,8 @@ public class Ld {
     /** 从 classes.dex 末尾提取 MSHD 封装的加密 payload，解密解压后返回各 DEX 字节数组。 */
     private static native byte[][] q(Context ctx, byte[] dexData);
 
-    /** 每次启动的环境安全检查；返回 true 表示当前环境不安全。 */
-    static native boolean r();
+    /** 每次启动的环境安全检查；位 0 表示反调试，位 1 表示高置信 Root。 */
+    static native int r();
 
     /**
      * 解密并返回各 DEX 字节数组，缓存身份与落盘由 DexCache 统一处理。

@@ -1,11 +1,12 @@
 mod anti_debug;
 mod bin_loader;
 mod crypto;
+mod root_environment;
 
 use std::ffi::c_void;
 
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
-use jni::sys::{jboolean, jobjectArray, JNI_FALSE, JNI_TRUE};
+use jni::sys::{jboolean, jint, jobjectArray, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 use jni::NativeMethod;
 
@@ -37,7 +38,7 @@ pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) 
         },
         NativeMethod {
             name: env!("STUB_METHOD_CHECK_ENV").into(),
-            sig: "()Z".into(),
+            sig: "()I".into(),
             fn_ptr: f3 as *mut c_void,
         },
     ];
@@ -47,13 +48,16 @@ pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) 
     }
 }
 
-/// 每次进程启动的环境检查入口。具体命中规则只保留在 Native 内部。
-extern "C" fn f3(_env: JNIEnv, _class: JClass) -> jboolean {
+/// 每次进程启动的环境检查入口。位 0 表示反调试命中，位 1 表示高置信 Root 命中。
+extern "C" fn f3(_env: JNIEnv, _class: JClass) -> jint {
+    let mut signals = 0;
     if anti_debug::check() {
-        JNI_TRUE
-    } else {
-        JNI_FALSE
+        signals |= 1;
     }
+    if root_environment::check() {
+        signals |= 2;
+    }
+    signals
 }
 
 /// DEX 注入：通过 JNI 将解密后的 DEX 插入 PathClassLoader，使 app 类优先加载。

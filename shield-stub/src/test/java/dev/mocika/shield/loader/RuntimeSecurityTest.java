@@ -21,4 +21,15 @@ public class RuntimeSecurityTest {
             assertEquals("S01", error.getMessage());
         }
     }
+
+    @Test
+    public void 兼容模式忽略Root但始终拒绝反调试() {
+        assertEquals(false, RuntimeSecurity.shouldReject(2, false));
+        assertEquals(true, RuntimeSecurity.shouldReject(1, false));
+    }
+
+    @Test
+    public void 严格模式拒绝Root信号() {
+        assertEquals(true, RuntimeSecurity.shouldReject(2, true));
+    }
 }

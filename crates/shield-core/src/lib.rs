@@ -12,7 +12,9 @@ pub use apk_inspect::{
     normalize_fingerprint, ApkCheckOutcome,
 };
 pub use error::ShieldError;
-pub use protect_api::{protect_apk, ProgressEvent, ProgressStep, ProtectOptions};
+pub use protect_api::{
+    protect_apk, EnvironmentPolicy, ProgressEvent, ProgressStep, ProtectOptions,
+};
 pub use signing::{
     check_apksigner, find_apksigner, sign_apk, sign_apk_with_progress, KeystoreType, SignOptions,
     SigningProgressStep, SigningVersions,
