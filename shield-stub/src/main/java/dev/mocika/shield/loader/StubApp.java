@@ -4,7 +4,6 @@ import android.app.Application;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.util.Log;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -15,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 
 public class StubApp extends Application {
-
-    private static final String TAG = "ax";
 
     private Application realApp;
 
@@ -63,7 +60,9 @@ public class StubApp extends Application {
     private static Field findField(Class<?> clazz, String name) throws NoSuchFieldException {
         for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
             try {
-                return c.getDeclaredField(name);
+                Field field = c.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
             } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
@@ -138,15 +137,9 @@ public class StubApp extends Application {
         }
     }
 
-    private static void setField(Class<?> cls, Object obj, String name, Object val) {
-        try {
-            Field f = cls.getDeclaredField(name);
-            f.setAccessible(true);
-            f.set(obj, val);
-        } catch (NoSuchFieldException ignored) {
-        } catch (Exception e) {
-            Log.w(TAG, "P01", e);
-        }
+    static void setField(Class<?> cls, Object obj, String name, Object val)
+            throws ReflectiveOperationException {
+        findField(cls, name).set(obj, val);
     }
 
     private static void exemptHiddenApi() {
