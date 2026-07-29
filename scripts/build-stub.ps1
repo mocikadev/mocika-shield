@@ -368,7 +368,11 @@ $buildDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
   "native_library": "libmocikashield.so",
   "native_name_placeholder": "mocikanativeslot",
   "native_name_length": 16,
-  "native_name_scheme": 1
+  "native_name_scheme": 1,
+  "runtime_protocol": 2,
+  "cache_schema": 1,
+  "environment_policy": false,
+  "memory_dex": false
 }
 "@ | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
 

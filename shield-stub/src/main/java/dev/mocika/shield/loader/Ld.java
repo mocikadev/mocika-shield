@@ -3,20 +3,14 @@ package dev.mocika.shield.loader;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 
 public class Ld {
 
-    private static final String TAG = "lx";
-    private static final String CACHE_DONE_MARKER = ".done";
     private static final int DEX_READ_BUFFER_SIZE = 8192;
     private static final int MAX_DEX_SIZE_BYTES = 256 * 1024 * 1024; // 256 MiB 合理上限
 
@@ -67,126 +61,16 @@ public class Ld {
      * 以 versionCode 为缓存键：同一版本只解密解压一次，升级后自动失效并清理旧缓存。
      * 返回落地后的 DEX 文件列表（顺序与原始 DEX 顺序一致）。
      */
-    public static List<File> extractDexFiles(Context ctx) throws Exception {
-        long versionCode = getVersionCode(ctx);
-        File baseDir = ctx.getDir("app_dex", Context.MODE_PRIVATE);
-        File cacheDir = new File(baseDir, "v" + versionCode);
-
-        if (isCacheValid(cacheDir)) {
-            return listDexFiles(cacheDir);
-        }
-
+    static byte[][] decryptDexBytes(Context ctx) throws Exception {
         byte[] dexBytes = readClassesDexFromApk(ctx);
-
         byte[][] dexes = q(ctx, dexBytes);
         if (dexes == null || dexes.length == 0)
             throw new RuntimeException("q 返回空结果");
-
-        String tmpDirName = "v" + versionCode + ".tmp";
-        File newCacheDir = new File(baseDir, tmpDirName);
-        deleteRecursive(newCacheDir);
-        newCacheDir.mkdirs();
-
-        List<File> files = new ArrayList<>(dexes.length);
-        for (int i = 0; i < dexes.length; i++) {
-            File f = new File(newCacheDir, "c" + (i + 1) + ".dex");
-            try (FileOutputStream fos = new FileOutputStream(f)) {
-                fos.write(dexes[i]);
-            }
-            // Android 14+ 严格执行 W^X 策略：DEX 文件可写时 ART 直接拒绝加载。
-            // 写完立即设为只读，确保新文件从诞生起满足 ART 安全检查。
-            f.setReadOnly();
-            files.add(new File(cacheDir, f.getName()));
-        }
-
-        new File(newCacheDir, CACHE_DONE_MARKER).createNewFile();
-
-        // 重命名前先清理目标目录（覆盖安装或异常中断后可能残留）
-        deleteRecursive(cacheDir);
-
-        if (!newCacheDir.renameTo(cacheDir)) {
-            throw new RuntimeException("缓存目录重命名失败: " + newCacheDir + " -> " + cacheDir);
-        }
-
-        // renameTo 成功后再清理旧版本缓存，此时 tmpDirName 已不存在，无需排除
-        cleanOldCaches(baseDir, "v" + versionCode);
-
-        List<File> result = new ArrayList<>(files.size());
-        for (File f : files) result.add(f);
-        return result;
+        return dexes;
     }
 
-    private static boolean isCacheValid(File cacheDir) {
-        if (!cacheDir.exists()) return false;
-        if (!new File(cacheDir, CACHE_DONE_MARKER).exists()) return false;
-        File[] dexFiles = cacheDir.listFiles(f -> f.getName().endsWith(".dex"));
-        return dexFiles != null && dexFiles.length > 0;
-    }
-
-    private static List<File> listDexFiles(File cacheDir) {
-        File[] files = cacheDir.listFiles(f -> f.getName().endsWith(".dex"));
-        List<File> result = new ArrayList<>();
-        if (files == null) return result;
-        java.util.Arrays.sort(files, (a, b) -> {
-            int na = parseDexIndex(a.getName());
-            int nb = parseDexIndex(b.getName());
-            return Integer.compare(na, nb);
-        });
-        for (File f : files) {
-            // 兼容旧版本生成的可写缓存文件（W^X 策略要求 DEX 文件不可写）
-            f.setReadOnly();
-            result.add(f);
-        }
-        return result;
-    }
-
-    private static int parseDexIndex(String name) {
-        try {
-            return Integer.parseInt(name.substring(1, name.length() - 4));
-        } catch (NumberFormatException e) {
-            return Integer.MAX_VALUE;
-        }
-    }
-
-    private static void cleanOldCaches(File baseDir, String keepDirName) {
-        File[] children = baseDir.listFiles(f -> f.isDirectory() && !f.getName().equals(keepDirName));
-        if (children == null) return;
-        for (File old : children) {
-            boolean ok = deleteRecursive(old);
-            if (!ok) {
-                Log.w(TAG, "旧缓存清理失败（不影响运行）: " + old.getName());
-            }
-        }
-    }
-
-    private static boolean deleteRecursive(File f) {
-        boolean success = true;
-        if (f.isDirectory()) {
-            File[] children = f.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    if (!deleteRecursive(child)) success = false;
-                }
-            }
-        }
-        if (!f.delete()) {
-            Log.w(TAG, "删除失败: " + f.getAbsolutePath());
-            success = false;
-        }
-        return success;
-    }
-
-    private static long getVersionCode(Context ctx) {
-        try {
-            PackageInfo pi = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0);
-            if (android.os.Build.VERSION.SDK_INT >= 28) {
-                return pi.getLongVersionCode();
-            } else {
-                return pi.versionCode;
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            return 0;
-        }
+    public static List<File> extractDexFiles(Context ctx) throws Exception {
+        return DexCache.load(ctx);
     }
 
     private static byte[] readClassesDexFromApk(Context ctx) throws Exception {

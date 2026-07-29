@@ -207,10 +207,12 @@ Native 内部可返回位标志用于自动化测试，但 Java 和业务日志�
 {
   "runtime_protocol": 2,
   "cache_schema": 1,
-  "environment_policy": true,
+  "environment_policy": false,
   "memory_dex": false
 }
 ```
+
+`environment_policy` 在 `1.3.0-alpha.1` 保持 `false`，到 `alpha.2` 的 Root 策略与 GUI 配置真正接入资源后再改为 `true`，不得提前声明尚未实现的能力。
 
 `shield-core` 在开始解包前检查资源能力：
 
@@ -277,6 +279,8 @@ Native 库别名完成后继续实现认证缓存：
 - 增加 `runtime_protocol` 与 `cache_schema` 能力检查。
 
 统一验收：Native 别名的标准/API 19 双资源、四 ABI、16 KB、ARouter 和覆盖安装通过；缓存缺失、多余、字节篡改、权限异常、相同版本覆盖安装均可预测处理；所有现有系统路径完成回归，资源协议完成集成验证。详细别名协议见 [Native 库名称去品牌化与按任务别名设计](native-library-alias.md)。
+
+当前实现状态：缓存根摘要、Manifest 身份、严格目录校验、只读落盘、原子替换和资源能力协议已经实现；JVM 回归覆盖完整缓存、字节篡改、DEX 缺失、多余文件、缺少完成标记和删除失败。标准资源已在 Android 真机完成未加固基线、同签名覆盖安装、首次启动和缓存命中后二次启动。标准/API 19 双资源均已完成构建和 API 19 Native 审计；由于当前新版模拟器不再支持既有 `armeabi-v7a` API 19 镜像，本轮尚未重复执行 Dalvik 运行回归，进入 `alpha.1` 前仍需在可用低版本环境补测。
 
 ### `1.3.0-alpha.2`：Root 策略与内存 DEX 实验
 
