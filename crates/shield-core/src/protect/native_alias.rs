@@ -29,8 +29,8 @@ const ALIAS_BODIES: &[&str] = &[
     "commonutilmodule",
     "modulecorebridge",
     "moduledatabridge",
-    "modulebasemodule",
-    "moduleutilmodule",
+    "modulebasebridge",
+    "moduleutilbridge",
     "enginecorebridge",
     "enginedatabridge",
     "enginebasemodule",
@@ -332,6 +332,12 @@ mod tests {
             assert!(is_lower_ascii_name(body), "非法候选: {body}");
             for forbidden in ["mocika", "shield", "protect", "packer", "shell", "bugly"] {
                 assert!(!body.contains(forbidden), "候选包含禁用词: {body}");
+            }
+            for role in ["native", "common", "module", "engine", "runtime", "support"] {
+                assert!(
+                    !(body.starts_with(role) && body.ends_with(role)),
+                    "候选首尾角色词重复: {body}"
+                );
             }
         }
     }
