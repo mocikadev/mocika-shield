@@ -21,6 +21,13 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 ENVIRONMENT_POLICY=strict RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 ```
 
+已通过 `adb root` 获得 Root ADB 的 LineageOS 等设备，应要求严格策略拒绝加固包启动：
+
+```bash
+ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
+  bash tests/scripts/run-protect-e2e.sh
+```
+
 存在多个在线设备时通过 `ANDROID_SERIAL` 指定目标设备。测试证书只在系统临时目录中生成，脚本退出时自动清理，不向仓库提交任何私钥。日常 CI 不启动模拟器；真实运行时回归由维护者在真机或指定模拟器上按需执行。
 
 ## Android 4.4 Native 加载探针

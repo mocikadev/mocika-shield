@@ -103,6 +103,26 @@ verify_launch() {
   return 1
 }
 
+verify_rejected() {
+  local scenario="$1"
+  "${ADB_COMMAND[@]}" logcat -c
+  "${ADB_COMMAND[@]}" shell am force-stop "$PACKAGE_NAME" >/dev/null 2>&1 || true
+  "${ADB_COMMAND[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  for _ in $(seq 1 15); do
+    local logs
+    logs="$("${ADB_COMMAND[@]}" logcat -d -s AndroidRuntime:E '*:S')"
+    if grep -q 'SecurityException: S01' <<< "$logs" \
+      && ! grep -q 'MOCIKA_SMOKE_APPLICATION_OK' <<< "$logs"; then
+      echo "$scenario 验证通过"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "错误：$scenario 未观察到环境策略拒绝" >&2
+  "${ADB_COMMAND[@]}" logcat -d -s AndroidRuntime:E '*:S' >&2
+  return 1
+}
+
 if [[ "${RUN_DEVICE_TEST:-0}" == "1" ]]; then
   command -v adb >/dev/null || { echo "缺少命令：adb" >&2; exit 1; }
   ADB_COMMAND=(adb)
@@ -115,8 +135,12 @@ if [[ "${RUN_DEVICE_TEST:-0}" == "1" ]]; then
   "${ADB_COMMAND[@]}" install "$SIGNED" | grep -q '^Success'
   verify_launch "未加固双 DEX 基线"
   "${ADB_COMMAND[@]}" install -r "$FINAL" | grep -q '^Success'
-  verify_launch "同签名覆盖安装加固包首次启动"
-  verify_launch "加固包缓存命中后二次启动"
+  if [[ "${EXPECT_PROTECTED_REJECTION:-0}" == "1" ]]; then
+    verify_rejected "严格策略拒绝 Root 环境"
+  else
+    verify_launch "同签名覆盖安装加固包首次启动"
+    verify_launch "加固包缓存命中后二次启动"
+  fi
 fi
 
 echo "端到端加固回归测试通过"
