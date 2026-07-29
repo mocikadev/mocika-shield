@@ -170,6 +170,21 @@ Java 兼容下限调整或内置 JAR 升级后，必须使用真实 JDK 8 完成
 
 ## 关键改动验证记录
 
+### 2026-07-29：1.3.0 RC 发布前审计
+
+| 项 | 结果 |
+|----|------|
+| Beta 后变更 | `v1.3.0-beta.1` 之后只有资源 ZIP 排除 macOS 元数据、发布说明结构和 AAB 实验结论文档变更；没有修改 DEXB v5、运行时协议、GUI 业务流程或证书数据库 |
+| 开放问题 | 仅 Issue #2 保持开放；现有 API 23、API 35 16 KB 与 API 36 设备矩阵均已通过，当前没有新增可复现证据表明 Beta 存在阻塞回归，不主动重复打扰反馈用户 |
+| 三平台发布 | Beta Release workflow 的 Linux、macOS Universal、Windows 和发布汇总四个任务全部成功；RC 继续复用同一套发布脚本和构建矩阵 |
+| 发布说明 | 固定保留“下载 / Downloads”“使用须知 / Notes”“本次变更 / What's Changed”；自动变更列表改为以上一公开正式版本为比较基线，RC 将累计覆盖整个 Alpha、Beta 与 RC 周期 |
+| 版本与文档 | 核心、CLI、标准/API 19 Stub、GUI 后端、Tauri 配置和前端包版本已同步为 `1.3.0-rc.1`；路线图已冻结 `1.3.0` 能力范围，AAB 正式支持独立安排在 `1.5.0`，不进入当前 RC |
+| 官方产物抽查 | 官方 Beta macOS Universal DMG SHA-256 为 `f063946c4939056cd623a40db3a0d43e826e0cc9ef5a5ec9bf66d7a685cb1604`；应用内包含标准/API 19 双资源与所需 JAR，未发现 `.DS_Store`、测试 APK、测试证书、`shield.db` 或 `config.toml` |
+| Java 8 正式版回归 | 使用官方 Beta macOS `.app`，在 Amazon Corretto `1.8.0_452` 环境完成证书识别、APK 加固和 V2/V3 签名；原 APK 与加固 APK 证书 SHA-256 均为 `5876BFB8FAEB6A9485AE07980E4300D74AB406B2A6A3BB41D0D49CFBFE8D43F5` |
+| Java 8 覆盖安装 | OnePlus 5 / LineageOS / API 35：原 ARouter APK 冷启动和路由扫描正常；同签名覆盖安装加固 APK 成功，首次冷启动 422 毫秒、缓存冷启动 244 毫秒，未出现 Java、签名、Native 加载或运行时崩溃异常 |
+
+**RC 判断**：当前没有阻塞 `1.3.0-rc.1` 的已知缺陷。RC 冻结功能、DEXB 格式、资源协议、配置格式和默认行为，只接受阻塞正式发布的问题修复。
+
 ### 2026-07-29：1.3.0 Beta 功能冻结回归
 
 | 项 | 结果 |

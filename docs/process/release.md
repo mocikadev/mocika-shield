@@ -242,7 +242,9 @@ git push origin main vx.y.z
 Release Notes 生成规则：
 
 - workflow 先读取稳定版或预发布版的简洁中英文前言模板
-- 再调用 GitHub Release Notes API 生成本次版本的自动变更列表
+- 如果存在 `.github/release-notes/versions/x.y.z.md`，在固定“本次变更”章节下插入该版本系列的人工中英文能力汇总；同一系列的 Alpha、Beta、RC 和正式版复用该文件
+- 再查找当前标签之前最近一个已公开正式版本，作为 GitHub Release Notes API 的固定比较基线
+- Alpha、Beta、RC 和最终正式版均汇总相对上一正式版本的完整版本周期变更，不以相邻预发布标签作为比较基线
 - 最终将两部分合并后写入 Release
 - 如果重新运行同一个 tag 的发布任务，产物与 Release Notes 会一并更新
 
