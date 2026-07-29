@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
+use crate::protect::cache_identity::CacheIdentity;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeLibPackagingPolicy {
     Disabled,
@@ -85,6 +87,20 @@ pub(crate) fn modify_manifest(apk_dir: &Path, stub_app: &str) -> Result<()> {
 
     fs::write(&manifest_path, result).context("写入 AndroidManifest.xml 失败")?;
     Ok(())
+}
+
+pub(crate) fn add_cache_identity(apk_dir: &Path, identity: &CacheIdentity) -> Result<()> {
+    let manifest_path = apk_dir.join("AndroidManifest.xml");
+    let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
+    let close = content
+        .rfind("</application>")
+        .context("AndroidManifest.xml 中未找到 </application>")?;
+    let metadata = format!(
+        "\n        <meta-data android:name=\"dev.mocika.shield.CACHE_SCHEMA\" android:value=\"{}\" />\n        <meta-data android:name=\"dev.mocika.shield.CACHE_DEX_COUNT\" android:value=\"{}\" />\n        <meta-data android:name=\"dev.mocika.shield.CACHE_ROOT_SHA256\" android:value=\"{}\" />\n    ",
+        identity.schema, identity.dex_count, identity.root_sha256
+    );
+    let result = format!("{}{}{}", &content[..close], metadata, &content[close..]);
+    fs::write(manifest_path, result).context("写入缓存身份到 AndroidManifest.xml 失败")
 }
 
 fn find_tag_end(content: &str, start: usize) -> Option<usize> {

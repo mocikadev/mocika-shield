@@ -207,10 +207,12 @@ Native 内部可返回位标志用于自动化测试，但 Java 和业务日志�
 {
   "runtime_protocol": 2,
   "cache_schema": 1,
-  "environment_policy": true,
+  "environment_policy": false,
   "memory_dex": false
 }
 ```
+
+`environment_policy` 在 `1.3.0-alpha.1` 保持 `false`，到 `alpha.2` 的 Root 策略与 GUI 配置真正接入资源后再改为 `true`，不得提前声明尚未实现的能力。
 
 `shield-core` 在开始解包前检查资源能力：
 

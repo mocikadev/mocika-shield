@@ -7,8 +7,8 @@ use std::path::Path;
 use crate::protect::dex::patch_dex_header;
 use crate::protect::native_alias::{
     inspect_original_apk, map_resource_path, patch_stub_dex, InjectedNativeRuntime, NativeAlias,
-    NativeAliasProtocol,
 };
+use crate::protect::runtime_metadata::RuntimeMetadata;
 use crate::utils::{human_size, print_success};
 
 pub(crate) fn inject_runtime(
@@ -21,7 +21,8 @@ pub(crate) fn inject_runtime(
     let file = fs::File::open(runtime_resources)?;
     let mut archive = zip::ZipArchive::new(file)?;
     let metadata = read_archive_text(&mut archive, "metadata.json")?;
-    let protocol = NativeAliasProtocol::parse(&metadata)?;
+    let runtime_metadata = RuntimeMetadata::parse(&metadata)?;
+    let protocol = runtime_metadata.native_alias;
     let alias = NativeAlias::generate(&original_native)?;
     let alias_file_name = alias.file_name();
     let mut injected_abis = HashSet::new();
@@ -166,18 +167,7 @@ pub(crate) fn read_stub_application(resources_path: &Path) -> Result<String> {
     let mut archive = zip::ZipArchive::new(file).context("解析 resources.zip 失败")?;
     let content = read_archive_text(&mut archive, "metadata.json")?;
 
-    parse_json_string_field(&content, "stub_application")
-        .context("metadata.json 中未找到 stub_application 字段")
-}
-
-fn parse_json_string_field(json: &str, field: &str) -> Option<String> {
-    let needle = format!("\"{}\"", field);
-    let start = json.find(&needle)?;
-    let after_key = &json[start + needle.len()..];
-    let after_colon = after_key.trim_start().strip_prefix(':')?.trim_start();
-    let after_quote = after_colon.strip_prefix('"')?;
-    let end = after_quote.find('"')?;
-    Some(after_quote[..end].to_string())
+    Ok(RuntimeMetadata::parse(&content)?.stub_application)
 }
 
 fn read_archive_text<R: std::io::Read + std::io::Seek>(
@@ -198,21 +188,6 @@ fn read_archive_text<R: std::io::Read + std::io::Seek>(
 mod tests {
     use super::*;
     use std::io::Write as _;
-
-    #[test]
-    fn parse_json_string_field_found() {
-        let json = r#"{"stub_application": "msk.b", "version": "5"}"#;
-        assert_eq!(
-            parse_json_string_field(json, "stub_application"),
-            Some("msk.b".to_string())
-        );
-    }
-
-    #[test]
-    fn parse_json_string_field_not_found_returns_none() {
-        let json = r#"{"version": "5"}"#;
-        assert_eq!(parse_json_string_field(json, "stub_application"), None);
-    }
 
     #[test]
     fn inspect_original_apk_detects_abis_and_names() {
@@ -300,10 +275,15 @@ mod tests {
             let mut zip = zip::ZipWriter::new(file);
             let options = zip::write::SimpleFileOptions::default();
             let metadata = r#"{
+                "stub_application":"msk.d",
                 "native_library":"libmocikashield.so",
                 "native_name_placeholder":"mocikanativeslot",
                 "native_name_length":16,
-                "native_name_scheme":1
+                "native_name_scheme":1,
+                "runtime_protocol":2,
+                "cache_schema":1,
+                "environment_policy":false,
+                "memory_dex":false
             }"#;
             zip.start_file("metadata.json", options).unwrap();
             zip.write_all(metadata.as_bytes()).unwrap();

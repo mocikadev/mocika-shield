@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
+use crate::protect::cache_identity::{self, CacheIdentity};
 use crate::utils::{human_size, print_success};
 
-pub(crate) fn process_dex(apk_dir: &Path, signature: &str, ikm: &[u8]) -> Result<()> {
+pub(crate) fn process_dex(apk_dir: &Path, signature: &str, ikm: &[u8]) -> Result<CacheIdentity> {
     let mut dex_files = Vec::new();
     for entry in fs::read_dir(apk_dir)? {
         let entry = entry?;
@@ -17,6 +18,7 @@ pub(crate) fn process_dex(apk_dir: &Path, signature: &str, ikm: &[u8]) -> Result
     if dex_files.is_empty() {
         anyhow::bail!("未找到DEX文件");
     }
+    let cache_identity = cache_identity::calculate(&dex_files)?;
 
     let dex_dir = apk_dir.parent().unwrap().join("dex");
     fs::create_dir_all(&dex_dir)?;
@@ -41,7 +43,7 @@ pub(crate) fn process_dex(apk_dir: &Path, signature: &str, ikm: &[u8]) -> Result
     let bin_size = fs::metadata(&tmp_bin)?.len();
     print_success(&format!("DEX打包完成: {}", human_size(bin_size)));
 
-    Ok(())
+    Ok(cache_identity)
 }
 
 pub(crate) fn patch_dex_header(dex_path: &Path) -> Result<()> {
