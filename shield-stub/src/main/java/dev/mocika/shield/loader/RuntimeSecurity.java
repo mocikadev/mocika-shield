@@ -12,7 +12,7 @@ final class RuntimeSecurity {
 
     static void enforceSafe(boolean unsafe) {
         if (unsafe) {
-            throw new SecurityException("运行环境检查失败");
+            throw new SecurityException("S01");
         }
     }
 }

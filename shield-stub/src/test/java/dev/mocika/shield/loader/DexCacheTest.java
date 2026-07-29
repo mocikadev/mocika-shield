@@ -8,7 +8,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class DexCacheTest {
     private static final int SCHEMA = 1;
@@ -59,9 +61,14 @@ public class DexCacheTest {
         assertFalse(DexCache.validate(fixture.directory, fixture.identity));
     }
 
-    @Test(expected = SecurityException.class)
+    @Test
     public void 无效缓存删除失败时拒绝继续() {
-        DexCache.removeInvalidCache(new DeleteFailureFile());
+        try {
+            DexCache.removeInvalidCache(new DeleteFailureFile());
+            fail("删除失败后仍继续执行");
+        } catch (SecurityException error) {
+            assertEquals("C11", error.getMessage());
+        }
     }
 
     private Fixture createValidCache() throws Exception {

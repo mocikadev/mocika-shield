@@ -71,11 +71,10 @@ verify_launch() {
     adb "${ADB_ARGS[@]}" shell am start -W -n "$COMPONENT" >/dev/null
     for _ in $(seq 1 30); do
         local logs
-        logs="$(adb "${ADB_ARGS[@]}" logcat -d -s MocikaSmoke:I dx:I AndroidRuntime:E '*:S')"
+        logs="$(adb "${ADB_ARGS[@]}" logcat -d -s MocikaSmoke:I AndroidRuntime:E '*:S')"
         if grep -q 'MOCIKA_SMOKE_APPLICATION_OK' <<< "$logs" \
             && grep -q 'MOCIKA_SMOKE_ACTIVITY_OK' <<< "$logs" \
-            && grep -q 'MOCIKA_SMOKE_SECONDARY_OK' <<< "$logs" \
-            && grep -q 'dex-route:dalvik api=19' <<< "$logs"; then
+            && grep -q 'MOCIKA_SMOKE_SECONDARY_OK' <<< "$logs"; then
             echo "$scenario 验证通过"
             printf '%s\n' "$logs"
             return 0

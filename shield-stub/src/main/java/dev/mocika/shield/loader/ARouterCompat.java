@@ -52,7 +52,7 @@ public class ARouterCompat {
 
             // ARouter.init() 紧接着读取缓存，必须同步落盘，不能使用异步 apply()。
             if (!editor.commit()) {
-                Log.w(TAG, "ARouter 路由缓存写入失败");
+                Log.w(TAG, "A01");
             }
 
             // 可调试包会忽略版本缓存并强制扫描 APK。加密 DEX 不在 sourceDir 中，
@@ -62,9 +62,9 @@ public class ARouterCompat {
             }
         } catch (ClassNotFoundException ignored) {
         } catch (PackageManager.NameNotFoundException e) {
-            Log.w(TAG, "读取当前应用版本失败", e);
+            Log.w(TAG, "A02", e);
         } catch (Exception e) {
-            Log.e(TAG, "ARouter 路由缓存准备失败", e);
+            Log.e(TAG, "A03", e);
         }
     }
 
@@ -76,7 +76,7 @@ public class ARouterCompat {
             try {
                 registerMethod.invoke(null, className);
             } catch (Exception e) {
-                Log.w(TAG, "注册路由类失败: " + className, e);
+                Log.w(TAG, "A04", e);
             }
         }
     }
@@ -96,7 +96,7 @@ public class ARouterCompat {
         } catch (java.io.FileNotFoundException e) {
             // 文件不存在：宿主未使用 ARouter 或已通过 arouter-register plugin 编译期注入，属正常情况
         } catch (Exception e) {
-            Log.w(TAG, "读取 " + ROUTE_LIST_ASSET + " 失败", e);
+            Log.w(TAG, "A05", e);
         }
         return filterRouteClassNames(lines);
     }

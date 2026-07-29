@@ -95,9 +95,9 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 
 ## Android 运行时兼容
 
-- API 21、22 使用 `makeDexElements` 路径，日志包含 `dex-route:elementFactory`
-- API 23 使用 `makePathElements` 路径，日志包含 `dex-route:elementFactory`
-- API 24 及以上继续使用 `addDexPath` 路径，日志包含 `dex-route:addDexPath`
+- API 21、22 使用 `makeDexElements` 路径，真实 Application 与多 DEX 类均成功加载
+- API 23 使用 `makePathElements` 路径，真实 Application 与多 DEX 类均成功加载
+- API 24 及以上继续使用 `addDexPath` 路径，真实 Application 与多 DEX 类均成功加载
 - API 21、23 分别验证单 DEX、多 DEX、真实 Application、ARouter 和 Native 库加载
 - 同一测试 APK 在 API 21、23、24 设备上完成冷启动、清除数据后首次启动和覆盖安装启动
 - API 19～20 仅通过“Android 4.4 工控兼容”模式提供；不得将 API 21 构建的 Native 库作为兼容产物交付，其他 ABI、非 NEON 或未知厂商设备不得沿用现有真机结论直接宣称已验证
@@ -189,10 +189,10 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 | 项 | 结果 |
 |----|------|
 | 自动验证 | API 21～22/23 方法路由与 Element 前插单元测试通过；混淆壳构建和端到端加固回归通过 |
-| Android 5.0 | 官方 ARM64 AVD `mocika_api21`，Android 5.0.2（API 21）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功，日志确认 `dex-route:elementFactory api=21` |
-| Android 6.0 | 官方 ARM64 AVD `mocika_api23`，Android 6.0（API 23）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功，日志确认 `dex-route:elementFactory api=23` |
+| Android 5.0 | 官方 ARM64 AVD `mocika_api21`，Android 5.0.2（API 21）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功；历史构建曾通过路径日志确认 Element 工厂分支，当前以真实 Application 与多 DEX 加载结果验收 |
+| Android 6.0 | 官方 ARM64 AVD `mocika_api23`，Android 6.0（API 23）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功；历史构建曾通过路径日志确认 Element 工厂分支，当前以真实 Application 与多 DEX 加载结果验收 |
 | 高版本回归 | 一加 ONEPLUS A5000，Android 16（API 36），arm64-v8a；测试 APK 安装和冷启动成功 |
-| 运行时路径 | 日志确认 `dex-route:addDexPath api=36`，进程持续存活，无 DEX 注入或真实 Application 启动异常 |
+| 运行时路径 | 真实 Application 与多 DEX 类加载成功，进程持续存活，无 DEX 注入异常；历史构建曾通过日志确认 API 36 命中 `addDexPath` |
 | 后续结果 | Android 6.0 工控真机已完成首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务验证；标准模式最低支持范围已调整为 API 21 |
 
 ### 2026-07-20：严格 V2-only APK 签名提取

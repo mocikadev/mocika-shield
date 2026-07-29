@@ -28,7 +28,7 @@ public class Ld {
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             PackageInfo pi = pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
             if (pi.signingInfo == null || pi.signingInfo.hasMultipleSigners()) {
-                throw new SecurityException("当前仅支持单签名 APK");
+                throw new SecurityException("L01");
             }
             signatures = pi.signingInfo.getApkContentsSigners();
         } else {
@@ -37,7 +37,7 @@ public class Ld {
             signatures = pi.signatures;
         }
         if (signatures == null || signatures.length != 1 || signatures[0] == null) {
-            throw new SecurityException("无法确定唯一的 APK 签名证书");
+            throw new SecurityException("L02");
         }
         // Signature.toByteArray() 返回 X.509 证书 DER，与 apksigner 的 certificate digest 口径一致。
         byte[] certBytes = signatures[0].toByteArray();
@@ -57,15 +57,13 @@ public class Ld {
     static native boolean r();
 
     /**
-     * 解密 app.bin 并将各 DEX 文件落地到私有目录。
-     * 以 versionCode 为缓存键：同一版本只解密解压一次，升级后自动失效并清理旧缓存。
-     * 返回落地后的 DEX 文件列表（顺序与原始 DEX 顺序一致）。
+     * 解密并返回各 DEX 字节数组，缓存身份与落盘由 DexCache 统一处理。
      */
     static byte[][] decryptDexBytes(Context ctx) throws Exception {
         byte[] dexBytes = readClassesDexFromApk(ctx);
         byte[][] dexes = q(ctx, dexBytes);
         if (dexes == null || dexes.length == 0)
-            throw new RuntimeException("q 返回空结果");
+            throw new RuntimeException("L03");
         return dexes;
     }
 
@@ -77,10 +75,10 @@ public class Ld {
         String apkPath = ctx.getApplicationInfo().sourceDir;
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath)) {
             java.util.zip.ZipEntry entry = zip.getEntry("classes.dex");
-            if (entry == null) throw new RuntimeException("APK 中未找到 classes.dex");
+            if (entry == null) throw new RuntimeException("L04");
             long entrySize = entry.getSize();
             if (entrySize > MAX_DEX_SIZE_BYTES) {
-                throw new RuntimeException("classes.dex 大小 " + entrySize + " 超过上限 " + MAX_DEX_SIZE_BYTES);
+                throw new RuntimeException("L05");
             }
             int initCapacity = entrySize > 0 ? (int) entrySize : DEX_READ_BUFFER_SIZE * 16;
             try (InputStream is = zip.getInputStream(entry)) {
@@ -90,7 +88,7 @@ public class Ld {
                 while ((read = is.read(buf)) != -1) {
                     bos.write(buf, 0, read);
                     if (bos.size() > MAX_DEX_SIZE_BYTES) {
-                        throw new RuntimeException("classes.dex 读取超过上限 " + MAX_DEX_SIZE_BYTES + " 字节");
+                        throw new RuntimeException("L06");
                     }
                 }
                 return bos.toByteArray();
