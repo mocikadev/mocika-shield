@@ -52,8 +52,16 @@ printf '%s\n' "$CHECK_RESULT" | grep -q '"is_signed":true'
 
 unzip -p "$FINAL" classes.dex > "$WORK/classes.dex"
 grep -a -q 'MSHD' "$WORK/classes.dex"
-unzip -l "$FINAL" \
-  | awk '$NF == "lib/arm64-v8a/libmocikashield.so" { found = 1 } END { exit !found }'
+ARM64_STUB_LIBRARIES="$(unzip -Z1 "$FINAL" | awk '$0 ~ /^lib\/arm64-v8a\/libmodule[a-z]+\.so$/')"
+if [[ "$(printf '%s\n' "$ARM64_STUB_LIBRARIES" | awk 'NF { count++ } END { print count + 0 }')" != "1" ]]; then
+  echo "arm64-v8a 目录未包含唯一的任务级 Native 别名库：" >&2
+  printf '%s\n' "$ARM64_STUB_LIBRARIES" >&2
+  exit 1
+fi
+if unzip -Z1 "$FINAL" | grep -q '/libmocikashield\.so$'; then
+  echo "最终 APK 仍包含固定名称 libmocikashield.so" >&2
+  exit 1
+fi
 
 DECODED="$WORK/output-decoded"
 java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$FINAL" -o "$DECODED" -f --no-src >/dev/null
