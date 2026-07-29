@@ -17,7 +17,7 @@
 ## 功能特性
 
 - **APK 加固**：对业务 DEX 加密保护，并绑定原应用签名，降低静态反编译、篡改和非法重签风险
-- **运行时保护**：提供基础反调试与运行环境检查，提高常见动态分析成本
+- **运行时保护**：提供基础反调试与可选的严格运行环境保护，提高常见动态分析成本
 - **Android 兼容**：标准模式支持 Android 5.0 及以上；另提供经过真机验证的 Android 4.4 工控兼容模式
 - **加固与签名一体化**：桌面 GUI 支持 APK 加固、证书管理、自动签名和独立签名
 - **安装兼容处理**：自动完成 4 KB / 16 KB ZIP 对齐，并处理常见 Native 库与框架兼容问题
@@ -86,8 +86,9 @@
 2. 在 **证书** 页面导入已有证书，或创建新的 PKCS12 证书
 3. 将常用证书设为默认；加固页会在自动签名时使用默认证书
 4. 回到 **加固** 页面选择已签名 APK，按需使用自动签名
-5. 默认选择“Android 5.0 及以上”；仅当目标包含 Android 4.4 工控设备时选择工控兼容模式
-6. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
+5. 默认选择“Android 5.0 及以上”和“兼容模式”；仅当目标包含 Android 4.4 工控设备时选择工控兼容模式
+6. 确认应用只部署到受控的非 Root 环境时，可按需选择“严格环境保护”
+7. 产物默认输出到原 APK 同目录，文件名为 `{name}_protected.apk` 或 `{name}_protected_signed.apk`
 
 ### Android 运行兼容性
 
@@ -97,6 +98,8 @@
 | Android 4.4 工控兼容 | API 19+ | 已验证（限定范围） | 当前只接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；已验证 Android 4.4.2 `armeabi-v7a`/NEON 工控设备 |
 
 兼容模式不会降低原应用自身声明的 `minSdkVersion`。同一个兼容模式产物用于 Android 4.4～6.0 设备，不需要为每个系统版本分别加固。详细边界见[使用指南](docs/usage.md)和 [Android 4.4 工控兼容设计](docs/design/android-4.4-compatibility.md)。
+
+加固页还提供“运行环境保护”选项。默认的兼容模式保留反调试检查，但不会因 Root 信号阻止应用启动；严格环境保护会在检测到高置信风险环境时拒绝启动。该能力只能提高分析成本，不能承诺抵御隐藏 Root、检测绕过或进程内提取，具体使用边界见[使用指南](docs/usage.md)。
 
 ### 签名材料准备
 
@@ -184,7 +187,7 @@ adb install -r protected.apk
     ↓
 [1. StubApp.attachBaseContext] → 壳 Application 启动
     ↓
-[2. 环境安全检查] → 每次启动在读取缓存前检测 ptrace / Frida，命中立即中止
+[2. 环境安全检查] → 每次启动在读取缓存前执行反调试检查；严格策略额外检查高置信风险环境
     ↓
 [3. 检查 DEX 缓存] → 命中则直接进入注入；未命中才读取 classes.dex 中的 MSHD payload
     ↓
@@ -210,6 +213,7 @@ adb install -r protected.apk
 | Timing-safe 签名比对 | 常数时间比对，防时序攻击 |
 | 低特征 | 无 `assets/app.bin`，加密数据对静态工具不可见；壳类名、JNI 符号经混淆处理 |
 | 运行时反调试 | 每次进程启动先检测 ptrace、Frida maps 特征与 Frida GLib 线程名，解密入口再次检查 |
+| 可选严格环境保护 | 加固任务可选择严格策略，在高置信 Root 或注入环境中拒绝启动；默认兼容策略不因 Root 信号阻断应用 |
 
 ---
 
