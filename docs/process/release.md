@@ -246,7 +246,14 @@ Release Notes 生成规则：
 - 最终将两部分合并后写入 Release
 - 如果重新运行同一个 tag 的发布任务，产物与 Release Notes 会一并更新
 
-Release Notes 只保留下载入口、必要运行条件、安全边界和本版本变更，不重复 README 中的完整功能介绍。稳定版本进入 Draft 后，公开前应根据实际变更补充 2～5 条中英文版本亮点；若之后重新运行同一 tag 的发布任务，自动生成内容会覆盖人工修改，需要重新核对亮点。
+所有稳定版和预发布版 Release Notes 固定保留以下章节，顺序保持一致：
+
+1. `下载 / Downloads`
+2. `使用须知 / Notes`
+3. `本次变更 / What's Changed`
+4. `完整变更 / Full Changelog`
+
+Release Notes 只保留下载入口、必要运行条件、安全边界和本版本变更，不重复 README 中的完整功能介绍。人工精简发布说明时，可以把自动列表整理成 2～5 条中英文版本亮点，但必须放在 `本次变更 / What's Changed` 下，不得改名或删除固定章节。编辑完成后使用 `gh release view <tag> --json body --jq '.body'` 复核章节；若之后重新运行同一个 tag 的发布任务，自动生成内容会覆盖人工修改，需要再次检查固定章节和版本亮点。
 
 ### 手动触发发布
 
@@ -262,7 +269,7 @@ Release Notes 只保留下载入口、必要运行条件、安全边界和本版
 3. 确认 CI 通过
 4. 打 tag 并推送：`git tag vx.y.z && git push origin main vx.y.z`
 5. 等待 Release workflow 完成
-6. 检查 GitHub Release 的产物、校验和和 Release Notes
+6. 检查 GitHub Release 的产物、校验和，以及固定的中英文 Release Notes 章节
 7. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
 
 ### 正式版前产物检查
