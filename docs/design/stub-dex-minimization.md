@@ -19,7 +19,7 @@
 - 根据输入 APK 的实际能力选择最小 Stub，而不是始终注入完整功能集合。
 - 降低启动 DEX 中可见的类、方法、合成类和诊断字符串数量。
 - 保持业务 DEX 最终注入应用原有 `PathClassLoader`，不破坏类身份和框架兼容性。
-- 标准模式、Android 4.4 候选模式、ARouter、Android 9 共享库与 Native 库打包均可独立组合验证。
+- 标准模式、Android 4.4 工控兼容模式、ARouter、Android 9 共享库与 Native 库打包均可独立组合验证。
 - 用构建指标、启动性能和设备矩阵决定是否继续，不以“常规工具不易阅读”作为唯一结论。
 
 ## 非目标
@@ -52,7 +52,7 @@ Android 必须先从 APK 的初始 `classes.dex` 创建并调用 Manifest Applic
 
 | 能力维度 | 识别来源 | 对 Stub 的影响 |
 |----------|----------|---------------|
-| 运行基线 | GUI/核心选择的标准或 Android 4.4 候选资源 | 是否包含 API 19～20 Dalvik 路径 |
+| 运行基线 | GUI/核心选择的标准或 Android 4.4 工控兼容资源 | 是否包含 API 19～20 Dalvik 路径 |
 | ARouter | 现有路由表扫描结果 | 是否包含路由缓存准备逻辑 |
 | 系统共享库 | Manifest `uses-library` 与 DEX 预检 | 是否包含 Android 9 共享库兼容逻辑 |
 
@@ -68,7 +68,7 @@ Android 必须先从 APK 的初始 `classes.dex` 创建并调用 Manifest Applic
 - 真实 Application 替换；
 - 必要的失败关闭逻辑。
 
-ARouter 和系统共享库逻辑只进入声明相应能力的变体。Android 4.4 候选变体额外包含 Dalvik 路径；标准变体仍需保留 API 21～23 已验证的 ART Element 注入，不能误缩减为只支持高版本。
+ARouter 和系统共享库逻辑只进入声明相应能力的变体。Android 4.4 工控兼容变体额外包含 Dalvik 路径；标准变体仍需保留 API 21～23 已验证的 ART Element 注入，不能误缩减为只支持高版本。
 
 ### 资源协议
 
@@ -187,7 +187,7 @@ JNI Native 回调涉及的 Java 类仍必须使用 `{ *; }` 完整保留。不�
 ### 自动验证
 
 - 能力识别：基础、仅 ARouter、仅共享库、两者同时存在。
-- 资源选择：标准/Android 4.4 候选模式与所有能力组合均选择唯一变体。
+- 资源选择：标准/Android 4.4 工控兼容模式与所有能力组合均选择唯一变体。
 - 契约检查：变体摘要、协议、必需类和 JNI 回调方法完整；非目标扩展类不存在。
 - 失败路径：未知能力、清单缺失、摘要不符和变体缺失均不生成输出 APK。
 - 打包兼容：Native 任务别名、`extractNativeLibs=false`、四 ABI 和 16 KB 对齐不回归。

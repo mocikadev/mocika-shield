@@ -100,10 +100,10 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 - API 24 及以上继续使用 `addDexPath` 路径，日志包含 `dex-route:addDexPath`
 - API 21、23 分别验证单 DEX、多 DEX、真实 Application、ARouter 和 Native 库加载
 - 同一测试 APK 在 API 21、23、24 设备上完成冷启动、清除数据后首次启动和覆盖安装启动
-- API 19～20 仅通过“Android 4.4 工控兼容”候选模式提供，正式稳定支持前必须明确标记为候选能力；不得将 API 21 构建的 Native 库作为兼容产物交付
+- API 19～20 仅通过“Android 4.4 工控兼容”模式提供；不得将 API 21 构建的 Native 库作为兼容产物交付，其他 ABI、非 NEON 或未知厂商设备不得沿用现有真机结论直接宣称已验证
 - API 19 实验 Native 库必须由 r25c、Rust 1.77.2、`--platform 19` 构建，并通过 `scripts/verify-android-api19-native.sh` 的架构、依赖、动态符号与 ELF 审计
 - API 19 Native 依赖升级后必须执行 `tests/scripts/run-api19-native-probe.sh`，确认生产库能够进入 `JNI_OnLoad`，不能只以链接成功作为兼容结论
-- 工控兼容候选产物必须使用同一个 APK 在 API 19 和 API 23 设备验证，不能分别生成两份业务 APK 代替跨版本回归
+- 工控兼容产物必须使用同一个 APK 在 API 19 和 API 23 设备验证，不能分别生成两份业务 APK 代替跨版本回归
 - API 28 对声明 `uses-library` 且业务 DEX 含同名编译桩的 APK，必须确认系统共享库类优先解析；Issue #17 Apache HTTP 样本不得出现 `RuntimeException: Stub!`
 
 ## 运行时安全与 DEX 缓存
@@ -175,14 +175,14 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 | 官方安装包抽查 | 从 GitHub Release 下载 RC.5 macOS Universal DMG，只读挂载后确认应用内同时包含 `resources.zip` 与 `resources-api19.zip`；两包均只含预期 DEX、元数据和四 ABI Native 库，未夹带 `.DS_Store` |
 | 标准资源 | `resources.zip` 存在，包含四种 ABI，元数据最低 API 为 21；标准模式正式支持 Android 5.0 及以上 |
 | 工控兼容资源 | `resources-api19.zip` 存在，包含四种 ABI，元数据最低 API 为 19；`armeabi-v7a` 使用 r25c、Rust 1.77.2 和 API 19 构建，ELF 与动态符号审计通过 |
-| Android 4.4～6.0 | 同一个兼容加固 APK 已在 API 19、21、23 模拟器完成首次安装、清除数据、覆盖安装、双 DEX 与真实 Application 回归；Android 6.0 工控真机已验证，Android 4.4.2 工控真机仍待 Issue #15 用户确认 |
+| Android 4.4～6.0 | 同一个兼容加固 APK 已在 API 19、21、23 模拟器完成首次安装、清除数据、覆盖安装、双 DEX 与真实 Application 回归；Android 6.0 工控真机完成详细回归，Issue #15 用户确认 Android 4.4.2 `armeabi-v7a`/NEON 工控板正常运行，但未逐项覆盖全部业务测试 |
 | Android 9 | Issue #17 用户样本修复后已由用户在 Android 9 真机确认，未再出现共享库编译桩 `RuntimeException: Stub!` |
 | ARouter | 用户多模块样本已在 Android 16 真机通过首次安装、缓存命中、清除数据、跨模块路由和参数注入回归 |
 | Native 打包与 16 KB | `extractNativeLibs=false` 的有/无原始 Native 库样本已完成结构测试；API 23、API 35 16 KB 与 API 36 设备回归通过 |
 | 每次启动安全检查 | 冷启动首次解密和缓存命中再次启动均通过，缓存路径不会绕过环境检查 |
-| 未决事项 | Issue #15 等待 Android 4.4.2 真实工控板结果；Issue #2 等待用户提供原始/加固 APK 或具体不兼容库证据 |
+| 未决事项 | Issue #2 等待用户提供原始/加固 APK 或具体不兼容库证据；Android 4.4 其他 CPU、厂商系统和特殊硬件场景按新增反馈单独验证 |
 
-**正式版判断**：Android 4.4.2 工控真机验证成功且观察期无新的阻断问题时，可直接准备 `1.2.7`；若真实设备失败，只根据完整日志修复并发布下一候选版本。未取得真机结论时，Android 4.4 必须继续标记为候选能力，不得在稳定版中宣称正式支持。
+**正式版判断**：Android 4.4.2 工控真机已确认核心运行正常，`1.2.7` 的低版本兼容阻塞解除。发布说明必须限定已验证硬件为 `armeabi-v7a`/NEON，不能把未覆盖的其他 CPU、厂商系统和硬件业务描述为已经验证。
 
 ### 2026-07-27：Android 5.0～6.0 DEX 注入兼容原型
 

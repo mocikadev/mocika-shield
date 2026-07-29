@@ -57,7 +57,7 @@
 
 GUI 会在选择 APK 时比对原 APK 与默认证书的指纹，并在后端开始加固前再次校验。指纹不一致或证书读取失败都会阻止加固，因为改用其他证书签名会导致运行时无法解密和启动。
 
-加固页提供“运行系统兼容性”选项。默认使用“Android 5.0 及以上”标准模式；目标设备包含 Android 4.4 工控板时，可选择“兼容 Android 4.4”。标准模式已覆盖 Android 5.0～6.0 的旧版 ART 注入路径，并包含 ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 兼容处理。兼容模式当前仅接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；后端会再次检查 ABI，并从应用内置的固定兼容资源包加固，前端不能传入任意资源路径。该选择只属于当前任务，不修改 `config.toml`，旧版请求未携带此字段时仍按标准模式执行。Android 4.4 能力仍处于候选阶段，真实 Android 4.4.2 工控板完成最终回归前不视为稳定支持。
+加固页提供“运行系统兼容性”选项。默认使用“Android 5.0 及以上”标准模式；目标设备包含 Android 4.4 工控板时，可选择“兼容 Android 4.4”。标准模式已覆盖 Android 5.0～6.0 的旧版 ART 注入路径，并包含 ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 兼容处理。兼容模式当前仅接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；后端会再次检查 ABI，并从应用内置的固定兼容资源包加固，前端不能传入任意资源路径。该选择只属于当前任务，不修改 `config.toml`，旧版请求未携带此字段时仍按标准模式执行。Android 4.4.2 `armeabi-v7a`/NEON 工控真机已确认能够正常运行；完整业务测试未全部覆盖，其他 CPU、厂商系统和硬件交互仍需按实际设备验证。
 GUI 会在应用启动时检测一次本机 Java 环境，并将结果缓存到全局状态中；若未检测到完整 JDK 17+，加固、签名、Alias 识别会直接阻断并给出明确提示。
 如果应用启动后你又安装或切换了 JDK，可在关于页手动点击“重新检测环境”刷新状态。
 
@@ -169,7 +169,7 @@ ls -lh input.apk protected.apk
    adb shell getprop ro.product.cpu.abi
    ```
 
-4. 标准模式按 Android 5.0（API 21）及以上设计：API 21、23 已通过官方 ARM64 模拟器回归，Android 6.0 工控设备已验证首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务功能；Android 4.4（API 19～20）须选择“Android 4.4 工控兼容”候选模式，正式支持前仍需真实工控板回归
+4. 标准模式按 Android 5.0（API 21）及以上设计：API 21、23 已通过官方 ARM64 模拟器回归，Android 6.0 工控设备已验证首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务功能；Android 4.4（API 19～20）须选择“Android 4.4 工控兼容”模式，当前已验证 Android 4.4.2 `armeabi-v7a`/NEON 工控设备
 
 ### 能否重复加固？
 

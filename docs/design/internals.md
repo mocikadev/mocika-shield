@@ -413,7 +413,7 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 - Android 5.0～6.0（API 21～23）：Element 工厂注入，已通过 API 21/23 官方 ARM64 模拟器回归；Android 6.0 工控设备已验证首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务功能
 - Android 7.0（API 24）及以上：`addDexPath(String, File)` 注入
 - API 26+ `optimizedDirectory` 参数被忽略（传 null）
-- Android 4.4（API 19～20）：通过独立的工控兼容候选资源提供，尚未声明稳定支持；r25c、Rust 1.77.2 的 Native 构建、Dalvik 双 DEX 注入、自定义 Application、首次安装、清除数据和覆盖安装已在 API 19 模拟器通过，同一 APK 也已通过 API 21、23 跨版本回归，详见 [Android 4.4 工控兼容设计](android-4.4-compatibility.md)
+- Android 4.4（API 19～20）：通过独立的工控兼容资源提供；r25c、Rust 1.77.2 的 Native 构建、Dalvik 双 DEX 注入、自定义 Application、首次安装、清除数据和覆盖安装已在 API 19 模拟器通过，同一 APK 也已通过 API 21、23 跨版本回归，Android 4.4.2 `armeabi-v7a`/NEON 工控真机已确认正常运行，详见 [Android 4.4 工控兼容设计](android-4.4-compatibility.md)
 
 ### 5.4 ARouter 路由表补注册
 
