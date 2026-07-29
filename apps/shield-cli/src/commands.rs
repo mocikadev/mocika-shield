@@ -7,8 +7,10 @@ use std::sync::{atomic::AtomicBool, Arc};
 use shield_core::utils::set_json_mode;
 use shield_core::{
     check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint, protect_apk,
-    ProgressEvent, ProtectOptions,
+    EnvironmentPolicy, ProgressEvent, ProtectOptions,
 };
+
+use crate::EnvironmentPolicyArg;
 
 use crate::cli_json::{
     apk_check_error_json, apk_check_json, done_event_json, keystore_check_error_json,
@@ -19,6 +21,7 @@ pub(crate) fn run_protect(
     input: PathBuf,
     output: PathBuf,
     resources_path: Option<PathBuf>,
+    environment_policy: EnvironmentPolicyArg,
     json_progress: bool,
     verbose: bool,
 ) -> Result<()> {
@@ -42,6 +45,10 @@ pub(crate) fn run_protect(
         resources_path,
         apksigner_path: None,
         expected_output_cert_fingerprint: None,
+        environment_policy: match environment_policy {
+            EnvironmentPolicyArg::Compatible => EnvironmentPolicy::Compatible,
+            EnvironmentPolicyArg::Strict => EnvironmentPolicy::Strict,
+        },
     };
 
     let cancel = Arc::new(AtomicBool::new(false));

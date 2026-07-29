@@ -25,6 +25,22 @@ use crate::utils::{
     create_temp_dir, find_apksigner, find_apktool, find_java, find_runtime_resources, human_size,
     print_step, print_success, run_command,
 };
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EnvironmentPolicy {
+    #[default]
+    Compatible,
+    Strict,
+}
+
+impl EnvironmentPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Compatible => "compatible",
+            Self::Strict => "strict",
+        }
+    }
+}
 use crate::zipalign::{align_apk_with_native_packaging, NativeLibraryPackaging};
 
 #[derive(Debug, Clone)]
@@ -39,6 +55,8 @@ pub struct ProtectOptions {
     pub apksigner_path: Option<PathBuf>,
     /// 计划用于加固输出签名的证书指纹；提供时必须与输入 APK 当前证书一致
     pub expected_output_cert_fingerprint: Option<String>,
+    /// 运行时环境安全策略；默认兼容模式仅执行原有反调试检查。
+    pub environment_policy: EnvironmentPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +115,8 @@ pub fn protect_apk(
         }
         None => find_apksigner().map_err(ShieldError::from)?,
     };
+    let stub_app = read_stub_application(&runtime_resources, opts.environment_policy)
+        .map_err(ShieldError::from)?;
 
     if !is_json_mode() {
         println!("{}", "========================================".cyan());
@@ -146,7 +166,6 @@ pub fn protect_apk(
     .map_err(ShieldError::from)?;
     print_success("解包完成");
 
-    let stub_app = read_stub_application(&runtime_resources).map_err(ShieldError::from)?;
     let native_lib_policy =
         read_native_lib_packaging_policy(&apk_dir).map_err(ShieldError::from)?;
 
@@ -157,7 +176,7 @@ pub fn protect_apk(
         "修改AndroidManifest.xml",
     )?;
     print_step("修改AndroidManifest.xml");
-    modify_manifest(&apk_dir, &stub_app).map_err(ShieldError::from)?;
+    modify_manifest(&apk_dir, &stub_app, opts.environment_policy).map_err(ShieldError::from)?;
     print_success("Manifest修改完成");
 
     emit_progress(

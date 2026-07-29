@@ -191,7 +191,7 @@ Manifest 字段：
 - 旧 GUI 请求缺少字段时默认 `compatible`。
 - 新 Stub 读取不到字段时默认 `compatible`。
 - 前端和 Tauri 只能传固定枚举，不得传任意 Manifest 值。
-- CLI 后续使用同一核心枚举，默认值同样为 `compatible`。
+- CLI 使用同一核心枚举，默认值同样为 `compatible`。
 
 ### Root 信号分级
 
@@ -207,12 +207,12 @@ Native 内部可返回位标志用于自动化测试，但 Java 和业务日志�
 {
   "runtime_protocol": 2,
   "cache_schema": 1,
-  "environment_policy": false,
+  "environment_policy": true,
   "memory_dex": false
 }
 ```
 
-`environment_policy` 在 `1.3.0-alpha.1` 保持 `false`，到 `alpha.2` 的 Root 策略与 GUI 配置真正接入资源后再改为 `true`，不得提前声明尚未实现的能力。
+`environment_policy` 在 `1.3.0-alpha.1` 保持 `false`；Root 策略、清单配置和 GUI 任务选项接通后改为 `true`。旧资源选择严格模式时由核心直接拒绝，不得静默降级。
 
 `shield-core` 在开始解包前检查资源能力：
 
@@ -289,6 +289,8 @@ Root 策略范围：
 - 实现高置信度 Root/Magisk/Zygisk 检测。
 - 接入 `compatible/strict` 枚举、Manifest 配置流和 GUI 任务级选项。
 - CLI 与旧请求保持默认兼容。
+
+当前实现状态：核心固定枚举、资源能力握手、Manifest 配置、GUI 任务级选项及 Native 高置信 Root 信号已接通；兼容模式维持原有反调试行为，严格模式额外拒绝 Root 信号。待完成标准/API 19 双资源构建、普通真机严格模式误报检查和可控 Root 环境命中验证。
 
 内存 DEX 实验范围：
 

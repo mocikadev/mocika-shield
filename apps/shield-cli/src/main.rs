@@ -1,11 +1,18 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 mod cli_json;
 mod commands;
 
 use commands::{run_check_apk, run_check_keystore, run_protect};
+
+#[derive(Clone, Copy, Default, ValueEnum)]
+enum EnvironmentPolicyArg {
+    #[default]
+    Compatible,
+    Strict,
+}
 
 #[derive(Parser)]
 #[command(
@@ -30,6 +37,9 @@ enum Commands {
         /// 内部回归测试使用的运行时资源包。
         #[arg(long, value_name = "ZIP", hide = true)]
         resources: Option<PathBuf>,
+        /// 运行时环境策略：兼容模式仅执行反调试，严格模式额外拒绝高置信 Root 环境。
+        #[arg(long, value_enum, default_value_t = EnvironmentPolicyArg::Compatible)]
+        environment_policy: EnvironmentPolicyArg,
         #[arg(long)]
         json_progress: bool,
         #[arg(short, long)]
@@ -56,9 +66,17 @@ fn main() -> Result<()> {
             input,
             output,
             resources,
+            environment_policy,
             json_progress,
             verbose,
-        } => run_protect(input, output, resources, json_progress, verbose)?,
+        } => run_protect(
+            input,
+            output,
+            resources,
+            environment_policy,
+            json_progress,
+            verbose,
+        )?,
 
         Commands::CheckApk { path } => {
             let result = run_check_apk(path);

@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::protect::cache_identity::CacheIdentity;
+use crate::EnvironmentPolicy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeLibPackagingPolicy {
@@ -34,9 +35,18 @@ pub(crate) fn read_native_lib_packaging_policy(apk_dir: &Path) -> Result<NativeL
     )
 }
 
-pub(crate) fn modify_manifest(apk_dir: &Path, stub_app: &str) -> Result<()> {
+pub(crate) fn modify_manifest(
+    apk_dir: &Path,
+    stub_app: &str,
+    environment_policy: EnvironmentPolicy,
+) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
     let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
+    if content.contains("android:name=\"dev.mocika.shield.ENV_POLICY\"")
+        || content.contains("android:name='dev.mocika.shield.ENV_POLICY'")
+    {
+        anyhow::bail!("原 APK 已占用 Mocika Shield 环境策略字段，无法安全写入运行策略");
+    }
 
     let app_tag_start = content
         .find("<application")
@@ -61,6 +71,10 @@ pub(crate) fn modify_manifest(apk_dir: &Path, stub_app: &str) -> Result<()> {
             orig_app
         )
     };
+    let meta_environment = format!(
+        "\n        <meta-data\n            android:name=\"dev.mocika.shield.ENV_POLICY\"\n            android:value=\"{}\" />",
+        environment_policy.as_str()
+    );
 
     let (prefix_tag, suffix) = if new_app_tag.trim_end().ends_with("/>") {
         let tag_body = new_app_tag
@@ -71,10 +85,10 @@ pub(crate) fn modify_manifest(apk_dir: &Path, stub_app: &str) -> Result<()> {
             .to_string();
         (
             format!("{}>", tag_body),
-            meta_original + "\n    </application>",
+            meta_original + &meta_environment + "\n    </application>",
         )
     } else {
-        (new_app_tag.to_string(), meta_original)
+        (new_app_tag.to_string(), meta_original + &meta_environment)
     };
 
     let result = format!(
@@ -284,7 +298,12 @@ mod tests {
         let manifest = r#"<manifest><application android:name="App" android:extractNativeLibs="false" /></manifest>"#;
         fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
 
-        modify_manifest(dir.path(), "dev.mocika.StubApp").unwrap();
+        modify_manifest(
+            dir.path(),
+            "dev.mocika.StubApp",
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap();
 
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert!(result.contains(r#"android:extractNativeLibs="false""#));
@@ -300,11 +319,13 @@ mod tests {
             "    </application>\n</manifest>"
         );
         fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
-        modify_manifest(dir.path(), "dev.mocika.StubApp").unwrap();
+        modify_manifest(dir.path(), "dev.mocika.StubApp", EnvironmentPolicy::Strict).unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert!(result.contains(r#"android:name="dev.mocika.StubApp""#));
         assert!(result.contains("ORIGINAL_APPLICATION"));
         assert!(result.contains("com.example.App"));
+        assert!(result.contains("dev.mocika.shield.ENV_POLICY"));
+        assert!(result.contains("strict"));
     }
 
     #[test]
@@ -317,7 +338,12 @@ mod tests {
             "</manifest>"
         );
         fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
-        modify_manifest(dir.path(), "dev.mocika.StubApp").unwrap();
+        modify_manifest(
+            dir.path(),
+            "dev.mocika.StubApp",
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert!(result.contains(r#"android:name="dev.mocika.StubApp""#));
         assert!(result.contains("</application>"));
@@ -336,8 +362,28 @@ mod tests {
             "    </application>\n</manifest>"
         );
         fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
-        modify_manifest(dir.path(), "dev.mocika.StubApp").unwrap();
+        modify_manifest(
+            dir.path(),
+            "dev.mocika.StubApp",
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert_eq!(result.matches("ORIGINAL_APPLICATION").count(), 1);
+    }
+
+    #[test]
+    fn modify_manifest_rejects_occupied_environment_policy() {
+        let dir = tempfile::tempdir().unwrap();
+        let manifest = r#"<manifest><application><meta-data android:name="dev.mocika.shield.ENV_POLICY" android:value="strict" /></application></manifest>"#;
+        fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
+
+        let error = modify_manifest(
+            dir.path(),
+            "dev.mocika.StubApp",
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("已占用"));
     }
 }

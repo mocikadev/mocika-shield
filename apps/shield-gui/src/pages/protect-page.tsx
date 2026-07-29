@@ -59,6 +59,8 @@ export function ProtectPage({
     precheck,
     runtimeMode,
     setRuntimeMode,
+    environmentPolicy,
+    setEnvironmentPolicy,
     nativeAbis,
     currentStep,
     startedAt,
@@ -161,6 +163,22 @@ export function ProtectPage({
                   disabled={taskLocked || state === "prechecking" || state === "running"}
                   onChange={(event) => setOutput(event.target.value)}
                 />
+              </div>
+              <div className="rounded-[14px] border bg-card p-4">
+                <label className="field-label" htmlFor="protect-environment-policy">{t(locale, "environmentPolicy")}</label>
+                <SelectInput
+                  id="protect-environment-policy"
+                  className="mt-2"
+                  value={environmentPolicy}
+                  disabled={taskLocked || state === "prechecking" || state === "running"}
+                  onChange={(event) => setEnvironmentPolicy(event.target.value as "compatible" | "strict")}
+                >
+                  <option value="compatible">{t(locale, "environmentCompatible")}</option>
+                  <option value="strict">{t(locale, "environmentStrict")}</option>
+                </SelectInput>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {environmentPolicy === "strict" ? t(locale, "environmentStrictHint") : t(locale, "environmentCompatibleHint")}
+                </p>
               </div>
               <div className="rounded-[14px] border bg-card p-4">
                 <label className="field-label" htmlFor="protect-runtime-mode">{t(locale, "runtimeCompatibility")}</label>

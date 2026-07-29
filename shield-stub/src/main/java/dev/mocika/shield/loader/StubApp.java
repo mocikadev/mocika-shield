@@ -22,7 +22,7 @@ public class StubApp extends Application {
         super.attachBaseContext(base);
         try {
             exemptHiddenApi();
-            RuntimeSecurity.checkEnvironment();
+            RuntimeSecurity.checkEnvironment(base);
             List<File> dexFiles = Ld.extractDexFiles(base);
             DexInjector.inject(base, dexFiles);
             realApp = makeRealApp(base.getClassLoader(), base);

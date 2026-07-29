@@ -367,7 +367,7 @@ cat > "$OUTPUT_DIR/metadata.json" << EOF
   "native_name_scheme": 1,
   "runtime_protocol": 2,
   "cache_schema": 1,
-  "environment_policy": false,
+  "environment_policy": true,
   "memory_dex": false
 }
 EOF
