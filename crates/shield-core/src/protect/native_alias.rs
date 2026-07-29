@@ -17,49 +17,18 @@ const RESERVED_LIBRARY_NAMES: &[&str] = &[
     "libmocikashield.so",
 ];
 
-// 只使用审查过的中性组合。所有主体均为 16 个小写 ASCII 字母。
+// 只使用审查过的中性组合。`module` 前缀位于当前 Stub DEX 占位符相邻
+// string_ids 的安全字典序区间；其他前缀即使等长也会使 ART 拒绝 DEX。
+// 所有主体均为 16 个小写 ASCII 字母。
 const ALIAS_BODIES: &[&str] = &[
-    "nativecorebridge",
-    "nativedatabridge",
-    "nativebasemodule",
-    "nativeutilmodule",
-    "commoncorebridge",
-    "commondatabridge",
-    "commonbasemodule",
-    "commonutilmodule",
     "modulecorebridge",
     "moduledatabridge",
     "modulebasebridge",
     "moduleutilbridge",
-    "enginecorebridge",
-    "enginedatabridge",
-    "enginebasemodule",
-    "engineutilmodule",
-    "runtimeappbridge",
-    "runtimejnibridge",
-    "runtimeapimodule",
-    "supportappbridge",
-    "supportjnibridge",
-    "supportapimodule",
-    "serviceappbridge",
-    "servicejnibridge",
-    "serviceapimodule",
-    "nativeappsupport",
-    "nativejnisupport",
-    "nativeapisupport",
-    "commonappsupport",
-    "commonjnisupport",
-    "commonapisupport",
     "moduleappsupport",
     "modulejnisupport",
     "moduleapisupport",
-    "engineappsupport",
-    "enginejnisupport",
-    "engineapisupport",
-    "commonruntimejni",
-    "nativeruntimejni",
     "moduleruntimejni",
-    "engineruntimejni",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -324,12 +293,16 @@ mod tests {
 
     #[test]
     fn all_alias_candidates_follow_contract() {
-        assert!(ALIAS_BODIES.len() > 32);
+        assert!(ALIAS_BODIES.len() >= 8);
         let mut unique = HashSet::new();
         for body in ALIAS_BODIES {
             assert!(unique.insert(*body), "重复候选: {body}");
             assert_eq!(body.len(), 16, "非法候选: {body}");
             assert!(is_lower_ascii_name(body), "非法候选: {body}");
+            assert!(
+                body.starts_with("module"),
+                "候选超出 DEX 字典序安全区间: {body}"
+            );
             for forbidden in ["mocika", "shield", "protect", "packer", "shell", "bugly"] {
                 assert!(!body.contains(forbidden), "候选包含禁用词: {body}");
             }
@@ -369,9 +342,9 @@ mod tests {
     #[test]
     fn selection_skips_case_insensitive_conflicts() {
         let mut existing = HashSet::new();
-        existing.insert("libnativecorebridge.so".to_string());
+        existing.insert("libmodulecorebridge.so".to_string());
         let alias = NativeAlias::select_from(0, &existing).unwrap();
-        assert_eq!(alias.body(), "nativedatabridge");
+        assert_eq!(alias.body(), "moduledatabridge");
     }
 
     #[test]
