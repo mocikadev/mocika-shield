@@ -347,10 +347,14 @@ jobs:
             > generated-release-notes.json
 
           jq -r '.body' generated-release-notes.json > generated-release-notes-body.md
+          awk '
+            !removed && /^## What.s Changed$/ { removed = 1; next }
+            { print }
+          ' generated-release-notes-body.md > generated-release-notes-normalized.md
 
           cat release-notes-prefix.md > release-notes.md
           printf '\n\n---\n\n' >> release-notes.md
-          cat generated-release-notes-body.md >> release-notes.md
+          cat generated-release-notes-normalized.md >> release-notes.md
 
       - name: 创建或更新 GitHub Release
         shell: bash
