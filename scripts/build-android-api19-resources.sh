@@ -78,6 +78,8 @@ WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mocika-api19-resources.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 unzip -q "$STANDARD_RESOURCES" -d "$WORK_DIR"
+find "$WORK_DIR" -type f -name '.DS_Store' -delete
+rm -rf "$WORK_DIR/__MACOSX"
 cp "$API19_OUTPUT/jniLibs/armeabi-v7a/libmocikashield.so" \
     "$WORK_DIR/lib/armeabi-v7a/libmocikashield.so"
 perl -pi -e 's/"min_android_api": 21/"min_android_api": 19/' "$WORK_DIR/metadata.json"

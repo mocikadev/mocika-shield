@@ -384,7 +384,8 @@ cd "$OUTPUT_DIR"
 RESOURCES_ZIP="mocika-runtime-resources-${BUILD_VERSION}.zip"
 
 rm -f "$RESOURCES_ZIP" resources.zip
-zip -r "$RESOURCES_ZIP" stub-classes.dex lib/ metadata.json > /dev/null
+zip -r "$RESOURCES_ZIP" stub-classes.dex lib/ metadata.json \
+    -x '*.DS_Store' '__MACOSX/*' > /dev/null
 
 if [ $? -eq 0 ]; then
     RESOURCES_SIZE=$(du -h "$RESOURCES_ZIP" | cut -f1)
