@@ -174,6 +174,8 @@ pub fn extract_keystore_cert_fingerprint(
     let keytool = find_keytool()?;
 
     let mut args = vec![
+        "-J-Duser.language=en",
+        "-J-Duser.country=US",
         "-list",
         "-v",
         "-keystore",
@@ -198,10 +200,17 @@ pub fn extract_keystore_cert_fingerprint(
         if let Some(fp) = parse_sha256_from_keytool(&stdout) {
             return Ok(fp);
         }
+        anyhow::bail!("keytool 已执行成功，但未返回可识别的 SHA-256 指纹")
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    anyhow::bail!("无法读取 keystore 证书指纹：{}", stderr.trim())
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let detail = if stderr.trim().is_empty() {
+        stdout.trim()
+    } else {
+        stderr.trim()
+    };
+    anyhow::bail!("无法读取 keystore 证书指纹：{detail}")
 }
 
 pub fn normalize_fingerprint(fp: &str) -> String {
