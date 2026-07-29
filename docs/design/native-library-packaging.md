@@ -2,7 +2,7 @@
 
 本文定义 Mocika Shield 加固过程中对 `android:extractNativeLibs`、APK 内 `.so` 压缩方式、ZIP 对齐和 ELF 页大小兼容性的处理规则。该设计用于修复原 APK 显式设置 `extractNativeLibs=false` 且原本不包含 Native 库时，加固产物无法安装的问题。
 
-当前状态：核心修复与自动结构回归已经实现，Android 16/API 36 已完成有/无原始 Native 库两类真机安装验证；API 23 和 API 35 16 KB 设备矩阵仍在候选版本阶段执行。
+当前状态：核心修复、自动结构回归及候选版本设备矩阵均已完成。Android 16/API 36 已完成有/无原始 Native 库两类真机安装验证，API 23 与 API 35 16 KB 环境也已完成安装启动回归。
 
 ## 问题与复现证据
 
