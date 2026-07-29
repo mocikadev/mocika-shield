@@ -14,6 +14,7 @@ use crate::error::ShieldError;
 use crate::protect::{
     dex::process_dex,
     manifest::{modify_manifest, read_native_lib_packaging_policy, NativeLibPackagingPolicy},
+    native_alias::verify_in_apk,
     runtime::{inject_runtime, read_stub_application},
 };
 use crate::utils::is_json_mode;
@@ -176,7 +177,8 @@ pub fn protect_apk(
         "注入Runtime库",
     )?;
     print_step("注入Runtime库");
-    inject_runtime(&apk_dir, &runtime_resources, &opts.input).map_err(ShieldError::from)?;
+    let injected_runtime =
+        inject_runtime(&apk_dir, &runtime_resources, &opts.input).map_err(ShieldError::from)?;
     print_success("Runtime库注入完成");
 
     emit_progress(&on_progress, &cancel, ProgressStep::Repack, "重打包APK")?;
@@ -216,6 +218,7 @@ pub fn protect_apk(
     print_step("对齐APK数据");
     align_apk_with_native_packaging(&opts.output, native_library_packaging(native_lib_policy))
         .map_err(ShieldError::from)?;
+    verify_in_apk(&opts.output, &injected_runtime).map_err(ShieldError::from)?;
     print_success("APK数据对齐完成");
 
     Ok(())

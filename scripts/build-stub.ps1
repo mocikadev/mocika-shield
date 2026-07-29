@@ -365,7 +365,10 @@ $buildDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
   ],
   "min_android_api": 21,
   "target_android_api": 35,
-  "native_library": "libmocikashield.so"
+  "native_library": "libmocikashield.so",
+  "native_name_placeholder": "mocikanativeslot",
+  "native_name_length": 16,
+  "native_name_scheme": 1
 }
 "@ | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
 
