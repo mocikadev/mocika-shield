@@ -21,7 +21,7 @@ public class Ld {
     private static final int MAX_DEX_SIZE_BYTES = 256 * 1024 * 1024; // 256 MiB 合理上限
 
     static {
-        System.loadLibrary("mocikashield");
+        System.loadLibrary("mocikanativeslot");
     }
 
     /** DEX 注入：通过 JNI 将解密后的 DEX 插入 PathClassLoader，成功返回 true，失败降级到 Java 反射。 */
