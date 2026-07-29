@@ -76,12 +76,12 @@ fi
 
 verify_launch() {
   local scenario="$1"
-  adb "${ADB_ARGS[@]}" logcat -c
-  adb "${ADB_ARGS[@]}" shell am force-stop "$PACKAGE_NAME" >/dev/null 2>&1 || true
-  adb "${ADB_ARGS[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  "${ADB_COMMAND[@]}" logcat -c
+  "${ADB_COMMAND[@]}" shell am force-stop "$PACKAGE_NAME" >/dev/null 2>&1 || true
+  "${ADB_COMMAND[@]}" shell am start -W -n "$COMPONENT" >/dev/null
   for _ in $(seq 1 30); do
     local logs
-    logs="$(adb "${ADB_ARGS[@]}" logcat -d -s MocikaSmoke:I AndroidRuntime:E '*:S')"
+    logs="$("${ADB_COMMAND[@]}" logcat -d -s MocikaSmoke:I AndroidRuntime:E '*:S')"
     if grep -q 'MOCIKA_SMOKE_APPLICATION_OK' <<< "$logs" \
       && grep -q 'MOCIKA_SMOKE_ACTIVITY_OK' <<< "$logs" \
       && grep -q 'MOCIKA_SMOKE_SECONDARY_OK' <<< "$logs"; then
@@ -91,22 +91,22 @@ verify_launch() {
     sleep 1
   done
   echo "错误：$scenario 未观察到完整启动标记" >&2
-  adb "${ADB_ARGS[@]}" logcat -d -s MocikaSmoke:V AndroidRuntime:E '*:S' >&2
+  "${ADB_COMMAND[@]}" logcat -d -s MocikaSmoke:V AndroidRuntime:E '*:S' >&2
   return 1
 }
 
 if [[ "${RUN_DEVICE_TEST:-0}" == "1" ]]; then
   command -v adb >/dev/null || { echo "缺少命令：adb" >&2; exit 1; }
-  ADB_ARGS=()
+  ADB_COMMAND=(adb)
   if [[ -n "${ANDROID_SERIAL:-}" ]]; then
-    ADB_ARGS=(-s "$ANDROID_SERIAL")
+    ADB_COMMAND+=(-s "$ANDROID_SERIAL")
   fi
 
-  adb "${ADB_ARGS[@]}" get-state >/dev/null
-  adb "${ADB_ARGS[@]}" uninstall "$PACKAGE_NAME" >/dev/null 2>&1 || true
-  adb "${ADB_ARGS[@]}" install "$SIGNED" | grep -q '^Success'
+  "${ADB_COMMAND[@]}" get-state >/dev/null
+  "${ADB_COMMAND[@]}" uninstall "$PACKAGE_NAME" >/dev/null 2>&1 || true
+  "${ADB_COMMAND[@]}" install "$SIGNED" | grep -q '^Success'
   verify_launch "未加固双 DEX 基线"
-  adb "${ADB_ARGS[@]}" install -r "$FINAL" | grep -q '^Success'
+  "${ADB_COMMAND[@]}" install -r "$FINAL" | grep -q '^Success'
   verify_launch "同签名覆盖安装加固包首次启动"
   verify_launch "加固包缓存命中后二次启动"
 fi
