@@ -1,6 +1,7 @@
 VERSION    := $(shell grep '^version' apps/shield-cli/Cargo.toml | head -1 | sed 's/version = "\([^"]*\)"/\1/')
 CLI_BIN    := target/release/shield
 DIST_DIR   := dist
+PYTHON     ?= python3
 
 RESOURCES_ZIP  := shield-stub/build/outputs/resources/resources.zip
 
@@ -12,7 +13,7 @@ else
   CLEAN_CMD      := rm -rf
 endif
 
-.PHONY: build-cli build-stub build-gui build-all \
+.PHONY: build-cli build-stub audit-stub-dex build-gui build-all \
         release release-linux release-windows \
         release-macos release-macos-universal \
         bump-version test clean help
@@ -22,6 +23,7 @@ help:
 	@echo ""
 	@echo "  build-cli              编译 shield-cli（当前平台 release）"
 	@echo "  build-stub             构建 shield-stub（Android AAR + 资源包）"
+	@echo "  audit-stub-dex         输出 Stub DEX 指标并检查膨胀上限（需先 build-stub）"
 	@echo "  build-gui              构建 shield-gui Tauri 桌面应用（需先 build-stub）"
 	@echo "  build-all              build-stub + build-cli + build-gui（Tauri）"
 	@echo "  release-linux          Linux 本地发布包（默认 GUI + CLI，可用 SKIP_CLI_RELEASE=1 跳过 CLI），在 Linux 上运行"
@@ -49,6 +51,12 @@ else
 endif
 	@echo "✅ 产物: shield-stub/build/outputs/resources/resources.zip"
 	@echo "✅ 兼容产物: shield-stub/build/outputs/resources/resources-api19.zip"
+
+audit-stub-dex:
+	$(PYTHON) scripts/analyze_stub_dex.py $(RESOURCES_ZIP) \
+		--limits scripts/stub-dex-limits.json \
+		--output shield-stub/build/outputs/resources/stub-dex-metrics.json
+	@echo "✅ Stub DEX 指标: shield-stub/build/outputs/resources/stub-dex-metrics.json"
 
 build-gui:
 	@echo "🖥️  构建 shield-gui（Tauri）..."

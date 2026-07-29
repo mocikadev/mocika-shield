@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "maximum": {
+    "bytes": 20000,
+    "classes": 8,
+    "methods": 190,
+    "fields": 20,
+    "strings": 340
+  }
+}
