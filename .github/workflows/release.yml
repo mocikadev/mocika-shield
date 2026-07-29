@@ -315,12 +315,35 @@ jobs:
             -e "s/{{release_kind}}/$release_kind/g" \
             "$template" > release-notes-prefix.md
 
+          series_version="${VERSION%%-*}"
+          highlights=".github/release-notes/versions/${series_version}.md"
+          if [[ -f "$highlights" ]]; then
+            printf '\n' >> release-notes-prefix.md
+            cat "$highlights" >> release-notes-prefix.md
+          fi
+
+          previous_stable_tag="$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              | jq -rs --arg tag "$TAG" \
+                '[.[][] | select(.draft == false and .prerelease == false and .tag_name != $tag)][0].tag_name // empty'
+          )"
+
+          generate_args=(
+            -f tag_name="$TAG"
+            -f configuration_file_path=".github/release.yml"
+          )
+          if [[ -n "$previous_stable_tag" ]]; then
+            generate_args+=(-f previous_tag_name="$previous_stable_tag")
+            printf 'Release Notes 比较基线：%s\n' "$previous_stable_tag"
+          else
+            printf '未找到上一正式版本，使用 GitHub 默认比较基线\n'
+          fi
+
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
-            -f tag_name="$TAG" \
-            -f configuration_file_path=".github/release.yml" \
+            "${generate_args[@]}" \
             > generated-release-notes.json
 
           jq -r '.body' generated-release-notes.json > generated-release-notes-body.md
