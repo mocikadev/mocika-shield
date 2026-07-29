@@ -438,7 +438,7 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 | **加密算法** | Zstd + ChaCha20-Poly1305 + HKDF-SHA256（AEAD） | 私有算法（native 混淆，不可见） |
 | **隐藏 API 绕过** | JNI（不受限）+ Java `VMRuntime.setHiddenApiExemptions` 降级 | Native 层（JNI 不受限制） |
 | **签名校验** | DEXB v5 头部记录指纹，参与密钥派生并 timing-safe 比对 | 有 |
-| **安全检测** | Rust native 层反调试检测（TracerPid + Frida maps/线程名），检测到立即中止 | 内置反调试、Root、模拟器检测 |
+| **安全检测** | Rust Native 层每次启动执行反调试检查；可选严格策略额外检测高置信 Root、ADB Root 与注入信号，命中后拒绝启动 | 内置反调试、Root、模拟器检测 |
 
 ---
 
