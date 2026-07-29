@@ -195,7 +195,7 @@ Manifest 字段：
 
 ### Root 信号分级
 
-严格模式只根据高置信度组合阻止启动，例如明确可执行的 `su`、Magisk/Zygisk/KernelSU/APatch 注入或挂载痕迹、异常 UID 等。`test-keys`、`userdebug/eng`、`ro.debuggable`、模拟器特征和单个可疑路径属于弱信号，不能单独触发阻止。
+严格模式只根据高置信度组合阻止启动，例如明确可执行的 `su`、Magisk/Zygisk/KernelSU/APatch 注入或挂载痕迹、异常 UID，以及明确为 `service.adb.root=1` 的 Root ADB 等。`test-keys`、`userdebug/eng`、`ro.debuggable`、模拟器特征和单个可疑路径属于弱信号，不能单独触发阻止。
 
 Native 内部可返回位标志用于自动化测试，但 Java 和业务日志只获得通用结果，避免暴露规则细节。
 
@@ -299,7 +299,7 @@ Root 策略范围：
 - 接入 `compatible/strict` 枚举、Manifest 配置流和 GUI 任务级选项。
 - CLI 与旧请求保持默认兼容。
 
-当前实现状态：核心固定枚举、资源能力握手、Manifest 配置、GUI 任务级选项及 Native 高置信 Root 信号已接通；兼容模式维持原有反调试行为，严格模式额外拒绝 Root 信号。标准/API 19 双资源构建完成，API 35 普通真机已通过严格模式双 DEX、真实 Application、同签名覆盖安装、首次启动和二次启动验证；可控 Root 环境命中仍待具备条件的设备补测。
+当前实现状态：核心固定枚举、资源能力握手、Manifest 配置、GUI 任务级选项及 Native 高置信 Root 信号已接通；兼容模式维持原有反调试行为，严格模式额外拒绝 Root 信号。标准/API 19 双资源构建完成。API 35 普通真机已通过严格模式双 DEX、真实 Application、同签名覆盖安装、首次启动和二次启动验证；同一台 LineageOS 开启 Root ADB 后，严格模式按 `service.adb.root=1` 正确拒绝启动，兼容模式仍可完成首次和二次启动。
 
 内存 DEX 实验范围：
 
