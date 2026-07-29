@@ -41,19 +41,19 @@ final class DexCache {
 
         byte[][] dexes = Ld.decryptDexBytes(context);
         if (dexes == null || dexes.length != identity.count) {
-            throw new SecurityException("解密 DEX 数量与签名清单不一致");
+            throw new SecurityException("C01");
         }
 
         File temporary = new File(baseDir, cacheName + ".tmp");
         if (temporary.exists() && !deleteRecursive(temporary)) {
-            throw new SecurityException("临时缓存清理失败");
+            throw new SecurityException("C02");
         }
-        if (!temporary.mkdirs()) throw new SecurityException("临时缓存目录创建失败");
+        if (!temporary.mkdirs()) throw new SecurityException("C03");
 
         for (int i = 0; i < dexes.length; i++) {
             File output = new File(temporary, fileName(i));
             try (FileOutputStream stream = new FileOutputStream(output)) {
-                if (!output.setReadOnly()) throw new SecurityException("DEX 设置只读失败");
+                if (!output.setReadOnly()) throw new SecurityException("C04");
                 stream.write(dexes[i]);
                 stream.flush();
                 stream.getFD().sync();
@@ -61,20 +61,20 @@ final class DexCache {
         }
         if (!validateDexFiles(temporary, identity)) {
             deleteRecursive(temporary);
-            throw new SecurityException("解密 DEX 与签名清单不一致");
+            throw new SecurityException("C05");
         }
         File done = new File(temporary, DONE);
         if (!done.createNewFile() || !done.setReadOnly()) {
             deleteRecursive(temporary);
-            throw new SecurityException("缓存完成标记创建失败");
+            throw new SecurityException("C06");
         }
         if (cacheDir.exists() && !deleteRecursive(cacheDir)) {
             deleteRecursive(temporary);
-            throw new SecurityException("目标缓存清理失败");
+            throw new SecurityException("C07");
         }
         if (!temporary.renameTo(cacheDir)) {
             deleteRecursive(temporary);
-            throw new SecurityException("缓存目录原子替换失败");
+            throw new SecurityException("C08");
         }
         cleanOldCaches(baseDir, cacheName);
         return files(cacheDir, identity.count);
@@ -127,12 +127,12 @@ final class DexCache {
         ApplicationInfo info = context.getPackageManager().getApplicationInfo(
                 context.getPackageName(), PackageManager.GET_META_DATA);
         Bundle metadata = info.metaData;
-        if (metadata == null) throw new SecurityException("缺少缓存身份");
+        if (metadata == null) throw new SecurityException("C09");
         int schema = metadata.getInt(KEY_SCHEMA, -1);
         int count = metadata.getInt(KEY_COUNT, -1);
         String root = metadata.getString(KEY_ROOT);
         if (schema != SCHEMA || count <= 0 || root == null || !root.matches("[0-9a-f]{64}")) {
-            throw new SecurityException("缓存身份非法");
+            throw new SecurityException("C10");
         }
         return new Identity(schema, count, root);
     }
@@ -159,7 +159,7 @@ final class DexCache {
         if (children == null) return;
         for (File child : children) {
             if (!child.getName().equals(keepName) && !deleteRecursive(child)) {
-                Log.w(TAG, "旧缓存清理失败: " + child.getName());
+                Log.w(TAG, "C12");
             }
         }
     }
@@ -174,7 +174,7 @@ final class DexCache {
     }
 
     static void removeInvalidCache(File cacheDir) {
-        if (!deleteRecursive(cacheDir)) throw new SecurityException("无效缓存清理失败");
+        if (!deleteRecursive(cacheDir)) throw new SecurityException("C11");
     }
 
     private static long getVersionCode(Context context) throws Exception {

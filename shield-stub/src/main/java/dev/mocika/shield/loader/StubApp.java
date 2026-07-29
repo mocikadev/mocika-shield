@@ -145,7 +145,7 @@ public class StubApp extends Application {
             f.set(obj, val);
         } catch (NoSuchFieldException ignored) {
         } catch (Exception e) {
-            Log.w(TAG, "setField " + name + " failed: " + e);
+            Log.w(TAG, "P01", e);
         }
     }
 

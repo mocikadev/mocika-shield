@@ -3,7 +3,6 @@ package dev.mocika.shield.loader;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.Build;
-import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +14,6 @@ import dalvik.system.DexFile;
 /** 恢复 Android 9 动态 DEX 注入前的 Apache HTTP 共享库解析优先级。 */
 final class SharedLibraryCompat {
 
-    private static final String TAG = "dx";
     private static final String LEGACY_HTTP_LIBRARY = "org.apache.http.legacy";
     private static final String[] LEGACY_HTTP_PACKAGES = {
             "org.apache.http.",
@@ -29,8 +27,6 @@ final class SharedLibraryCompat {
         if (!shouldPrepare(Build.VERSION.SDK_INT, appInfo.sharedLibraryFiles)) return;
 
         ClassLoader appClassLoader = context.getClassLoader();
-        int loaded = 0;
-        int skipped = 0;
         for (File dexPath : dexFiles) {
             DexFile dexFile = new DexFile(dexPath);
             try {
@@ -40,16 +36,12 @@ final class SharedLibraryCompat {
                     if (!isLegacyHttpClass(className)) continue;
                     try {
                         appClassLoader.loadClass(className);
-                        loaded++;
-                    } catch (ClassNotFoundException | LinkageError ignored) {
-                        skipped++;
-                    }
+                    } catch (ClassNotFoundException | LinkageError ignored) {}
                 }
             } finally {
                 dexFile.close();
             }
         }
-        Log.i(TAG, "legacy-http:prepared loaded=" + loaded + " skipped=" + skipped);
     }
 
     static boolean shouldPrepare(int sdkInt, String[] sharedLibraryFiles) {

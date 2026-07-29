@@ -2,7 +2,6 @@ package dev.mocika.shield.loader;
 
 import android.content.Context;
 import android.os.Build;
-import android.util.Log;
 
 import dalvik.system.DexClassLoader;
 
@@ -18,8 +17,6 @@ import java.util.List;
 /** 按 Android 版本将解密 DEX 注入应用原有的 PathClassLoader。 */
 final class DexInjector {
 
-    private static final String TAG = "dx";
-
     private DexInjector() {}
 
     static void inject(Context context, List<File> dexFiles) throws Exception {
@@ -29,23 +26,19 @@ final class DexInjector {
                 ? context.getDir("dex_opt", Context.MODE_PRIVATE) : null;
 
         if (Build.VERSION.SDK_INT >= 24) {
-            Log.i(TAG, "dex-route:addDexPath api=" + Build.VERSION.SDK_INT);
             injectWithAddDexPath(classLoader, dexFiles, optimizedDirectory);
             return;
         }
         if (Build.VERSION.SDK_INT >= 21) {
-            Log.i(TAG, "dex-route:elementFactory api=" + Build.VERSION.SDK_INT);
             injectWithElementFactory(classLoader, dexFiles, optimizedDirectory,
                     factoryMethodNames(Build.VERSION.SDK_INT));
             return;
         }
         if (Build.VERSION.SDK_INT >= 19) {
-            Log.i(TAG, "dex-route:dalvik api=" + Build.VERSION.SDK_INT);
             injectWithDalvikClassLoader(classLoader, dexFiles, optimizedDirectory);
             return;
         }
-        throw new UnsupportedOperationException("Android API " + Build.VERSION.SDK_INT
-                + " 低于最低兼容版本 19");
+        throw new UnsupportedOperationException("D01");
     }
 
     /**
@@ -55,7 +48,7 @@ final class DexInjector {
     private static void injectWithDalvikClassLoader(ClassLoader classLoader, List<File> dexFiles,
                                                      File optimizedDirectory) throws Exception {
         if (optimizedDirectory == null) {
-            throw new IOException("Dalvik DEX 优化目录为空");
+            throw new IOException("D02");
         }
         StringBuilder dexPath = new StringBuilder();
         for (File dexFile : dexFiles) {
@@ -71,7 +64,7 @@ final class DexInjector {
         Field sourceElementsField = findField(sourcePathList.getClass(), "dexElements");
         Object[] injected = (Object[]) sourceElementsField.get(sourcePathList);
         if (injected == null || injected.length != dexFiles.size()) {
-            throw new IOException("Dalvik 构造的 DEX Element 数量异常");
+            throw new IOException("D03");
         }
 
         Object targetPathList = findField(classLoader.getClass(), "pathList").get(classLoader);
@@ -119,7 +112,7 @@ final class DexInjector {
         }
         if (!suppressed.isEmpty()) {
             mergeSuppressedExceptions(pathList, suppressed);
-            IOException error = new IOException("构造解密 DEX Element 失败");
+            IOException error = new IOException("D04");
             error.initCause(suppressed.get(0));
             throw error;
         }
