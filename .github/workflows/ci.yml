@@ -190,6 +190,9 @@ jobs:
       - name: 构建 shield-stub
         run: make build-stub
 
+      - name: 检查 Stub DEX 指标
+        run: make audit-stub-dex
+
       - name: 检查 Linux Tauri bundle
         working-directory: apps/shield-gui
         run: cargo tauri build --bundles appimage,deb --debug
