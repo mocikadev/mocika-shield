@@ -11,6 +11,8 @@
 #   apps/shield-cli/Cargo.toml
 #   apps/shield-gui/src-tauri/Cargo.toml
 #   shield-stub/src/main/rust/Cargo.toml
+#   shield-stub/compat/api19-rust/Cargo.toml
+#   shield-stub/compat/api19-rust/Cargo.lock
 #   apps/shield-gui/src-tauri/tauri.conf.json
 #   apps/shield-gui/package.json
 #   apps/shield-gui/package-lock.json
@@ -58,6 +60,15 @@ echo "  ✓ shield-stub/src/main/rust/Cargo.toml"
 
 si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/shield-stub/compat/api19-rust/Cargo.toml"
 echo "  ✓ shield-stub/compat/api19-rust/Cargo.toml"
+
+# API 19 兼容 crate 使用独立 workspace 和锁文件，Release 构建会传入 --locked。
+# 只更新本地根 package 版本，不解析或升级任何第三方依赖。
+cargo +1.77.2 update \
+  --manifest-path "$ROOT/shield-stub/compat/api19-rust/Cargo.toml" \
+  --package mocikashield-api19 \
+  --precise "$VERSION" \
+  --offline
+echo "  ✓ shield-stub/compat/api19-rust/Cargo.lock"
 
 # tauri.conf.json 顶层 "version" 字段缩进固定为 2 空格
 si "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$VERSION\"/" "$ROOT/apps/shield-gui/src-tauri/tauri.conf.json"

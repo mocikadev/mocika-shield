@@ -62,7 +62,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml` 及其独立 `Cargo.lock`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。API 19 发布构建使用 `--locked`，不得只修改兼容清单而遗漏独立锁文件。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。

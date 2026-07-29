@@ -90,6 +90,8 @@ Pull Request 合并前必须通过以下 CI 检查：
 | `crates/shield-core/Cargo.toml` | `version = "x.y.z[-pre]"` |
 | `apps/shield-cli/Cargo.toml` | `version = "x.y.z[-pre]"` |
 | `shield-stub/src/main/rust/Cargo.toml` | `version = "x.y.z[-pre]"` |
+| `shield-stub/compat/api19-rust/Cargo.toml` | `version = "x.y.z[-pre]"` |
+| `shield-stub/compat/api19-rust/Cargo.lock` | 独立兼容 crate 的根包版本；发布构建使用 `--locked` |
 | `apps/shield-gui/src-tauri/Cargo.toml` | `version = "x.y.z[-pre]"` |
 | `apps/shield-gui/src-tauri/tauri.conf.json` | `"version": "x.y.z[-pre]"` |
 | `apps/shield-gui/package.json` | `"version": "x.y.z[-pre]"` |
@@ -102,7 +104,7 @@ bash scripts/bump-version.sh x.y.z
 bash scripts/bump-version.sh x.y.z-rc.1
 ```
 
-修改后需重新运行 `cargo build` 或 `make build-all` 使 `Cargo.lock` 同步更新。
+脚本会使用 Rust 1.77.2 离线同步 API 19 兼容 crate 的独立锁文件；修改后仍需运行 `cargo build` 或 `make build-all`，使根 `Cargo.lock` 同步更新。
 
 ---
 
