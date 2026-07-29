@@ -39,7 +39,15 @@ java -jar "$ROOT/tools/apksigner.jar" sign \
   --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" --ks-key-alias smoke \
   --out "$SIGNED" "$UNSIGNED"
 
-"$ROOT/target/release/shield" protect --input "$SIGNED" --output "$PROTECTED"
+PROTECT_COMMAND=(
+  "$ROOT/target/release/shield" protect
+  --input "$SIGNED"
+  --output "$PROTECTED"
+)
+if [[ "${ENVIRONMENT_POLICY:-compatible}" == "strict" ]]; then
+  PROTECT_COMMAND+=(--environment-policy strict)
+fi
+"${PROTECT_COMMAND[@]}"
 
 java -jar "$ROOT/tools/apksigner.jar" sign \
   --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" --ks-key-alias smoke \

@@ -15,6 +15,12 @@ bash tests/scripts/run-protect-e2e.sh
 RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 ```
 
+普通非 Root 设备可额外执行严格环境策略回归，确认高置信 Root 检测不会误报：
+
+```bash
+ENVIRONMENT_POLICY=strict RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
+```
+
 存在多个在线设备时通过 `ANDROID_SERIAL` 指定目标设备。测试证书只在系统临时目录中生成，脚本退出时自动清理，不向仓库提交任何私钥。日常 CI 不启动模拟器；真实运行时回归由维护者在真机或指定模拟器上按需执行。
 
 ## Android 4.4 Native 加载探针
