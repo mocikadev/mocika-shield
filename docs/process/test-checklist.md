@@ -166,6 +166,24 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 
 ## 关键改动验证记录
 
+### 2026-07-29：1.2.7 发布前收尾审计
+
+| 项 | 结果 |
+|----|------|
+| 候选版本 | `v1.2.7-rc.5`；版本号在核心、CLI、GUI、标准 Stub 和 API 19 兼容 Stub 中保持一致 |
+| 发布构建 | Linux、macOS Universal、Windows 三平台 Release 任务全部成功；Release 包含四个 GUI 安装包和三个 SHA-256 校验文件 |
+| 官方安装包抽查 | 从 GitHub Release 下载 RC.5 macOS Universal DMG，只读挂载后确认应用内同时包含 `resources.zip` 与 `resources-api19.zip`；两包均只含预期 DEX、元数据和四 ABI Native 库，未夹带 `.DS_Store` |
+| 标准资源 | `resources.zip` 存在，包含四种 ABI，元数据最低 API 为 21；标准模式正式支持 Android 5.0 及以上 |
+| 工控兼容资源 | `resources-api19.zip` 存在，包含四种 ABI，元数据最低 API 为 19；`armeabi-v7a` 使用 r25c、Rust 1.77.2 和 API 19 构建，ELF 与动态符号审计通过 |
+| Android 4.4～6.0 | 同一个兼容加固 APK 已在 API 19、21、23 模拟器完成首次安装、清除数据、覆盖安装、双 DEX 与真实 Application 回归；Android 6.0 工控真机已验证，Android 4.4.2 工控真机仍待 Issue #15 用户确认 |
+| Android 9 | Issue #17 用户样本修复后已由用户在 Android 9 真机确认，未再出现共享库编译桩 `RuntimeException: Stub!` |
+| ARouter | 用户多模块样本已在 Android 16 真机通过首次安装、缓存命中、清除数据、跨模块路由和参数注入回归 |
+| Native 打包与 16 KB | `extractNativeLibs=false` 的有/无原始 Native 库样本已完成结构测试；API 23、API 35 16 KB 与 API 36 设备回归通过 |
+| 每次启动安全检查 | 冷启动首次解密和缓存命中再次启动均通过，缓存路径不会绕过环境检查 |
+| 未决事项 | Issue #15 等待 Android 4.4.2 真实工控板结果；Issue #2 等待用户提供原始/加固 APK 或具体不兼容库证据 |
+
+**正式版判断**：Android 4.4.2 工控真机验证成功且观察期无新的阻断问题时，可直接准备 `1.2.7`；若真实设备失败，只根据完整日志修复并发布下一候选版本。未取得真机结论时，Android 4.4 必须继续标记为候选能力，不得在稳定版中宣称正式支持。
+
 ### 2026-07-27：Android 5.0～6.0 DEX 注入兼容原型
 
 | 项 | 结果 |
@@ -175,7 +193,7 @@ RUN_DEVICE_TEST=1 bash tests/scripts/run-protect-e2e.sh
 | Android 6.0 | 官方 ARM64 AVD `mocika_api23`，Android 6.0（API 23）；单 DEX、双 DEX、首次安装、清除数据后启动和覆盖安装均成功，日志确认 `dex-route:elementFactory api=23` |
 | 高版本回归 | 一加 ONEPLUS A5000，Android 16（API 36），arm64-v8a；测试 APK 安装和冷启动成功 |
 | 运行时路径 | 日志确认 `dex-route:addDexPath api=36`，进程持续存活，无 DEX 注入或真实 Application 启动异常 |
-| 待验证 | 低 `minSdk` 的 ARouter 与宿主 Native 库样本、Android 5.x/6.0 厂商真机；完成前不调整正式最低支持范围 |
+| 后续结果 | Android 6.0 工控真机已完成首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务验证；标准模式最低支持范围已调整为 API 21 |
 
 ### 2026-07-20：严格 V2-only APK 签名提取
 

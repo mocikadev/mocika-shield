@@ -43,14 +43,14 @@
 | 项 | 内容 |
 |----|------|
 | **优先级** | 高 |
-| **状态** | 进行中 |
+| **状态** | 已完成 |
 | **涉及文件** | `crates/shield-core` Manifest 解析、ZIP 重写与端到端测试 |
 
 **复现结果**：原 APK 显式设置 `android:extractNativeLibs="false"` 且本身不含 Native 库时，加固新增的四架构 `libmocikashield.so` 会被 apktool 重打包为压缩条目。产物虽通过现有 16 KB ZIP 偏移校验，仍在 Android 16 真机安装时报 `INSTALL_FAILED_INVALID_APK: Failed to extract native libraries`。
 
 **修复方向**：保留原 Manifest 三态语义；仅在显式 `false` 时强制全部 `lib/**/*.so` 使用不压缩存储并按 16 KB 对齐，同时独立验证 Stub ELF `LOAD` 段。不得以无条件改成 `extractNativeLibs=true` 作为正式修复。
 
-**当前进展**：核心已实现 Manifest 三态解析、按策略重写 Native 库和压缩条目复验；自动端到端测试覆盖原 APK 无 Native 库且显式为 `false` 的场景。Android 16 真机已确认该场景由安装失败修复为安装成功；已有 Native 库的 ARouter 样本已通过覆盖安装、冷启动和 Native 直接加载。候选版本前仍需完成 API 23 与 API 35 16 KB 验证。
+**完成结果**：核心已实现 Manifest 三态解析、按策略重写 Native 库和压缩条目复验；自动端到端测试覆盖原 APK 无 Native 库且显式为 `false` 的场景。Android 16 真机已确认该场景由安装失败修复为安装成功；已有 Native 库的 ARouter 样本已通过覆盖安装、冷启动和 Native 直接加载。API 23、API 35 16 KB 与 API 36 设备矩阵均已完成，加固产物保持 Manifest 语义，全部 `.so` 均为不压缩且 16 KB ZIP 对齐。
 
 **完成条件**：有/无原生 Native 库的显式 `false` 样本均保持 Manifest 不变，所有 `.so` 为不压缩且 16 KB 对齐；完成自动结构测试、Android 16 真机安装启动，以及候选版本设备矩阵回归。详细设计见 [Android Native 库打包与加载兼容设计](../design/native-library-packaging.md)。
 
@@ -59,7 +59,7 @@
 | 项 | 内容 |
 |----|------|
 | **优先级** | 高 |
-| **状态** | 进行中 |
+| **状态** | 已完成 |
 | **涉及文件** | `shield-stub`、运行时兼容测试、使用与设计文档 |
 
 **目标**：在不创建第二个 ClassLoader、不改变 DEXB 格式的前提下，将运行时支持范围扩展到 Android 5.0（API 21）及以上。
@@ -70,9 +70,9 @@
 2. API 21～22 反射调用 `makeDexElements`，API 23 反射调用 `makePathElements`。
 3. 所有版本均把解密 DEX Element 前插到原 `PathClassLoader`，保持唯一 defining loader。
 4. 单元测试覆盖版本路由和 Element 顺序；API 21、23 设备覆盖首次启动、清除数据、多 DEX、ARouter 和 Native 库。
-5. Android 4.4（API 19～20）因当前 Rust Native 构建下限和 Dalvik 差异单独评估，不纳入本轮实现。
+5. Android 4.4（API 19～20）使用独立工控兼容模式，不降低标准模式的 Native 构建基线。
 
-**完成条件**：API 21 与 API 23 真机或官方模拟器端到端加固产物可安装、冷启动并通过关键功能回归；在此之前只作为测试兼容路径，不更新正式最低支持声明。
+**完成结果**：API 21 与 API 23 官方模拟器已完成单 DEX、双 DEX、真实 Application、首次安装、清除数据与覆盖安装回归；用户 Android 6.0 工控真机进一步确认首次启动、多 DEX、Native 库和主要硬件业务正常。标准模式最低支持范围已更新为 Android 5.0（API 21）及以上。
 
 ### Android 4.4 工控兼容模式
 
@@ -92,7 +92,7 @@
 4. 自动读取原 APK 的最低系统和 ABI 后推荐模式，由用户最终确认；包含 Native 库的 APK 只注入原有 ABI 对应的 Stub。
 5. r25c 的 `armeabi-v7a` 产物要求 NEON；真实设备无 NEON 时再评估 r23c，不预先引入第三套正式工具链。
 
-**当前进展**：现有 Rust Stub 已使用隔离的 r25c、Rust 1.77.2 工具链构建 `armeabi-v7a/API 19` 产物，ELF 确认为 ARMv7/NEON，仅依赖 `libc.so` 与 `libdl.so`。同一个双 DEX 兼容加固 APK 已在 Android 4.4.2/API 19 `armeabi-v7a`、Android 5.0/API 21 `arm64-v8a` 和 Android 6.0/API 23 `arm64-v8a` 模拟器通过 Native 加载、对应 DEX 注入路径、自定义 Application、首次安装、清除数据与同签名覆盖安装回归。GUI 已接入按任务选择的标准/Android 4.4 兼容模式，后端固定映射资源并校验 ABI，桌面安装包同时携带两套资源。当前 Rust 1.97 产物会引用 API 21 的 `dl_iterate_phdr`，兼容工具链不得跟随标准构建升级。下一步生成桌面候选版并在真实工控板验证。
+**当前进展**：现有 Rust Stub 已使用隔离的 r25c、Rust 1.77.2 工具链构建 `armeabi-v7a/API 19` 产物，ELF 确认为 ARMv7/NEON，仅依赖 `libc.so` 与 `libdl.so`。同一个双 DEX 兼容加固 APK 已在 Android 4.4.2/API 19 `armeabi-v7a`、Android 5.0/API 21 `arm64-v8a` 和 Android 6.0/API 23 `arm64-v8a` 模拟器通过 Native 加载、对应 DEX 注入路径、自定义 Application、首次安装、清除数据与同签名覆盖安装回归。GUI 已接入按任务选择的标准/Android 4.4 兼容模式，后端固定映射资源并校验 ABI，桌面安装包同时携带两套资源。`v1.2.7-rc.3` 已向 Issue #15 用户提供 Windows 候选包，当前等待同一兼容加固 APK 在 Android 4.4.2 与 Android 6.0 真实工控板的最终结果。当前 Rust 产物的新工具链会引用 API 21 的 `dl_iterate_phdr`，兼容工具链不得跟随标准构建升级。
 
 **完成条件**：同一次加固生成的 APK 在 Android 4.4.2 与 Android 6.0 真实工控板上通过首次安装、冷启动、清除数据、覆盖安装、多 DEX、Native 库和主要硬件交互回归。详细设计见 [Android 4.4 工控兼容设计](../design/android-4.4-compatibility.md)。
 
@@ -494,7 +494,7 @@ remote(1.1.2) vs local(1.1.1) → patch 不同 → "patch"
 **后续安全演进**：每次进程启动现在都会在读取缓存前执行 Native 环境检查，解密入口同时保留纵深检查；缓存本身仍缺少签名锚定的完整性验证。解密后的完整业务 DEX 会保存在应用私有目录，Root、可调试包 `run-as`、注入或已攻破进程环境可能提取明文。缓存完整性不能解决读取风险，后续按以下顺序分别推进：
 
 1. `1.2.7-rc.5` 已将环境检查调整为每次启动必经，同时保留解密入口纵深检查。
-2. `1.2.7-rc.5` 完成设备、用户和发布构建验证后发布 `1.2.7` 正式版。
+2. `1.2.7-rc.5` 已完成三平台发布构建与现有设备矩阵验证；等待 Android 4.4.2 真实工控板结论后决定直接发布 `1.2.7`，或仅针对真实日志发布下一候选版本。
 3. 在 `1.3.0-alpha.1` 引入由最终 APK 签名保护的缓存根摘要、原子缓存重建和资源能力协议；该阶段只解决完整性，不宣称防提取。
 4. 在 `1.3.0-alpha.2` 提前实验 API 29 以上内存 DEX，默认关闭且不进入正式 GUI，以实际兼容和性能数据决定后续范围。
 5. 在 `1.3.0-beta.1` 接入兼容/严格 Root 环境策略和 GUI 任务级选项，明确严格模式只能提高提取成本。
