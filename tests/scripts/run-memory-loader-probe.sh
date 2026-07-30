@@ -44,36 +44,48 @@ unzip -q "$PROJECT_DIR/payload-secondary/build/outputs/aar/payload-secondary-deb
 cp "$TEMP_DIR/main-dex/classes.dex" "$ASSET_DIR/payload-main.dex"
 cp "$TEMP_DIR/secondary-dex/classes.dex" "$ASSET_DIR/payload-secondary.dex"
 
-MEMORY_PROBE_ASSETS="$ASSET_DIR" "$GRADLE" -p "$PROJECT_DIR" :app:assembleDebug --no-daemon
-APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+MEMORY_PROBE_ASSETS="$ASSET_DIR" "$GRADLE" -p "$PROJECT_DIR" \
+  :app:assembleReflectionDebug :app:assembleFactoryDebug --no-daemon
 
-"${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
-"${ADB[@]}" logcat -c
-"${ADB[@]}" install "$APK" >/dev/null
-"${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
-sleep 2
+run_probe() {
+  local mode="$1"
+  local expected_loader_marker="$2"
+  local apk="$PROJECT_DIR/app/build/outputs/apk/$mode/debug/app-$mode-debug.apk"
 
-LOGS="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
-printf '%s\n' "$LOGS"
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" install "$apk" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  sleep 2
 
-for marker in LOADER_REPLACED APPLICATION_OK:SECONDARY_OK PROVIDER_OK ACTIVITY_OK:SECONDARY_OK:NATIVE_OK SERVICE_OK DELAYED_OK:AFTER_GC; do
-  if ! grep -Fq "$marker" <<<"$LOGS"; then
-    echo "内存 DEX 加载探针缺少标记：$marker" >&2
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  printf '%s\n' "$logs"
+
+  for marker in "$expected_loader_marker" APPLICATION_OK:SECONDARY_OK PROVIDER_OK ACTIVITY_OK:SECONDARY_OK:NATIVE_OK SERVICE_OK DELAYED_OK:AFTER_GC; do
+    if ! grep -Fq "$marker" <<<"$logs"; then
+      echo "$mode 内存 DEX 加载探针缺少标记：$marker" >&2
+      exit 1
+    fi
+  done
+
+  local loader_process_count
+  loader_process_count="$(grep -F "$expected_loader_marker" <<<"$logs" | awk '{print $3}' | sort -u | wc -l | tr -d ' ')"
+  if (( loader_process_count < 2 )); then
+    echo "$mode 内存 DEX 加载探针未在主进程和远程 Service 进程分别创建加载器" >&2
     exit 1
   fi
-done
 
-LOADER_PROCESS_COUNT="$(grep -F "LOADER_REPLACED" <<<"$LOGS" | awk '{print $3}' | sort -u | wc -l | tr -d ' ')"
-if (( LOADER_PROCESS_COUNT < 2 )); then
-  echo "内存 DEX 加载探针未在主进程和远程 Service 进程分别替换加载器" >&2
-  exit 1
-fi
+  local private_dex
+  private_dex="$("${ADB[@]}" shell run-as "$PACKAGE" find . -type f -name '*.dex' 2>/dev/null | tr -d '\r')"
+  if [[ -n "$private_dex" ]]; then
+    echo "$mode 探针在应用私有目录发现明文 DEX：" >&2
+    printf '%s\n' "$private_dex" >&2
+    exit 1
+  fi
+}
 
-PRIVATE_DEX="$("${ADB[@]}" shell run-as "$PACKAGE" find . -type f -name '*.dex' 2>/dev/null | tr -d '\r')"
-if [[ -n "$PRIVATE_DEX" ]]; then
-  echo "应用私有目录发现明文 DEX：" >&2
-  printf '%s\n' "$PRIVATE_DEX" >&2
-  exit 1
-fi
+run_probe reflection "LOADER_READY:REFLECTION"
+run_probe factory "LOADER_READY:FACTORY"
 
-echo "API $SDK_INT 替换 ClassLoader 内存双 DEX 探针通过，应用私有目录未发现 DEX 文件"
+echo "API $SDK_INT 两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"

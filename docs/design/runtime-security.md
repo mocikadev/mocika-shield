@@ -268,7 +268,7 @@ BootClassLoader
 └── InMemoryDexClassLoader：负责全部业务 DEX，并继承原应用 Native 搜索目录
 ```
 
-业务加载器的 parent 必须是原 `PathClassLoader` 的 parent，不能把原加载器作为 parent。否则原 APK 中尚未抽离或重复存在的业务类会被父优先委派提前定义，重新形成双加载器类身份。正式接入前还必须证明壳类与业务类集合不存在交叉；无法稳定分离时停止该方案。
+反射替换路径中，业务加载器的 parent 必须是原 `PathClassLoader` 的 parent，不能把原加载器作为 parent。否则原 APK 中尚未抽离或重复存在的业务类会被父优先委派提前定义，重新形成双加载器类身份。使用 `AppComponentFactory` 公开入口时存在不同约束：工厂类和壳 Application 已由系统默认加载器定义，返回的业务加载器需要以默认加载器为 parent 才能继续实例化壳组件。因此正式资源必须保证默认加载器只包含壳类、业务 DEX 只存在于内存载荷，两者类集合不交叉；无法稳定分离时停止该方案。
 
 `InMemoryDexClassLoader` 的 `librarySearchPath` 必须继承原 APK 的完整 Native 搜索语义。只传 `ApplicationInfo.nativeLibraryDir` 无法覆盖 `extractNativeLibs=false` 时直接从 APK 加载 `.so` 的路径；至少需要包含 `sourceDir!/lib/<ABI>`、应用 Native 目录和系统公开库路径，并验证任务级别名壳库与原业务库均可加载。路径无法从公开稳定信息重建时，不允许接入生产资源。
 
@@ -305,6 +305,22 @@ BootClassLoader
 - API 29、API 35 16 KB、API 36 的性能和内存矩阵
 
 探针通过不改变正式能力：`metadata.json` 继续保持 `memory_dex: false`，标准/API 19 资源与 GUI 均不接入该路径。
+
+#### `AppComponentFactory` 与反射入口对照
+
+2026-07-30 在同一 API 35 真机和同一组双 DEX 载荷上，将隔离探针拆成两个构建变体：
+
+1. 反射变体继续在壳 Application 的 `attachBaseContext()` 中写入 `LoadedApk.mClassLoader`。
+2. 工厂变体通过公开的 `AppComponentFactory.instantiateClassLoader()` 返回业务 `InMemoryDexClassLoader`，不反射修改框架 ClassLoader 字段。
+
+两种变体均在主进程和远程 Service 进程通过真实 Application、Provider、Activity、Service、跨 DEX 引用、APK 内 Native 库、GC 后延迟首次加载和私有目录无 DEX 检查。公开工厂入口由系统在 Application Context 初始化和任何应用组件实例化前调用，加载器时序与框架契约更明确，因此作为下一阶段首选；反射路径只保留为对照和止损依据，不进入正式实现。
+
+公开入口仍有两个生产阻塞项：
+
+- 回调只有默认 ClassLoader 与 `ApplicationInfo`，尚无可用 `Context`。当前 DEXB v5 解密必须通过 `Context` 读取设备实际签名，不能原样前移；必须先设计不降低签名绑定强度的早期证书读取边界。
+- 原应用可能声明 AndroidX 或自定义 `AppComponentFactory`。壳工厂不能直接覆盖其 Application、Activity、Service、Receiver 和 Provider 实例化语义；必须验证加载业务 DEX 后的安全委托方案，并处理委托工厂创建失败和递归配置。
+
+这两个阻塞项未通过前，不把工厂探针接入正式 Stub，也不开放 `memory_dex` 能力字段。
 
 ## 任务阶段与版本规划
 

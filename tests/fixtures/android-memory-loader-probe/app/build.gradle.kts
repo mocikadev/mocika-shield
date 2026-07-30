@@ -24,6 +24,16 @@ android {
         }
     }
 
+    flavorDimensions += "loaderEntry"
+    productFlavors {
+        create("reflection") {
+            dimension = "loaderEntry"
+        }
+        create("factory") {
+            dimension = "loaderEntry"
+        }
+    }
+
     sourceSets.getByName("main").assets.srcDir(
         providers.environmentVariable("MEMORY_PROBE_ASSETS").orElse("src/main/empty-assets")
     )
