@@ -25,16 +25,28 @@ final class MemoryPayloadLoader {
 
     static ClassLoader create(Context context, ClassLoader parent) throws Exception {
         ApplicationInfo info = context.getApplicationInfo();
+        MemoryProbeMetrics.configure(context);
         try (ZipFile apk = new ZipFile(info.sourceDir)) {
             ZipEntry protectedPayload = apk.getEntry(PROTECTED_PAYLOAD_ENTRY);
             if (protectedPayload != null) {
-                byte[][] decrypted = Ld.decrypt(context, readBytes(apk, protectedPayload));
+                MemoryProbeMetrics.snapshot("before_payload_read");
+                byte[] encrypted = readBytes(apk, protectedPayload);
+                MemoryProbeMetrics.trackEncrypted(encrypted);
+                MemoryProbeMetrics.snapshot("after_payload_read");
+                byte[][] decrypted = Ld.decrypt(context, encrypted);
+                MemoryProbeMetrics.trackDecrypted(decrypted);
+                MemoryProbeMetrics.snapshot("after_decrypt");
                 ByteBuffer[] payload = new ByteBuffer[decrypted.length];
                 for (int index = 0; index < decrypted.length; index++) {
                     payload[index] = directBuffer(decrypted[index]);
                 }
+                MemoryProbeMetrics.trackDirectBuffers(payload);
+                MemoryProbeMetrics.snapshot("after_direct_copy");
                 android.util.Log.i("MOCIKA_MEMORY_PROBE", "DEXB_NATIVE_DECRYPT_OK");
-                return new InMemoryDexClassLoader(payload, buildNativeSearchPath(info), parent);
+                ClassLoader loader = new InMemoryDexClassLoader(
+                        payload, buildNativeSearchPath(info), parent);
+                MemoryProbeMetrics.snapshot("after_loader_create");
+                return loader;
             }
             ByteBuffer[] payload = new ByteBuffer[PAYLOAD_ENTRIES.length];
             for (int index = 0; index < PAYLOAD_ENTRIES.length; index++) {
@@ -53,6 +65,26 @@ final class MemoryPayloadLoader {
     }
 
     private static byte[] readBytes(ZipFile apk, ZipEntry entry) throws Exception {
+        long declaredSize = entry.getSize();
+        if (declaredSize >= 0 && declaredSize <= Integer.MAX_VALUE) {
+            byte[] result = new byte[(int) declaredSize];
+            try (InputStream input = apk.getInputStream(entry)) {
+                int offset = 0;
+                while (offset < result.length) {
+                    int count = input.read(result, offset, result.length - offset);
+                    if (count < 0) {
+                        throw new IllegalStateException(
+                                "MEMORY_PROBE_ASSET_TRUNCATED:" + entry.getName());
+                    }
+                    offset += count;
+                }
+                if (input.read() != -1) {
+                    throw new IllegalStateException(
+                            "MEMORY_PROBE_ASSET_SIZE_MISMATCH:" + entry.getName());
+                }
+            }
+            return result;
+        }
         try (InputStream input = apk.getInputStream(entry);
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] chunk = new byte[16 * 1024];
