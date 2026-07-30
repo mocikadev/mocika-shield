@@ -196,13 +196,74 @@ verify_split_installation() {
 build_factory_variant() {
   local original_factory="$1"
   local output_apk="$2"
+  local crash_memory_start="${3:-false}"
+  local fail_file_start="${4:-false}"
   MEMORY_PROBE_ORIGINAL_FACTORY="$original_factory" \
+  MEMORY_PROBE_CRASH_MEMORY_START="$crash_memory_start" \
+  MEMORY_PROBE_FAIL_FILE_START="$fail_file_start" \
   MEMORY_PROBE_ASSETS="$TEMP_DIR/final-assets" \
   MEMORY_PROBE_NATIVE_LIBS="$ROOT_DIR/shield-stub/build/jniLibs" \
     "$GRADLE" -p "$PROJECT_DIR" :app:clean :app:assembleFactoryDebug --no-daemon >/dev/null
   java -jar "$ROOT_DIR/tools/apksigner.jar" sign --ks "$GOOD_KEYSTORE" \
     --ks-pass "pass:$PASSWORD" --ks-key-alias probe --out "$output_apk" \
     "$PROJECT_DIR/app/build/outputs/apk/factory/debug/app-factory-debug.apk"
+}
+
+verify_recovery_state_machine() {
+  local crash_apk="$TEMP_DIR/memory-dexb-memory-crash.apk"
+  local file_failure_apk="$TEMP_DIR/memory-dexb-file-failure.apk"
+  build_factory_variant \
+    "dev.mocika.shield.memorypayload.PayloadAppComponentFactory" "$crash_apk" true false
+  build_factory_variant \
+    "dev.mocika.shield.memorypayload.PayloadAppComponentFactory" "$file_failure_apk" true true
+
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$crash_apk" >/dev/null
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  for marker in MEMORY_PROBE_INJECTED_MEMORY_CRASH RECOVERY_MODE:FILE RECOVERY_FILE_LOADER_READY RECOVERY_COMPLETE:FILE; do
+    grep -Fq "$marker" <<<"$logs" || {
+      echo "内存崩溃回退缺少标记：$marker" >&2
+      printf '%s\n' "$logs" >&2
+      exit 1
+    }
+  done
+
+  "${ADB[@]}" shell am force-stop "$PACKAGE"
+  "${ADB[@]}" shell run-as "$PACKAGE" sh -c \
+    "sed -i 's/file_fallback/file_tampered/' shared_prefs/memory_probe_recovery.xml"
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  logs="$("${ADB[@]}" logcat -d -s AndroidRuntime:E '*:S')"
+  grep -Fq 'MEMORY_PROBE_RECOVERY_MAC_INVALID' <<<"$logs" || {
+    echo "认证回退状态被篡改后未失败关闭" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+  echo "内存崩溃、跨进程文件回退和认证状态篡改验证通过"
+
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$file_failure_apk" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  logs="$("${ADB[@]}" logcat -d -s AndroidRuntime:E '*:S')"
+  grep -Fq 'MEMORY_PROBE_FILE_FALLBACK_FAILED' <<<"$logs" || {
+    echo "文件路径连续失败后未失败关闭" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+  echo "文件回退连续失败后的失败关闭验证通过"
 }
 
 verify_no_original_factory() {
@@ -269,5 +330,6 @@ verify_split_installation
 verify_wrong_signature
 verify_no_original_factory
 verify_recursive_factory_rejected
+verify_recovery_state_machine
 "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
 echo "API ${SDK_INT} 正式 Stub Native、DEXB v5 与延迟内存加载代理验证通过"

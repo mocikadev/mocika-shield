@@ -7,10 +7,12 @@ import android.os.Build;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import dalvik.system.InMemoryDexClassLoader;
+import dalvik.system.DexClassLoader;
 import dev.mocika.shield.loader.Ld;
 
 /** 仅负责从探针 APK 读取内存 DEX 并创建业务加载器。 */
@@ -31,20 +33,29 @@ final class MemoryPayloadLoader {
             if (protectedPayload != null) {
                 MemoryProbeMetrics.snapshot("before_payload_read");
                 byte[] encrypted = readBytes(apk, protectedPayload);
+                String identity = hex(MessageDigest.getInstance("SHA-256").digest(encrypted));
+                ProbeRecoveryCoordinator.Attempt attempt =
+                        ProbeRecoveryCoordinator.begin(context, identity);
                 MemoryProbeMetrics.trackEncrypted(encrypted);
                 MemoryProbeMetrics.snapshot("after_payload_read");
                 byte[][] decrypted = Ld.decrypt(context, encrypted);
                 MemoryProbeMetrics.trackDecrypted(decrypted);
                 MemoryProbeMetrics.snapshot("after_decrypt");
-                ByteBuffer[] payload = new ByteBuffer[decrypted.length];
-                for (int index = 0; index < decrypted.length; index++) {
-                    payload[index] = directBuffer(decrypted[index]);
-                }
-                MemoryProbeMetrics.trackDirectBuffers(payload);
-                MemoryProbeMetrics.snapshot("after_direct_copy");
                 android.util.Log.i("MOCIKA_MEMORY_PROBE", "DEXB_NATIVE_DECRYPT_OK");
-                ClassLoader loader = new InMemoryDexClassLoader(
-                        payload, buildNativeSearchPath(info), parent);
+                ClassLoader loader;
+                if (attempt.mode == ProbeRecoveryCoordinator.Mode.MEMORY) {
+                    ByteBuffer[] payload = new ByteBuffer[decrypted.length];
+                    for (int index = 0; index < decrypted.length; index++) {
+                        payload[index] = directBuffer(decrypted[index]);
+                    }
+                    MemoryProbeMetrics.trackDirectBuffers(payload);
+                    MemoryProbeMetrics.snapshot("after_direct_copy");
+                    loader = new InMemoryDexClassLoader(
+                            payload, buildNativeSearchPath(info), parent);
+                } else {
+                    loader = createFileLoader(
+                            context, decrypted, buildNativeSearchPath(info), parent);
+                }
                 MemoryProbeMetrics.snapshot("after_loader_create");
                 return loader;
             }
@@ -54,6 +65,47 @@ final class MemoryPayloadLoader {
             }
             return new InMemoryDexClassLoader(payload, buildNativeSearchPath(info), parent);
         }
+    }
+
+    private static ClassLoader createFileLoader(
+            Context context, byte[][] dexes, String nativePath, ClassLoader parent) throws Exception {
+        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
+                context.getPackageName(), android.content.pm.PackageManager.GET_META_DATA);
+        if (info.metaData != null
+                && info.metaData.getBoolean("PROBE_FAIL_FILE_START", false)) {
+            throw new IllegalStateException("MEMORY_PROBE_INJECTED_FILE_FAILURE");
+        }
+        java.io.File directory = new java.io.File(context.getCodeCacheDir(), "memory-probe-fallback");
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IllegalStateException("MEMORY_PROBE_FALLBACK_DIR_FAILED");
+        }
+        StringBuilder paths = new StringBuilder();
+        for (int index = 0; index < dexes.length; index++) {
+            java.io.File temporary = new java.io.File(directory, "c" + index + ".dex.tmp");
+            java.io.File output = new java.io.File(directory, "c" + index + ".dex");
+            try (java.io.FileOutputStream stream = new java.io.FileOutputStream(temporary)) {
+                stream.write(dexes[index]);
+                stream.getFD().sync();
+            }
+            java.nio.file.Files.move(
+                    temporary.toPath(), output.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (!output.setReadOnly()) {
+                throw new IllegalStateException("MEMORY_PROBE_FALLBACK_COMMIT_FAILED");
+            }
+            if (paths.length() > 0) paths.append(java.io.File.pathSeparatorChar);
+            paths.append(output.getAbsolutePath());
+        }
+        android.util.Log.i("MOCIKA_MEMORY_PROBE", "RECOVERY_FILE_LOADER_READY");
+        return new DexClassLoader(paths.toString(), directory.getAbsolutePath(),
+                nativePath, parent);
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder result = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) result.append(String.format("%02x", value & 0xff));
+        return result.toString();
     }
 
     private static ByteBuffer readDirectBuffer(ZipFile apk, String name) throws Exception {
