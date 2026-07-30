@@ -167,6 +167,7 @@ pub(crate) fn inject_runtime(
 pub(crate) struct RuntimeSelection {
     pub(crate) stub_application: String,
     pub(crate) stub_component_factory: Option<String>,
+    pub(crate) memory_dex: bool,
 }
 
 pub(crate) fn read_runtime_selection(
@@ -188,6 +189,7 @@ pub(crate) fn read_runtime_selection(
     Ok(RuntimeSelection {
         stub_application: metadata.stub_application,
         stub_component_factory: metadata.stub_component_factory,
+        memory_dex: metadata.memory_dex,
     })
 }
 

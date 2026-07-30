@@ -14,6 +14,7 @@ import java.util.List;
 @TargetApi(28)
 final class MemoryRuntimeCoordinator {
     private static final String CACHE_ROOT = "dev.mocika.shield.CACHE_ROOT_SHA256";
+    private static final String PAYLOAD_DEX_BYTES = "dev.mocika.shield.PAYLOAD_DEX_BYTES";
     private static Attempt activeAttempt;
 
     private MemoryRuntimeCoordinator() {}
@@ -27,14 +28,18 @@ final class MemoryRuntimeCoordinator {
             return defaultLoader;
         }
         MemoryRuntimeProfiler profiler = MemoryRuntimeProfiler.start();
-        String identity = payloadIdentity(context);
+        PayloadDescriptor payload = payloadDescriptor(context);
+        MemoryBudgetDecider.Decision budget = MemoryBudgetDecider.decide(
+                AndroidMemoryBudget.capture(context, payload.dexBytes));
         RecoveryStateStore store = new RecoveryStateStore(
                 context, Application.getProcessName());
         RecoveryStateStore.Record record = store.read();
         RecoveryStateMachine.Previous previous = record == null ? null
                 : new RecoveryStateMachine.Previous(record.identity, record.state);
-        RecoveryStateMachine.Mode mode = RecoveryStateMachine.begin(identity, previous);
-        store.write(identity, RecoveryStateMachine.pending(mode));
+        RecoveryStateMachine.Plan plan = RecoveryStateMachine.begin(
+                payload.identity, previous, budget.allowed);
+        RecoveryStateMachine.Mode mode = RecoveryStateMachine.mode(plan);
+        store.write(payload.identity, RecoveryStateMachine.pending(mode));
         if (profiler != null) profiler.stage("state_ready", 0, 0);
 
         ClassLoader loader;
@@ -46,7 +51,7 @@ final class MemoryRuntimeCoordinator {
             loader = defaultLoader;
             if (profiler != null) profiler.stage("file_fallback", dexFiles.size(), 0);
         }
-        activeAttempt = new Attempt(identity, mode, loader, store, profiler);
+        activeAttempt = new Attempt(payload.identity, plan, loader, store, profiler);
         if (profiler != null) profiler.stage("runtime_ready", 0, 0);
         return loader;
     }
@@ -58,11 +63,11 @@ final class MemoryRuntimeCoordinator {
     static synchronized void complete() throws Exception {
         Attempt attempt = activeAttempt;
         if (attempt == null) return;
-        attempt.store.write(attempt.identity, RecoveryStateMachine.complete(attempt.mode));
+        attempt.store.write(attempt.identity, RecoveryStateMachine.complete(attempt.plan));
         if (attempt.profiler != null) attempt.profiler.stage("application_ready", 0, 0);
     }
 
-    private static String payloadIdentity(Context context) throws Exception {
+    private static PayloadDescriptor payloadDescriptor(Context context) throws Exception {
         ApplicationInfo info = context.getPackageManager().getApplicationInfo(
                 context.getPackageName(), PackageManager.GET_META_DATA);
         Bundle metadata = info.metaData;
@@ -70,20 +75,38 @@ final class MemoryRuntimeCoordinator {
         if (identity == null || !identity.matches("[0-9a-f]{64}")) {
             throw new SecurityException("R14");
         }
-        return identity;
+        String dexBytesText = metadata == null ? null : metadata.getString(PAYLOAD_DEX_BYTES);
+        long dexBytes;
+        try {
+            dexBytes = dexBytesText != null && dexBytesText.startsWith("bytes:")
+                    ? Long.parseLong(dexBytesText.substring(6)) : 0;
+        } catch (Exception error) {
+            dexBytes = 0;
+        }
+        return new PayloadDescriptor(identity, dexBytes);
+    }
+
+    private static final class PayloadDescriptor {
+        final String identity;
+        final long dexBytes;
+
+        PayloadDescriptor(String identity, long dexBytes) {
+            this.identity = identity;
+            this.dexBytes = dexBytes;
+        }
     }
 
     private static final class Attempt {
         final String identity;
-        final RecoveryStateMachine.Mode mode;
+        final RecoveryStateMachine.Plan plan;
         final ClassLoader loader;
         final RecoveryStateStore store;
         final MemoryRuntimeProfiler profiler;
 
-        Attempt(String identity, RecoveryStateMachine.Mode mode, ClassLoader loader,
+        Attempt(String identity, RecoveryStateMachine.Plan plan, ClassLoader loader,
                 RecoveryStateStore store, MemoryRuntimeProfiler profiler) {
             this.identity = identity;
-            this.mode = mode;
+            this.plan = plan;
             this.loader = loader;
             this.store = store;
             this.profiler = profiler;

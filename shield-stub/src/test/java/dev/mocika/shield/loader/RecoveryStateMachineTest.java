@@ -9,45 +9,52 @@ public class RecoveryStateMachineTest {
     private static final String IDENTITY = repeat('a', 64);
 
     @Test
-    public void 新载荷优先选择内存模式() {
-        assertEquals(RecoveryStateMachine.Mode.MEMORY,
-                RecoveryStateMachine.begin(IDENTITY, null));
-        assertEquals(RecoveryStateMachine.Mode.MEMORY,
-                RecoveryStateMachine.begin(IDENTITY,
-                        record(repeat('b', 64), RecoveryStateMachine.FILE_FALLBACK)));
+    public void 新载荷按本次预算选择路径() {
+        assertEquals(RecoveryStateMachine.Plan.MEMORY,
+                RecoveryStateMachine.begin(IDENTITY, null, true));
+        assertEquals(RecoveryStateMachine.Plan.FILE_BUDGET,
+                RecoveryStateMachine.begin(IDENTITY, null, false));
+    }
+
+    @Test
+    public void 预算文件成功不会形成粘性回退() {
+        RecoveryStateMachine.Previous previous = record(
+                IDENTITY, RecoveryStateMachine.FILE_READY);
+        assertEquals(RecoveryStateMachine.Plan.MEMORY,
+                RecoveryStateMachine.begin(IDENTITY, previous, true));
+        assertEquals(RecoveryStateMachine.Plan.FILE_BUDGET,
+                RecoveryStateMachine.begin(IDENTITY, previous, false));
     }
 
     @Test
     public void 未确认的内存启动进入粘性文件回退() {
-        assertEquals(RecoveryStateMachine.Mode.FILE,
+        assertEquals(RecoveryStateMachine.Plan.FILE_RECOVERY,
                 RecoveryStateMachine.begin(IDENTITY,
-                        record(IDENTITY, RecoveryStateMachine.MEMORY_PENDING)));
-        assertEquals(RecoveryStateMachine.Mode.FILE,
+                        record(IDENTITY, RecoveryStateMachine.MEMORY_PENDING), true));
+        assertEquals(RecoveryStateMachine.Plan.FILE_RECOVERY,
                 RecoveryStateMachine.begin(IDENTITY,
-                        record(IDENTITY, RecoveryStateMachine.FILE_FALLBACK)));
+                        record(IDENTITY, RecoveryStateMachine.FILE_FALLBACK), true));
     }
 
     @Test
     public void 未确认的文件启动失败关闭() {
         try {
             RecoveryStateMachine.begin(IDENTITY,
-                    record(IDENTITY, RecoveryStateMachine.FILE_PENDING));
-            fail("文件回退失败后不应继续启动");
+                    record(IDENTITY, RecoveryStateMachine.FILE_PENDING), true);
+            fail("文件路径失败后不应继续启动");
         } catch (SecurityException expected) {
             assertEquals("R01", expected.getMessage());
         }
     }
 
     @Test
-    public void 完成状态与模式严格对应() {
-        assertEquals(RecoveryStateMachine.MEMORY_PENDING,
-                RecoveryStateMachine.pending(RecoveryStateMachine.Mode.MEMORY));
+    public void 完成状态区分预算文件与崩溃回退() {
         assertEquals(RecoveryStateMachine.MEMORY_READY,
-                RecoveryStateMachine.complete(RecoveryStateMachine.Mode.MEMORY));
-        assertEquals(RecoveryStateMachine.FILE_PENDING,
-                RecoveryStateMachine.pending(RecoveryStateMachine.Mode.FILE));
+                RecoveryStateMachine.complete(RecoveryStateMachine.Plan.MEMORY));
+        assertEquals(RecoveryStateMachine.FILE_READY,
+                RecoveryStateMachine.complete(RecoveryStateMachine.Plan.FILE_BUDGET));
         assertEquals(RecoveryStateMachine.FILE_FALLBACK,
-                RecoveryStateMachine.complete(RecoveryStateMachine.Mode.FILE));
+                RecoveryStateMachine.complete(RecoveryStateMachine.Plan.FILE_RECOVERY));
     }
 
     private static RecoveryStateMachine.Previous record(String identity, String state) {
