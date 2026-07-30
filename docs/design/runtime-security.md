@@ -302,7 +302,7 @@ BootClassLoader
 - Android 9 系统共享库和 AppComponentFactory
 - split APK、Instrumentation 和厂商 ClassLoader
 - 首次安装、清除数据、同签名覆盖安装和崩溃后文件模式重启回退
-- API 29、API 35 16 KB、API 36 的性能和内存矩阵
+- 更广泛厂商真机的性能和内存矩阵
 
 探针通过不改变正式能力：`metadata.json` 继续保持 `memory_dex: false`，标准/API 19 资源与 GUI 均不接入该路径。
 
@@ -323,6 +323,21 @@ BootClassLoader
 2026-07-30 已在工厂变体中增加载荷侧自定义工厂：壳工厂创建业务加载器后，由该加载器创建原工厂；真实 Application 由壳 Application 主动通过原工厂创建，Provider、Activity、Receiver 和远程进程 Service 则由系统回调壳工厂后转发。五类组件的原工厂标记与实际生命周期标记均通过，证明委托机制在最小框架链路中可行。
 
 正式接入仍需把原工厂类名以独立元数据保存，区分“原应用未声明工厂”、AndroidX 工厂、自定义工厂和错误地指回壳工厂的递归配置；委托创建失败必须失败关闭，不能静默退回默认工厂。无 `Context` 阶段的签名绑定解密仍是进入正式 Stub 前的主要阻塞项。在这些边界完成前，不开放 `memory_dex` 能力字段。
+
+#### API 29～36 关键版本矩阵
+
+2026-07-30 使用相同探针完成首轮关键系统节点验证：
+
+| 环境 | 页大小 | 结果 | 覆盖范围 |
+|------|--------|------|----------|
+| API 29 ARM64 模拟器 | 4 KB | 通过 | 两种入口、双进程、五类组件、原工厂委托、双 DEX、Native、GC 延迟加载、私有目录无 DEX |
+| API 35 ARM64 16 KB 模拟器 | 16 KB | 通过 | 同上；确认 APK 内 Native 库可在 16 KB 环境加载 |
+| API 36 ARM64 模拟器 | 4 KB | 通过 | 同上 |
+| API 35 OnePlus 5 真机 | 4 KB | 通过 | 同上 |
+
+API 35 16 KB 首次运行暴露测试 `libmemoryprobe.so` 只有 GNU 哈希表且 ELF `LOAD` 段仍按 4 KB 对齐，系统在 Native 加载阶段拒绝启动。探针随后显式生成 SysV/GNU 双哈希表并将最大页大小设为 16 KB，复验通过。该问题属于测试 Native 产物，不是内存 DEX 加载失败；修正参数保留为探针自身的 16 KB 前置条件。
+
+该矩阵证明公开工厂入口和反射对照在 API 29 最低边界、API 35 16 KB 与 API 36 模拟器上具备一致的最小运行行为，但仍不能替代厂商真机、正式 Stub Native、真实 APK 与性能验证。
 
 ## 任务阶段与版本规划
 
