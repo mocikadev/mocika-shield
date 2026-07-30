@@ -4,7 +4,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/mocikadev/mocika-shield?style=flat-square&label=release&color=6366f1)](https://github.com/mocikadev/mocika-shield/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/mocikadev/mocika-shield/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mocikadev/mocika-shield/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green?style=flat-square)](#license)
 
 Mocika Shield is an open-source, offline Android APK hardening tool. It compresses and encrypts DEX files, then decrypts and loads them through a protected runtime stub. The goal is to raise the cost of static analysis, unauthorized repackaging, and runtime debugging—not to claim that an Android application can be made impossible to reverse engineer.
 
@@ -171,4 +171,7 @@ Diagnostic information can be copied from the application's **About** page. Revi
 
 ## License
 
-[MIT](LICENSE)
+This project is dual-licensed under **MIT OR Apache-2.0**. You may choose either license.
+
+- [MIT License](LICENSE-MIT)
+- [Apache License 2.0](LICENSE-APACHE)

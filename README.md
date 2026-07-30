@@ -4,7 +4,7 @@
 
 [![最新版本](https://img.shields.io/github/v/release/mocikadev/mocika-shield?style=flat-square&label=最新版本&color=6366f1)](https://github.com/mocikadev/mocika-shield/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/mocikadev/mocika-shield/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/mocikadev/mocika-shield/actions/workflows/ci.yml)
-[![许可证](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![许可证](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green?style=flat-square)](#许可证)
 
 对 Android APK 的 DEX 文件进行压缩加密，并在运行时通过壳程序动态解密加载，防止静态反编译与重打包攻击。
 
@@ -289,7 +289,10 @@ APK、证书、密钥库和签名密码只在本机处理，不会上传。桌�
 
 ## 许可证
 
-[MIT](LICENSE)
+本项目采用 **MIT OR Apache-2.0** 双协议授权，你可以选择其中任意一种。
+
+- [MIT 许可证](LICENSE-MIT)
+- [Apache 2.0 许可证](LICENSE-APACHE)
 
 ## 安全问题
 
