@@ -147,13 +147,13 @@ file_pending           → 失败关闭
 
 - 已增加真实组件工厂、稳定代理和高版本类型隔离桥；构建脚本生成仅供显式路径使用的 `resources-memory.zip`。
 - 已接入正式 Native DEXB v5 解密和唯一 `InMemoryDexClassLoader`，并把原组件工厂的五类组件创建语义交还委托对象。
-- 待实现每进程协调器和认证回退状态存储；在此之前候选资源遇到内存启动异常会直接失败关闭。
-- 将回退状态存储改为 `noBackupFilesDir` 原子文件，并复用正式 `DexCache` 文件路径。
+- 已增加每进程协调器和认证回退状态存储：纯状态机不依赖 Android 存储，状态文件使用 `noBackupFilesDir` 原子替换，HMAC 原始密钥由每进程 Android Keystore AES-GCM 密钥包装。
+- 文件模式复用正式 `DexCache` 和现有 DEX 注入器，不维护第二套明文缓存；一次未确认的内存启动后保持文件模式，文件启动再次未确认时失败关闭。
 - API 28 以下固定走现有文件路径。
 
-当前证据：API 35 真机已通过同签名 DEXB v5、双 DEX、Application 与 Activity 冷启动，应用私有目录没有生成明文 `.dex`；标准资源和 Android 4.4 资源仍沿用协议 2，候选能力未进入 GUI。
+当前证据：API 35 真机已通过同签名 DEXB v5、双 DEX、Application 与 Activity 冷启动，正常内存路径的应用私有目录没有生成明文 `.dex`；真实 Application 主动退出后，下一进程成功进入文件回退，后续重启保持文件模式；认证状态追加脏数据后以 `SecurityException` 失败关闭。标准资源和 Android 4.4 资源仍沿用协议 2，候选能力未进入 GUI。
 
-完成条件：自动状态转换测试、API 29 真机最小链路和 API 28 以下文件回退通过，候选能力仍不进入 GUI。
+完成条件：API 29 真机最小链路、API 28 以下文件路径、原组件工厂正式样本和多进程回归通过，候选能力仍不进入 GUI。
 
 ### 完整生产门禁
 
