@@ -33,7 +33,7 @@ jobs:
             git -C source show origin/stats:data/history.json > "$RUNNER_TEMP/stats-output/data/history.json"
           fi
 
-      - name: 采集并生成统计页面
+      - name: 采集并保存统计历史
         working-directory: source
         env:
           GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || github.token }}
@@ -42,10 +42,8 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --history-file "$RUNNER_TEMP/stats-output/data/history.json" \
             --output-dir "$RUNNER_TEMP/stats-output"
-          mkdir -p "$RUNNER_TEMP/stats-output/assets"
-          cp docs/assets/community/qq-group.png "$RUNNER_TEMP/stats-output/assets/qq-group.png"
 
-      - name: 发布到统计分支
+      - name: 保存到统计分支
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
