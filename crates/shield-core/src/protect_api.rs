@@ -14,8 +14,8 @@ use crate::error::ShieldError;
 use crate::protect::{
     dex::process_dex,
     manifest::{
-        add_cache_identity, modify_manifest, read_native_lib_packaging_policy,
-        NativeLibPackagingPolicy,
+        add_cache_identity, add_memory_payload_metrics, modify_manifest,
+        read_native_lib_packaging_policy, NativeLibPackagingPolicy,
     },
     native_alias::verify_in_apk,
     runtime::{inject_runtime, read_runtime_selection},
@@ -203,6 +203,9 @@ pub fn protect_apk(
     print_step("处理DEX文件");
     let cache_identity = process_dex(&apk_dir, &signature, &ikm).map_err(ShieldError::from)?;
     add_cache_identity(&apk_dir, &cache_identity).map_err(ShieldError::from)?;
+    if runtime_selection.memory_dex {
+        add_memory_payload_metrics(&apk_dir, &cache_identity).map_err(ShieldError::from)?;
+    }
 
     emit_progress(
         &on_progress,

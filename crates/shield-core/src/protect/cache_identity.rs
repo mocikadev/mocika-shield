@@ -9,6 +9,7 @@ pub(crate) const CACHE_SCHEMA: u32 = 1;
 pub(crate) struct CacheIdentity {
     pub(crate) schema: u32,
     pub(crate) dex_count: usize,
+    pub(crate) total_dex_bytes: u64,
     pub(crate) root_sha256: String,
 }
 
@@ -20,6 +21,7 @@ pub(crate) fn calculate(dex_files: &[PathBuf]) -> Result<CacheIdentity> {
     files.sort_by_key(|path| dex_index(path));
 
     let mut root = Sha256::new();
+    let mut total_dex_bytes = 0u64;
     root.update(CACHE_SCHEMA.to_le_bytes());
     root.update((files.len() as u32).to_le_bytes());
     for (position, path) in files.iter().enumerate() {
@@ -29,6 +31,9 @@ pub(crate) fn calculate(dex_files: &[PathBuf]) -> Result<CacheIdentity> {
             .context("DEX 文件名不是有效 UTF-8")?;
         let data = fs::read(path).with_context(|| format!("读取 DEX 生成缓存身份失败: {name}"))?;
         let digest = Sha256::digest(&data);
+        total_dex_bytes = total_dex_bytes
+            .checked_add(data.len() as u64)
+            .context("DEX 总大小溢出")?;
         root.update(((position + 1) as u32).to_le_bytes());
         root.update((name.len() as u32).to_le_bytes());
         root.update(name.as_bytes());
@@ -39,6 +44,7 @@ pub(crate) fn calculate(dex_files: &[PathBuf]) -> Result<CacheIdentity> {
     Ok(CacheIdentity {
         schema: CACHE_SCHEMA,
         dex_count: files.len(),
+        total_dex_bytes,
         root_sha256: hex_lower(&root.finalize()),
     })
 }
@@ -81,6 +87,7 @@ mod tests {
         let reverse = calculate(&[second, first]).unwrap();
         assert_eq!(forward, reverse);
         assert_eq!(forward.dex_count, 2);
+        assert_eq!(forward.total_dex_bytes, 11);
         assert_eq!(forward.root_sha256.len(), 64);
     }
 

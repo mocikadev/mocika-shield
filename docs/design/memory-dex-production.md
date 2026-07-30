@@ -95,13 +95,30 @@
 ### 状态转换
 
 ```text
-新载荷或 memory_ready → memory_pending → memory_ready
-memory_pending         → file_pending   → file_fallback
-file_fallback          → file_pending   → file_fallback
-file_pending           → 失败关闭
+预算允许且新载荷、memory_ready 或 file_ready → memory_pending → memory_ready
+预算不足且新载荷、memory_ready 或 file_ready → file_pending   → file_ready
+memory_pending                                 → file_pending   → file_fallback
+file_fallback                                  → file_pending   → file_fallback
+file_pending                                   → 失败关闭
 ```
 
-同一载荷发生一次未确认的内存启动后保持文件模式，不按时间自动重试。只有载荷身份变化、应用数据被用户清除或重新安装时才重新尝试内存模式，避免兼容性崩溃循环。
+`file_ready` 表示本次因设备预算主动选择文件路径，下次新进程可以重新采集可用内存并评估；`file_fallback` 表示此前内存启动未确认，必须保持粘性文件回退。只有载荷身份变化、应用数据被用户清除或重新安装时才解除崩溃回退，避免兼容性崩溃循环。
+
+## 运行时内存预算
+
+核心只在显式使用协议 3 内存候选资源时，把原始 DEX 总字节数写入 `dev.mocika.shield.PAYLOAD_DEX_BYTES`。该字段使用 `bytes:<十进制字节数>` 字符串表示，避免 Android 资源编译器把大整数收窄；字段随最终 APK 一起签名。标准资源和 Android 4.4 工控资源不写入此字段，DEXB 继续使用 v5。
+
+Android 壳在任何 DEX 解密和业务类定义之前采集不可变快照，纯决策器只接收 Android API、物理总内存、当前可用内存、低内存设备标记、进程位数与 DEX 总大小。CPU 型号和临时跑分不作为启动硬门槛：厂商调度、温度和后台负载会使其缺乏稳定性，启动耗时继续通过设备矩阵评估。
+
+首轮保守阈值如下，后续只能依据可复现实测校准：
+
+| 条件 | 64 位进程 | 32 位进程 |
+|------|-----------|-----------|
+| 最大 DEX 总量 | 384 MiB | 64 MiB |
+| 最低物理内存 | `max(3 GiB, DEX × 10)` | `max(3 GiB, DEX × 12)` |
+| 最低当前可用内存 | `max(768 MiB, DEX × 5)` | `max(1 GiB, DEX × 7)` |
+
+API 低于 31、系统声明低内存设备、元数据缺失或异常、任一内存阈值不满足时均选择认证文件路径。预算拒绝不是错误，也不永久锁定加载模式；若已经遗留 `memory_pending`，恢复安全优先于本次预算，仍进入粘性文件回退。文件路径本身未确认则继续失败关闭。
 
 ## 状态存储与安全边界
 
@@ -121,6 +138,7 @@ file_pending           → 失败关闭
 - 区分原应用未声明工厂、AndroidX 工厂、自定义工厂和递归指向壳工厂。
 - 原工厂类不存在、类型不匹配、构造失败或递归配置时失败关闭。
 - 保持 `extractNativeLibs`、Provider 初始化顺序、ARouter 路由清单、环境策略和任务级 Native 别名现有语义。
+- 只为协议 3 内存候选写入受签名保护的 DEX 总大小；原应用占用同名字段时在输出 APK 创建前拒绝加固。
 
 标准资源不写入壳组件工厂，避免内存候选改变当前正式 APK 的 Manifest 和启动路径。
 
@@ -149,9 +167,12 @@ file_pending           → 失败关闭
 - 已接入正式 Native DEXB v5 解密和唯一 `InMemoryDexClassLoader`，并把原组件工厂的五类组件创建语义交还委托对象。
 - 已增加每进程协调器和认证回退状态存储：纯状态机不依赖 Android 存储，状态文件使用 `noBackupFilesDir` 原子替换，HMAC 原始密钥由每进程 Android Keystore AES-GCM 密钥包装。
 - 文件模式复用正式 `DexCache` 和现有 DEX 注入器，不维护第二套明文缓存；一次未确认的内存启动后保持文件模式，文件启动再次未确认时失败关闭。
+- 已增加独立内存预算快照和纯决策器；预算文件成功与崩溃回退分别持久化，前者允许下次进程重新评估，后者保持粘性。
 - API 28 以下固定走现有文件路径。
 
 当前证据：API 28、API 29、API 30 ARM64 模拟器已通过认证文件路径、双 DEX、原组件工厂五类回调和主/远程进程，且未创建内存状态文件。API 31 ARM64 模拟器、API 33 Classin BH55A 真机与 API 35 OnePlus 真机已通过同签名 DEXB v5、双 DEX、原组件工厂五类回调和主/远程进程，两个进程分别生成认证状态，正常内存路径的应用私有目录没有生成明文 `.dex`。API 33 与 API 35 真机还通过了清除数据、标准/候选双向覆盖、真实 Application 异常后的文件回退及粘性重启、文件连续失败关闭、进程状态隔离、状态 MAC 损坏、包装密文损坏和 Keystore 条目删除；Classin 自动重试启动事务，OnePlus 等待显式重启，两种行为均形成预期状态转换。标准资源和 Android 4.4 资源仍沿用协议 2，候选能力未进入 GUI。
+
+2026-07-30 增加自动预算后重新构建三类资源，并在合成双 DEX APK 上确认标准产物不含 `PAYLOAD_DEX_BYTES`，协议 3 候选写入实际原始 DEX 总量 `bytes:9180`。API 33 Classin BH55A 与 API 35 OnePlus 真机再次完成首次安装、清除数据、标准/候选双向覆盖、崩溃粘性回退、文件连续失败、进程隔离以及状态、包装密文和 Keystore 异常回归。纯决策矩阵另行覆盖 API、无效指标、低内存设备、32/64 位载荷上限、总内存和可用内存拒绝条件。
 
 完成条件：API 30 文件路径、API 31 最低内存边界和两家不同厂商的 API 31 以上真机均已通过。候选能力仍不进入 GUI。
 

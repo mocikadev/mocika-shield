@@ -136,6 +136,24 @@ pub(crate) fn add_cache_identity(apk_dir: &Path, identity: &CacheIdentity) -> Re
     fs::write(manifest_path, result).context("写入缓存身份到 AndroidManifest.xml 失败")
 }
 
+pub(crate) fn add_memory_payload_metrics(apk_dir: &Path, identity: &CacheIdentity) -> Result<()> {
+    let manifest_path = apk_dir.join("AndroidManifest.xml");
+    let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
+    const FIELD: &str = "dev.mocika.shield.PAYLOAD_DEX_BYTES";
+    if content.contains(FIELD) {
+        anyhow::bail!("原 APK 已占用 Mocika Shield 载荷大小字段，无法安全写入内存预算数据");
+    }
+    let close = content
+        .rfind("</application>")
+        .context("AndroidManifest.xml 中未找到 </application>")?;
+    let metadata = format!(
+        "\n        <meta-data android:name=\"{FIELD}\" android:value=\"bytes:{}\" />\n    ",
+        identity.total_dex_bytes
+    );
+    let result = format!("{}{}{}", &content[..close], metadata, &content[close..]);
+    fs::write(manifest_path, result).context("写入内存预算元数据到 AndroidManifest.xml 失败")
+}
+
 fn find_tag_end(content: &str, start: usize) -> Option<usize> {
     let s = &content[start..];
     let mut in_quote: Option<u8> = None;
@@ -484,5 +502,27 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("已占用"));
+    }
+
+    #[test]
+    fn 内存候选写入可稳定按字符串读取的载荷大小() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("AndroidManifest.xml"),
+            "<manifest><application></application></manifest>",
+        )
+        .unwrap();
+        let identity = CacheIdentity {
+            schema: 1,
+            dex_count: 2,
+            total_dex_bytes: 118_489_088,
+            root_sha256: "a".repeat(64),
+        };
+
+        add_memory_payload_metrics(dir.path(), &identity).unwrap();
+
+        let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
+        assert!(result.contains("dev.mocika.shield.PAYLOAD_DEX_BYTES"));
+        assert!(result.contains("bytes:118489088"));
     }
 }
