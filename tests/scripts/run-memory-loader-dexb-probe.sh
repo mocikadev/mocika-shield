@@ -6,6 +6,7 @@ PROJECT_DIR="$ROOT_DIR/tests/fixtures/android-memory-loader-probe"
 GRADLE="$ROOT_DIR/shield-stub/gradlew"
 PACKAGE="dev.mocika.shield.memoryprobe"
 COMPONENT="$PACKAGE/dev.mocika.shield.memorypayload.PayloadActivity"
+REMOTE_COMPONENT="$PACKAGE/.RemotePayloadActivity"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mocika-memory-dexb.XXXXXX")"
 PASSWORD="mocika-probe-123"
 
@@ -17,6 +18,15 @@ trap cleanup EXIT
 for command in adb cargo java keytool unzip zip; do
   command -v "$command" >/dev/null || { echo "缺少命令：$command" >&2; exit 1; }
 done
+
+process_id() {
+  local process_name="$1"
+  if command -v sha256sum >/dev/null; then
+    printf '%s' "$process_name" | sha256sum | cut -c1-16
+  else
+    printf '%s' "$process_name" | shasum -a 256 | cut -c1-16
+  fi
+}
 
 ADB=(adb)
 if [[ -n "${ANDROID_SERIAL:-}" ]]; then
@@ -235,8 +245,10 @@ verify_recovery_state_machine() {
   done
 
   "${ADB[@]}" shell am force-stop "$PACKAGE"
-  "${ADB[@]}" shell run-as "$PACKAGE" sh -c \
-    "sed -i 's/file_fallback/file_tampered/' shared_prefs/memory_probe_recovery.xml"
+  local main_preferences
+  main_preferences="shared_prefs/memory_probe_recovery_$(process_id "$PACKAGE").xml"
+  "${ADB[@]}" shell \
+    "run-as $PACKAGE sed -i 's/file_fallback/file_tampered/' $main_preferences"
   "${ADB[@]}" logcat -c
   "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
   sleep 1
@@ -264,6 +276,75 @@ verify_recovery_state_machine() {
     exit 1
   }
   echo "文件回退连续失败后的失败关闭验证通过"
+}
+
+verify_recovery_process_isolation() {
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$FINAL_GOOD" >/dev/null
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$REMOTE_COMPONENT" >/dev/null &
+  local remote_pid=$!
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null &
+  local activity_pid=$!
+  wait "$remote_pid"
+  wait "$activity_pid"
+  sleep 2
+  local logs memory_count preferences_count
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  memory_count="$(grep -Fc 'RECOVERY_MODE:MEMORY' <<<"$logs")"
+  if (( memory_count < 2 )) || grep -Fq 'RECOVERY_MODE:FILE' <<<"$logs"; then
+    echo "主进程与远程进程未保持独立的首次内存启动状态" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  fi
+  preferences_count="$("${ADB[@]}" shell \
+    "run-as $PACKAGE ls shared_prefs 2>/dev/null" \
+    | grep -c '^memory_probe_recovery_.*\.xml$' | tr -d '\r ')"
+  if (( preferences_count < 2 )); then
+    echo "主进程与远程进程未生成独立的认证状态文件" >&2
+    exit 1
+  fi
+  echo "主进程与远程进程并发首次启动的认证状态隔离验证通过"
+}
+
+verify_recovery_key_failures() {
+  local main_preferences
+  main_preferences="shared_prefs/memory_probe_recovery_$(process_id "$PACKAGE").xml"
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$FINAL_GOOD" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  sleep 1
+  "${ADB[@]}" shell am force-stop "$PACKAGE"
+  "${ADB[@]}" shell \
+    "run-as $PACKAGE sed -i -e '/wrapped_key/d' -e '/wrapped_iv/d' $main_preferences"
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s AndroidRuntime:E '*:S')"
+  grep -Fq 'MEMORY_PROBE_RECOVERY_KEY_MISSING' <<<"$logs" || {
+    echo "包装密钥材料缺失后未失败关闭" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$FINAL_GOOD" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  sleep 1
+  "${ADB[@]}" shell am force-stop "$PACKAGE"
+  "${ADB[@]}" shell \
+    "run-as $PACKAGE sed -i 's#<string name=\"wrapped_key\">[^<]*</string>#<string name=\"wrapped_key\">AAAA</string>#' $main_preferences"
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 1
+  logs="$("${ADB[@]}" logcat -d -s AndroidRuntime:E '*:S')"
+  grep -Fq 'MEMORY_PROBE_RECOVERY_KEY_UNWRAP_FAILED' <<<"$logs" || {
+    echo "包装密钥密文损坏后未失败关闭" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+  echo "包装密钥材料缺失和密文损坏的失败关闭验证通过"
 }
 
 verify_no_original_factory() {
@@ -331,5 +412,7 @@ verify_wrong_signature
 verify_no_original_factory
 verify_recursive_factory_rejected
 verify_recovery_state_machine
+verify_recovery_process_isolation
+verify_recovery_key_failures
 "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
 echo "API ${SDK_INT} 正式 Stub Native、DEXB v5 与延迟内存加载代理验证通过"

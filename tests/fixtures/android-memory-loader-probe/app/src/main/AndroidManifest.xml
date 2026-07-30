@@ -27,6 +27,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity-alias
+            android:name=".RemotePayloadActivity"
+            android:exported="true"
+            android:process=":remote"
+            android:targetActivity="dev.mocika.shield.memorypayload.PayloadActivity" />
         <service
             android:name="dev.mocika.shield.memorypayload.PayloadService"
             android:exported="false"
