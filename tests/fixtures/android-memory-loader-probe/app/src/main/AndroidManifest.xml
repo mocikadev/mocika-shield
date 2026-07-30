@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name=".ProbeApplication"
+        android:allowBackup="false"
+        android:label="Memory Loader Probe"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <meta-data
+            android:name="REAL_APPLICATION"
+            android:value="dev.mocika.shield.memorypayload.PayloadApplication" />
+        <activity
+            android:name="dev.mocika.shield.memorypayload.PayloadActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name="dev.mocika.shield.memorypayload.PayloadService"
+            android:exported="false"
+            android:process=":remote" />
+        <provider
+            android:name="dev.mocika.shield.memorypayload.PayloadProvider"
+            android:authorities="dev.mocika.shield.memoryprobe.payload"
+            android:exported="false" />
+    </application>
+</manifest>
