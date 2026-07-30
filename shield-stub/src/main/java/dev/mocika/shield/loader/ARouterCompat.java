@@ -34,7 +34,9 @@ public class ARouterCompat {
     public static void prepareARouterRouteMap(Context context) {
         try {
             Class<?> logisticsCenterClass = Class.forName(
-                    "com.alibaba.android.arouter.core.LogisticsCenter");
+                    "com.alibaba.android.arouter.core.LogisticsCenter",
+                    false,
+                    context.getClassLoader());
 
             Set<String> routeClassNames = readRouteList(context);
             if (routeClassNames.isEmpty()) {

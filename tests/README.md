@@ -56,6 +56,16 @@ bash tests/scripts/run-memory-loader-dexb-probe.sh
 
 当前正式 Native/DEXB 链路已通过 API 35 ARM64 真机；其他 API 节点仍沿用框架明文载荷矩阵，不能据此宣称正式解密链路已覆盖全部系统版本。
 
+使用真实、已签名的 AndroidX/ARouter APK 验证原组件工厂恢复和三种安装状态：
+
+```bash
+bash tests/scripts/run-memory-loader-arouter-probe.sh \
+  /path/to/arouter-signed.apk \
+  /path/to/sign-apk.sh
+```
+
+签名脚本接口固定为 `<输入 APK> <输出 APK>`。脚本会先用该证书重新签名原始样本，确保未加固基线和内存加载原型能够同签名覆盖；随后保留样本资源、Manifest 组件、Native 库和 ARouter 路由清单，验证 AndroidX 原组件工厂、正式 DEXB v5 解密及 `/home/main` 路由。当前样本在 API 35 ARM64 真机的覆盖升级、清除数据和全新安装三种场景均通过。脚本是隔离原型，不生成正式发布资源。
+
 ## Android 4.4 Native 加载探针
 
 `fixtures/android-api19-native-probe` 只负责验证 NDK r25c、Rust 1.77.2、API 19 构建的生产 `libmocikashield.so` 能够被 Android 4.4 的动态链接器加载，并成功执行 `JNI_OnLoad` 动态注册。它不包含 DEX 解密、Dalvik 注入或业务兼容逻辑。

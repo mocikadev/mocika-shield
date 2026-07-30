@@ -23,14 +23,16 @@ public final class ProbeApplication extends Application {
             ClassLoader original = base.getClassLoader();
             ClassLoader businessLoader;
             if (original instanceof DeferredPayloadClassLoader) {
+                String originalFactory = readMetadata(base, "ORIGINAL_COMPONENT_FACTORY");
                 businessLoader = ProbeAppComponentFactory.initializePayload(
-                        base);
+                        base, originalFactory);
                 ClassLoader repeated = ProbeAppComponentFactory.initializePayload(
-                        base);
+                        base, originalFactory);
                 if (repeated != businessLoader) {
                     throw new IllegalStateException("MEMORY_PROBE_REINITIALIZE_CHANGED_LOADER");
                 }
-                verifyConcurrentBusinessLoad(businessLoader);
+                verifyConcurrentBusinessLoad(
+                        businessLoader, readMetadata(base, "PROBE_CONCURRENT_CLASSES"));
                 Log.i(TAG, "LOADER_READY:FACTORY");
             } else {
                 exemptHiddenApi();
@@ -54,7 +56,10 @@ public final class ProbeApplication extends Application {
         }
         try {
             replaceApplicationReferences(realApplication);
+            ARouterProbeVerifier.prepareIfPresent(this);
             realApplication.onCreate();
+            ARouterProbeVerifier.scheduleNavigation(
+                    this, realApplication, readMetadata(this, "PROBE_AROUTER_ROUTE"));
         } catch (Exception error) {
             throw new RuntimeException("MEMORY_PROBE_APP_REPLACE", error);
         }
@@ -78,10 +83,7 @@ public final class ProbeApplication extends Application {
     }
 
     private Application createRealApplication(Context base, ClassLoader loader) throws Exception {
-        ApplicationInfo info = getPackageManager().getApplicationInfo(
-                getPackageName(), ApplicationInfo.FLAG_HAS_CODE | 128);
-        Bundle metadata = info.metaData;
-        String className = metadata == null ? null : metadata.getString("REAL_APPLICATION");
+        String className = readMetadata(base, "REAL_APPLICATION");
         if (className == null || className.isEmpty()) {
             throw new IllegalStateException("MEMORY_PROBE_REAL_APP_NAME_MISSING");
         }
@@ -91,6 +93,13 @@ public final class ProbeApplication extends Application {
         attach.setAccessible(true);
         attach.invoke(application, base);
         return application;
+    }
+
+    private static String readMetadata(Context context, String key) throws Exception {
+        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
+                context.getPackageName(), ApplicationInfo.FLAG_HAS_CODE | 128);
+        Bundle metadata = info.metaData;
+        return metadata == null ? null : metadata.getString(key);
     }
 
     private void replaceApplicationReferences(Application replacement) throws Exception {
@@ -131,13 +140,21 @@ public final class ProbeApplication extends Application {
         }
     }
 
-    private static void verifyConcurrentBusinessLoad(ClassLoader loader) throws Exception {
+    private static void verifyConcurrentBusinessLoad(ClassLoader loader, String classNames)
+            throws Exception {
+        if (classNames == null || classNames.trim().isEmpty()) {
+            throw new IllegalStateException("MEMORY_PROBE_CONCURRENT_CLASSES_MISSING");
+        }
+        String[] names = classNames.split(",", -1);
+        if (names.length != 2 || names[0].trim().isEmpty() || names[1].trim().isEmpty()) {
+            throw new IllegalStateException("MEMORY_PROBE_CONCURRENT_CLASSES_INVALID");
+        }
         CountDownLatch start = new CountDownLatch(1);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread activityLoad = classLoadThread(
-                loader, "dev.mocika.shield.memorypayload.PayloadActivity", start, failure);
+                loader, names[0].trim(), start, failure);
         Thread serviceLoad = classLoadThread(
-                loader, "dev.mocika.shield.memorypayload.PayloadService", start, failure);
+                loader, names[1].trim(), start, failure);
         activityLoad.start();
         serviceLoad.start();
         start.countDown();

@@ -12,6 +12,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        manifestPlaceholders["originalComponentFactory"] = providers
+            .environmentVariable("MEMORY_PROBE_ORIGINAL_FACTORY")
+            .getOrElse("dev.mocika.shield.memorypayload.PayloadAppComponentFactory")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -39,6 +42,9 @@ android {
     )
     sourceSets.getByName("main").jniLibs.srcDir(
         providers.environmentVariable("MEMORY_PROBE_NATIVE_LIBS").orElse("src/main/empty-jni-libs")
+    )
+    sourceSets.getByName("main").java.srcDir(
+        providers.environmentVariable("MEMORY_PROBE_SHARED_JAVA").orElse("src/main/empty-shared-java")
     )
 
     compileOptions {

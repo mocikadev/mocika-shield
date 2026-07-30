@@ -110,7 +110,7 @@ verify_good_signature() {
   local logs
   logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
   printf '%s\n' "$logs"
-  for marker in DEXB_NATIVE_DECRYPT_OK LOADER_READY:FACTORY APPLICATION_OK:SECONDARY_OK ACTIVITY_OK:SECONDARY_OK:NATIVE_OK SERVICE_OK DELAYED_OK:AFTER_GC; do
+  for marker in DEXB_NATIVE_DECRYPT_OK ORIGINAL_FACTORY_METADATA LOADER_READY:FACTORY APPLICATION_OK:SECONDARY_OK ACTIVITY_OK:SECONDARY_OK:NATIVE_OK SERVICE_OK DELAYED_OK:AFTER_GC; do
     grep -Fq "$marker" <<<"$logs" || { echo "同签名验证缺少标记：$marker" >&2; exit 1; }
   done
   local private_dex
@@ -119,6 +119,56 @@ verify_good_signature() {
     echo "同签名探针在私有目录发现明文 DEX：$private_dex" >&2
     exit 1
   fi
+}
+
+build_factory_variant() {
+  local original_factory="$1"
+  local output_apk="$2"
+  MEMORY_PROBE_ORIGINAL_FACTORY="$original_factory" \
+  MEMORY_PROBE_ASSETS="$TEMP_DIR/final-assets" \
+  MEMORY_PROBE_NATIVE_LIBS="$ROOT_DIR/shield-stub/build/jniLibs" \
+    "$GRADLE" -p "$PROJECT_DIR" :app:clean :app:assembleFactoryDebug --no-daemon >/dev/null
+  java -jar "$ROOT_DIR/tools/apksigner.jar" sign --ks "$GOOD_KEYSTORE" \
+    --ks-pass "pass:$PASSWORD" --ks-key-alias probe --out "$output_apk" \
+    "$PROJECT_DIR/app/build/outputs/apk/factory/debug/app-factory-debug.apk"
+}
+
+verify_no_original_factory() {
+  local apk="$TEMP_DIR/memory-dexb-no-factory.apk"
+  build_factory_variant "" "$apk"
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" install "$apk" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  sleep 2
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  for marker in ORIGINAL_FACTORY_DEFAULT APPLICATION_OK:SECONDARY_OK ACTIVITY_OK:SECONDARY_OK:NATIVE_OK SERVICE_OK; do
+    grep -Fq "$marker" <<<"$logs" || { echo "无原工厂验证缺少标记：$marker" >&2; exit 1; }
+  done
+  echo "未声明原组件工厂时默认委托验证通过"
+}
+
+verify_recursive_factory_rejected() {
+  local apk="$TEMP_DIR/memory-dexb-recursive-factory.apk"
+  build_factory_variant "dev.mocika.shield.memoryprobe.ProbeAppComponentFactory" "$apk"
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" install "$apk" >/dev/null
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null 2>&1 || true
+  sleep 2
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  grep -Fq 'MEMORY_PROBE_FACTORY_RECURSION' <<<"$logs" || {
+    echo "递归原组件工厂未被拒绝" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+  if grep -Fq 'APPLICATION_OK' <<<"$logs"; then
+    echo "递归原组件工厂错误地进入业务生命周期" >&2
+    exit 1
+  fi
+  echo "递归原组件工厂已在业务类定义前拒绝"
 }
 
 verify_wrong_signature() {
@@ -143,5 +193,7 @@ verify_wrong_signature() {
 
 verify_good_signature
 verify_wrong_signature
+verify_no_original_factory
+verify_recursive_factory_rejected
 "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
 echo "API ${SDK_INT} 正式 Stub Native、DEXB v5 与延迟内存加载代理验证通过"
