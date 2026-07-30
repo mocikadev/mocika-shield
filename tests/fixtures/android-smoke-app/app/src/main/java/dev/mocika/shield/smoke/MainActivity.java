@@ -12,6 +12,11 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getIntent().getBooleanExtra(SmokeReceiver.DELETE_RECOVERY_KEYS, false)) {
+            SmokeReceiver.deleteRecoveryKeys();
+            finish();
+            return;
+        }
         Log.i("MocikaSmoke", "MOCIKA_SMOKE_ACTIVITY_OK");
         verifySecondaryDex();
         sendBroadcast(new Intent(this, SmokeReceiver.class));
