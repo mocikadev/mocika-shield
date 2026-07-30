@@ -72,7 +72,7 @@ run_probe() {
   done
 
   if [[ "$expect_factory_delegate" == "true" ]]; then
-    for marker in FACTORY_DELEGATE_READY ORIGINAL_FACTORY_APPLICATION ORIGINAL_FACTORY_PROVIDER ORIGINAL_FACTORY_ACTIVITY ORIGINAL_FACTORY_SERVICE ORIGINAL_FACTORY_RECEIVER RECEIVER_OK; do
+    for marker in FACTORY_PROXY_CREATED PROXY_BUSINESS_BLOCKED FACTORY_PAYLOAD_READY FACTORY_REINITIALIZE_STABLE CONCURRENT_LOAD_OK FACTORY_DELEGATE_READY ORIGINAL_FACTORY_APPLICATION ORIGINAL_FACTORY_PROVIDER ORIGINAL_FACTORY_ACTIVITY ORIGINAL_FACTORY_SERVICE ORIGINAL_FACTORY_RECEIVER RECEIVER_OK; do
       if ! grep -Fq "$marker" <<<"$logs"; then
         echo "$mode 原应用工厂委托缺少标记：$marker" >&2
         exit 1
@@ -99,4 +99,4 @@ run_probe() {
 run_probe reflection "LOADER_READY:REFLECTION" false
 run_probe factory "LOADER_READY:FACTORY" true
 
-echo "API $SDK_INT（页大小 $PAGE_SIZE）两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"
+echo "API ${SDK_INT}（页大小 ${PAGE_SIZE}）两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"

@@ -17,32 +17,33 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
             "dev.mocika.shield.memoryprobe.ProbeApplication";
     private static final String ORIGINAL_FACTORY =
             "dev.mocika.shield.memorypayload.PayloadAppComponentFactory";
-    private static ProbeAppComponentFactory activeFactory;
-
-    private AppComponentFactory originalFactory;
+    private static volatile FactoryState activeState;
 
     @Override
     public ClassLoader instantiateClassLoader(ClassLoader defaultLoader, ApplicationInfo info) {
         try {
-            ClassLoader loader = MemoryPayloadLoader.create(info, defaultLoader);
-            originalFactory = (AppComponentFactory) loader.loadClass(ORIGINAL_FACTORY)
-                    .getDeclaredConstructor().newInstance();
-            activeFactory = this;
-            Log.i(TAG, "FACTORY_LOADER_CREATED");
-            Log.i(TAG, "FACTORY_DELEGATE_READY");
-            return loader;
+            FactoryState state = new FactoryState(
+                    new DeferredPayloadClassLoader(defaultLoader));
+            activeState = state;
+            verifyPayloadBlockedBeforeInitialization(state.deferredLoader);
+            Log.i(TAG, "FACTORY_PROXY_CREATED");
+            return state.deferredLoader;
         } catch (Exception error) {
             throw new RuntimeException("MEMORY_PROBE_FACTORY_INIT", error);
         }
     }
 
+    static ClassLoader initializePayload(ApplicationInfo info) throws Exception {
+        return initializePayloadOnce(requireState(), info);
+    }
+
     static Application instantiateOriginalApplication(ClassLoader loader, String className)
             throws Exception {
-        ProbeAppComponentFactory factory = activeFactory;
-        if (factory == null) {
+        FactoryState state = activeState;
+        if (state == null) {
             return (Application) loader.loadClass(className).getDeclaredConstructor().newInstance();
         }
-        return factory.requireDelegate().instantiateApplication(loader, className);
+        return requireDelegate(state).instantiateApplication(loader, className);
     }
 
     @Override
@@ -51,38 +52,85 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         if (PROBE_APPLICATION.equals(className)) {
             return super.instantiateApplication(loader, className);
         }
-        return requireDelegate().instantiateApplication(loader, className);
+        return requireDelegate(requireState()).instantiateApplication(loader, className);
     }
 
     @Override
     public Activity instantiateActivity(ClassLoader loader, String className, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        return requireDelegate().instantiateActivity(loader, className, intent);
+        return requireDelegate(requireState()).instantiateActivity(loader, className, intent);
     }
 
     @Override
     public Service instantiateService(ClassLoader loader, String className, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        return requireDelegate().instantiateService(loader, className, intent);
+        return requireDelegate(requireState()).instantiateService(loader, className, intent);
     }
 
     @Override
     public BroadcastReceiver instantiateReceiver(
             ClassLoader loader, String className, Intent intent)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        return requireDelegate().instantiateReceiver(loader, className, intent);
+        return requireDelegate(requireState()).instantiateReceiver(loader, className, intent);
     }
 
     @Override
     public ContentProvider instantiateProvider(ClassLoader loader, String className)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
-        return requireDelegate().instantiateProvider(loader, className);
+        return requireDelegate(requireState()).instantiateProvider(loader, className);
     }
 
-    private AppComponentFactory requireDelegate() {
-        if (originalFactory == null) {
+    private static AppComponentFactory requireDelegate(FactoryState state) {
+        if (state.originalFactory == null) {
             throw new IllegalStateException("MEMORY_PROBE_FACTORY_DELEGATE_MISSING");
         }
-        return originalFactory;
+        return state.originalFactory;
+    }
+
+    private static ClassLoader initializePayloadOnce(FactoryState state, ApplicationInfo info)
+            throws Exception {
+        synchronized (state) {
+            if (state.originalFactory != null) {
+                Log.i(TAG, "FACTORY_REINITIALIZE_STABLE");
+                return state.deferredLoader;
+            }
+            ClassLoader candidate = MemoryPayloadLoader.create(
+                    info, state.deferredLoader.getParent());
+            AppComponentFactory candidateFactory = (AppComponentFactory) candidate
+                    .loadClass(ORIGINAL_FACTORY).getDeclaredConstructor().newInstance();
+            state.deferredLoader.initialize(candidate);
+            state.originalFactory = candidateFactory;
+        }
+        Log.i(TAG, "FACTORY_PAYLOAD_READY");
+        Log.i(TAG, "FACTORY_DELEGATE_READY");
+        return state.deferredLoader;
+    }
+
+    private static void verifyPayloadBlockedBeforeInitialization(ClassLoader loader)
+            throws Exception {
+        try {
+            loader.loadClass(ORIGINAL_FACTORY);
+            throw new IllegalStateException("MEMORY_PROBE_PAYLOAD_EARLY_LOAD_ALLOWED");
+        } catch (ClassNotFoundException expected) {
+            Log.i(TAG, "PROXY_BUSINESS_BLOCKED");
+        }
+    }
+
+    private static FactoryState requireState() {
+        FactoryState state = activeState;
+        if (state == null) {
+            throw new IllegalStateException("MEMORY_PROBE_FACTORY_MISSING");
+        }
+        return state;
+    }
+
+    /** 同一应用进程内所有壳工厂实例共享的加载状态。 */
+    private static final class FactoryState {
+        final DeferredPayloadClassLoader deferredLoader;
+        volatile AppComponentFactory originalFactory;
+
+        FactoryState(DeferredPayloadClassLoader deferredLoader) {
+            this.deferredLoader = deferredLoader;
+        }
     }
 }
