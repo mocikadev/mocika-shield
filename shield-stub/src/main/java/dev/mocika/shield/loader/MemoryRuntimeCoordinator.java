@@ -26,6 +26,7 @@ final class MemoryRuntimeCoordinator {
             DexInjector.inject(context, defaultLoader, dexFiles);
             return defaultLoader;
         }
+        MemoryRuntimeProfiler profiler = MemoryRuntimeProfiler.start();
         String identity = payloadIdentity(context);
         RecoveryStateStore store = new RecoveryStateStore(
                 context, Application.getProcessName());
@@ -34,16 +35,19 @@ final class MemoryRuntimeCoordinator {
                 : new RecoveryStateMachine.Previous(record.identity, record.state);
         RecoveryStateMachine.Mode mode = RecoveryStateMachine.begin(identity, previous);
         store.write(identity, RecoveryStateMachine.pending(mode));
+        if (profiler != null) profiler.stage("state_ready", 0, 0);
 
         ClassLoader loader;
         if (mode == RecoveryStateMachine.Mode.MEMORY) {
-            loader = MemoryPayloadLoader.create(context, defaultLoader);
+            loader = MemoryPayloadLoader.create(context, defaultLoader, profiler);
         } else {
             List<File> dexFiles = Ld.extractDexFiles(context);
             DexInjector.inject(context, defaultLoader, dexFiles);
             loader = defaultLoader;
+            if (profiler != null) profiler.stage("file_fallback", dexFiles.size(), 0);
         }
-        activeAttempt = new Attempt(identity, mode, loader, store);
+        activeAttempt = new Attempt(identity, mode, loader, store, profiler);
+        if (profiler != null) profiler.stage("runtime_ready", 0, 0);
         return loader;
     }
 
@@ -55,6 +59,7 @@ final class MemoryRuntimeCoordinator {
         Attempt attempt = activeAttempt;
         if (attempt == null) return;
         attempt.store.write(attempt.identity, RecoveryStateMachine.complete(attempt.mode));
+        if (attempt.profiler != null) attempt.profiler.stage("application_ready", 0, 0);
     }
 
     private static String payloadIdentity(Context context) throws Exception {
@@ -73,13 +78,15 @@ final class MemoryRuntimeCoordinator {
         final RecoveryStateMachine.Mode mode;
         final ClassLoader loader;
         final RecoveryStateStore store;
+        final MemoryRuntimeProfiler profiler;
 
         Attempt(String identity, RecoveryStateMachine.Mode mode, ClassLoader loader,
-                RecoveryStateStore store) {
+                RecoveryStateStore store, MemoryRuntimeProfiler profiler) {
             this.identity = identity;
             this.mode = mode;
             this.loader = loader;
             this.store = store;
+            this.profiler = profiler;
         }
     }
 }
