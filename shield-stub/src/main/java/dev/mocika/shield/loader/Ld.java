@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 public class Ld {
@@ -53,6 +54,9 @@ public class Ld {
     /** 从 classes.dex 末尾提取 MSHD 封装的加密 payload，解密解压后返回各 DEX 字节数组。 */
     private static native byte[][] q(Context ctx, byte[] dexData);
 
+    /** 内部原型：由 Native 直接填充 Java 管理的直接缓冲区。 */
+    private static native ByteBuffer[] s(Context ctx, byte[] dexData);
+
     /** 每次启动的环境安全检查；位 0 表示反调试，位 1 表示高置信 Root。 */
     static native int r();
 
@@ -71,6 +75,18 @@ public class Ld {
             throw new RuntimeException("L03");
         if (profiler != null) profiler.stage("native_decrypt", dexes.length, totalBytes(dexes));
         return dexes;
+    }
+
+    static ByteBuffer[] decryptDexBuffers(Context ctx, MemoryRuntimeProfiler profiler)
+            throws Exception {
+        byte[] dexBytes = readClassesDexFromApk(ctx);
+        if (profiler != null) profiler.stage("apk_read", 0, dexBytes.length);
+        ByteBuffer[] buffers = s(ctx, dexBytes);
+        if (buffers == null || buffers.length == 0) throw new RuntimeException("L07");
+        long total = 0;
+        for (ByteBuffer buffer : buffers) total += buffer.remaining();
+        if (profiler != null) profiler.stage("native_direct", buffers.length, total);
+        return buffers;
     }
 
     public static List<File> extractDexFiles(Context ctx) throws Exception {

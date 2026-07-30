@@ -5,7 +5,7 @@ mod root_environment;
 
 use std::ffi::c_void;
 
-use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
+use jni::objects::{JByteArray, JByteBuffer, JClass, JObject, JObjectArray, JString, JValue};
 use jni::sys::{jboolean, jint, jobjectArray, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 use jni::NativeMethod;
@@ -40,6 +40,11 @@ pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) 
             name: env!("STUB_METHOD_CHECK_ENV").into(),
             sig: "()I".into(),
             fn_ptr: f3 as *mut c_void,
+        },
+        NativeMethod {
+            name: "s".into(),
+            sig: "(Landroid/content/Context;[B)[Ljava/nio/ByteBuffer;".into(),
+            fn_ptr: f4 as *mut c_void,
         },
     ];
     match env.register_native_methods(&class, &methods) {
@@ -290,58 +295,13 @@ extern "C" fn f2(
         let _ = env.throw_new("java/lang/RuntimeException", "dbg");
         return std::ptr::null_mut();
     }
-    let dex_bytes = match env.convert_byte_array(&dex_data) {
-        Ok(b) => b,
+    let dex_files = match decrypt_dex_files(&mut env, &ctx, &dex_data) {
+        Ok(files) => files,
         Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("读取 dex_data 失败: {}", e),
-            );
+            let _ = env.throw_new("java/lang/RuntimeException", e);
             return std::ptr::null_mut();
         }
     };
-
-    let payload = match bin_loader::extract_from_dex_tail(&dex_bytes) {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("提取 MSHD payload 失败: {}", e),
-            );
-            return std::ptr::null_mut();
-        }
-    };
-
-    let actual_signature = match jni_get_actual_signature(&mut env, &ctx) {
-        Ok(s) => s,
-        Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("e3: {}", e), // 无法获取当前签名
-            );
-            return std::ptr::null_mut();
-        }
-    };
-
-    let (expected_signature, dex_files) =
-        match bin_loader::parse_and_decompress_all(payload, actual_signature.as_bytes()) {
-            Ok(pair) => pair,
-            Err(e) => {
-                let _ = env.throw_new("java/lang/RuntimeException", format!("解密解压失败: {}", e));
-                return std::ptr::null_mut();
-            }
-        };
-
-    if !expected_signature.is_empty() {
-        if !timing_safe_eq(actual_signature.as_bytes(), expected_signature.as_bytes()) {
-            android_log_warn(&mut env, "sg");
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                "e4", // 签名不匹配，拒绝启动
-            );
-            return std::ptr::null_mut();
-        }
-    }
 
     let byte_array_class = match env.find_class("[B") {
         Ok(cls) => cls,
@@ -390,4 +350,94 @@ extern "C" fn f2(
     }
 
     result_array.into_raw()
+}
+
+/// 内部原型：解密后直接填充由 Java 管理生命周期的直接缓冲区。
+extern "C" fn f4(
+    mut env: JNIEnv,
+    _class: JClass,
+    ctx: JObject,
+    dex_data: JByteArray,
+) -> jobjectArray {
+    if anti_debug::check() {
+        android_log_warn(&mut env, "dbg");
+        let _ = env.throw_new("java/lang/RuntimeException", "dbg");
+        return std::ptr::null_mut();
+    }
+    let dex_files = match decrypt_dex_files(&mut env, &ctx, &dex_data) {
+        Ok(files) => files,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e);
+            return std::ptr::null_mut();
+        }
+    };
+    let buffer_class = match env.find_class("java/nio/ByteBuffer") {
+        Ok(class) => class,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", format!("b1: {e}"));
+            return std::ptr::null_mut();
+        }
+    };
+    let result = match env.new_object_array(dex_files.len() as i32, &buffer_class, JObject::null())
+    {
+        Ok(array) => array,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", format!("b2: {e}"));
+            return std::ptr::null_mut();
+        }
+    };
+    for (index, dex) in dex_files.iter().enumerate() {
+        let object = match env
+            .call_static_method(
+                &buffer_class,
+                "allocateDirect",
+                "(I)Ljava/nio/ByteBuffer;",
+                &[JValue::Int(dex.len() as i32)],
+            )
+            .and_then(|value| value.l())
+        {
+            Ok(object) => object,
+            Err(e) => {
+                let _ = env.throw_new("java/lang/RuntimeException", format!("b3: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let buffer = JByteBuffer::from(object);
+        let address = match env.get_direct_buffer_address(&buffer) {
+            Ok(address) => address,
+            Err(e) => {
+                let _ = env.throw_new("java/lang/RuntimeException", format!("b4: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        unsafe { std::ptr::copy_nonoverlapping(dex.as_ptr(), address, dex.len()) };
+        if let Err(e) = env.set_object_array_element(&result, index as i32, &buffer) {
+            let _ = env.throw_new("java/lang/RuntimeException", format!("b5: {e}"));
+            return std::ptr::null_mut();
+        }
+    }
+    result.into_raw()
+}
+
+fn decrypt_dex_files(
+    env: &mut JNIEnv,
+    ctx: &JObject,
+    dex_data: &JByteArray,
+) -> Result<Vec<Vec<u8>>, String> {
+    let dex_bytes = env
+        .convert_byte_array(dex_data)
+        .map_err(|e| format!("读取 dex_data 失败: {e}"))?;
+    let payload = bin_loader::extract_from_dex_tail(&dex_bytes)
+        .map_err(|e| format!("提取 MSHD payload 失败: {e}"))?;
+    let actual_signature = jni_get_actual_signature(env, ctx).map_err(|e| format!("e3: {e}"))?;
+    let (expected_signature, dex_files) =
+        bin_loader::parse_and_decompress_all(payload, actual_signature.as_bytes())
+            .map_err(|e| format!("解密解压失败: {e}"))?;
+    if !expected_signature.is_empty()
+        && !timing_safe_eq(actual_signature.as_bytes(), expected_signature.as_bytes())
+    {
+        android_log_warn(env, "sg");
+        return Err("e4".to_string());
+    }
+    Ok(dex_files)
 }

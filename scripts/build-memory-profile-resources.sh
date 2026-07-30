@@ -7,6 +7,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT/shield-stub/build/outputs/resources"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/mocika-memory-profile.XXXXXX")"
+DIRECT_BUFFER="${MOCIKA_DIRECT_BUFFER:-0}"
+PROFILE_NAME="resources-memory-profile.zip"
+if [[ "$DIRECT_BUFFER" == "1" ]]; then
+    PROFILE_NAME="resources-memory-direct-profile.zip"
+fi
 
 for command in cp grep make mktemp readlink strings unzip; do
     command -v "$command" >/dev/null || { echo "缺少命令：$command" >&2; exit 1; }
@@ -36,22 +41,29 @@ cleanup() {
 trap cleanup EXIT
 
 echo "构建带阶段诊断的内存候选资源..."
-MOCIKA_RUNTIME_PROFILE=1 make -C "$ROOT" build-stub
-cp "$OUTPUT_DIR/resources-memory.zip" "$WORK/resources-memory-profile.zip"
+MOCIKA_RUNTIME_PROFILE=1 MOCIKA_DIRECT_BUFFER="$DIRECT_BUFFER" make -C "$ROOT" build-stub
+cp "$OUTPUT_DIR/resources-memory.zip" "$WORK/$PROFILE_NAME"
 
 echo "恢复正常标准资源和内存候选资源..."
 make -C "$ROOT" build-stub
-cp "$WORK/resources-memory-profile.zip" "$OUTPUT_DIR/resources-memory-profile.zip"
+cp "$WORK/$PROFILE_NAME" "$OUTPUT_DIR/$PROFILE_NAME"
 
 if unzip -p "$OUTPUT_DIR/resources.zip" stub-classes.dex \
         | strings | grep -Eq 'stage=native_decrypt|stage=class_loader|mxp'; then
     echo "错误：正常资源仍包含内存剖析标记" >&2
     exit 1
 fi
-if ! unzip -p "$OUTPUT_DIR/resources-memory-profile.zip" stub-classes.dex \
+if ! unzip -p "$OUTPUT_DIR/$PROFILE_NAME" stub-classes.dex \
         | strings | grep -Eq 'native_decrypt|class_loader'; then
     echo "错误：剖析资源缺少阶段标记" >&2
     exit 1
 fi
 
-echo "内部剖析资源：$OUTPUT_DIR/resources-memory-profile.zip"
+if [[ "$DIRECT_BUFFER" == "1" ]] \
+        && ! unzip -p "$OUTPUT_DIR/$PROFILE_NAME" stub-classes.dex \
+            | strings | grep -q 'native_direct'; then
+    echo "错误：直接缓冲区原型资源缺少阶段标记" >&2
+    exit 1
+fi
+
+echo "内部剖析资源：$OUTPUT_DIR/$PROFILE_NAME"
