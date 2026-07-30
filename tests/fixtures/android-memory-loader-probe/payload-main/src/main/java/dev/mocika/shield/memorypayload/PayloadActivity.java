@@ -22,6 +22,7 @@ public final class PayloadActivity extends Activity {
         view.setText("MEMORY_DEX_OK");
         setContentView(view);
         startService(new Intent(this, PayloadService.class));
+        sendBroadcast(new Intent(this, PayloadReceiver.class));
         Log.i("MOCIKA_MEMORY_PROBE", "ACTIVITY_OK:" + SecondaryMarker.value()
                 + ":" + nativeMarker());
         System.gc();

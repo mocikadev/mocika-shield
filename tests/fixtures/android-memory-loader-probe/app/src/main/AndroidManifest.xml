@@ -23,5 +23,8 @@
             android:name="dev.mocika.shield.memorypayload.PayloadProvider"
             android:authorities="dev.mocika.shield.memoryprobe.payload"
             android:exported="false" />
+        <receiver
+            android:name="dev.mocika.shield.memorypayload.PayloadReceiver"
+            android:exported="false" />
     </application>
 </manifest>
