@@ -67,6 +67,23 @@ API 31 以上还会依次验证清除数据、标准与候选资源双向覆盖�
 
 连续验证多个设备时，首次执行完成构建后可以设置 `SKIP_BUILD=1` 复用仓库构建产物；每次仍会重新生成临时证书和两种加固包，不在仓库留下密钥或 APK。`prepare-memory-runtime-e2e-apks.sh` 只负责同签名测试产物，`run-memory-runtime-e2e.sh` 只负责编排设备状态和断言。
 
+性能门禁使用相同的标准/候选双 DEX 产物，预热初始化后分别采集奇数轮稳态冷启动、主/远程进程即时 PSS 和统一整理后的 PSS。默认采集 7 轮并把原始样本保存到 `target/test-results/`：
+
+```bash
+ANDROID_SERIAL=device-serial SKIP_BUILD=1 \
+  bash tests/scripts/measure-memory-runtime-performance.sh
+```
+
+为减小固定顺序带来的温度和后台负载偏差，应在同一设备再执行一次反向顺序，并分别保留结果：
+
+```bash
+ANDROID_SERIAL=device-serial SKIP_BUILD=1 VARIANT_ORDER=memory-first \
+  PERF_OUTPUT=target/test-results/memory-runtime-performance-reverse.tsv \
+  bash tests/scripts/measure-memory-runtime-performance.sh
+```
+
+结果只代表当前设备与测试载荷。脚本不向生产 Stub 注入计时日志，不以单轮数据或跨设备绝对数值判断性能。
+
 使用真实、已签名的 AndroidX/ARouter APK 验证原组件工厂恢复和三种安装状态：
 
 ```bash
