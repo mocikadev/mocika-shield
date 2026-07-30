@@ -7,6 +7,7 @@ import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ContentProvider;
 import android.content.Intent;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.util.Log;
 
@@ -33,8 +34,8 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         }
     }
 
-    static ClassLoader initializePayload(ApplicationInfo info) throws Exception {
-        return initializePayloadOnce(requireState(), info);
+    static ClassLoader initializePayload(Context context) throws Exception {
+        return initializePayloadOnce(requireState(), context);
     }
 
     static Application instantiateOriginalApplication(ClassLoader loader, String className)
@@ -87,7 +88,7 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         return state.originalFactory;
     }
 
-    private static ClassLoader initializePayloadOnce(FactoryState state, ApplicationInfo info)
+    private static ClassLoader initializePayloadOnce(FactoryState state, Context context)
             throws Exception {
         synchronized (state) {
             if (state.originalFactory != null) {
@@ -95,7 +96,7 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
                 return state.deferredLoader;
             }
             ClassLoader candidate = MemoryPayloadLoader.create(
-                    info, state.deferredLoader.getParent());
+                    context, state.deferredLoader.getParent());
             AppComponentFactory candidateFactory = (AppComponentFactory) candidate
                     .loadClass(ORIGINAL_FACTORY).getDeclaredConstructor().newInstance();
             state.deferredLoader.initialize(candidate);

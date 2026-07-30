@@ -37,6 +37,9 @@ android {
     sourceSets.getByName("main").assets.srcDir(
         providers.environmentVariable("MEMORY_PROBE_ASSETS").orElse("src/main/empty-assets")
     )
+    sourceSets.getByName("main").jniLibs.srcDir(
+        providers.environmentVariable("MEMORY_PROBE_NATIVE_LIBS").orElse("src/main/empty-jni-libs")
+    )
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
