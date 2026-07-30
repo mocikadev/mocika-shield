@@ -60,10 +60,16 @@ public class Ld {
      * 解密并返回各 DEX 字节数组，缓存身份与落盘由 DexCache 统一处理。
      */
     static byte[][] decryptDexBytes(Context ctx) throws Exception {
+        return decryptDexBytes(ctx, null);
+    }
+
+    static byte[][] decryptDexBytes(Context ctx, MemoryRuntimeProfiler profiler) throws Exception {
         byte[] dexBytes = readClassesDexFromApk(ctx);
+        if (profiler != null) profiler.stage("apk_read", 0, dexBytes.length);
         byte[][] dexes = q(ctx, dexBytes);
         if (dexes == null || dexes.length == 0)
             throw new RuntimeException("L03");
+        if (profiler != null) profiler.stage("native_decrypt", dexes.length, totalBytes(dexes));
         return dexes;
     }
 
@@ -94,5 +100,13 @@ public class Ld {
                 return bos.toByteArray();
             }
         }
+    }
+
+    private static long totalBytes(byte[][] dexes) {
+        long total = 0;
+        for (byte[] dex : dexes) {
+            if (dex != null) total += dex.length;
+        }
+        return total;
     }
 }

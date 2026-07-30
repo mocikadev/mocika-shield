@@ -17,17 +17,24 @@ import dalvik.system.InMemoryDexClassLoader;
 final class MemoryPayloadLoader {
     private MemoryPayloadLoader() {}
 
-    static ClassLoader create(Context context, ClassLoader parent) throws Exception {
+    static ClassLoader create(Context context, ClassLoader parent,
+            MemoryRuntimeProfiler profiler) throws Exception {
         if (Build.VERSION.SDK_INT < 29) throw new IllegalStateException("M04");
-        byte[][] dexes = Ld.decryptDexBytes(context);
+        byte[][] dexes = Ld.decryptDexBytes(context, profiler);
         ByteBuffer[] buffers = new ByteBuffer[dexes.length];
+        long totalBytes = 0;
         for (int index = 0; index < dexes.length; index++) {
             ByteBuffer buffer = ByteBuffer.allocateDirect(dexes[index].length);
             buffer.put(dexes[index]);
             buffer.flip();
             buffers[index] = buffer;
+            totalBytes += dexes[index].length;
         }
-        return new InMemoryDexClassLoader(buffers, nativeSearchPath(context), parent);
+        if (profiler != null) profiler.stage("direct_copy", dexes.length, totalBytes);
+        ClassLoader loader = new InMemoryDexClassLoader(
+                buffers, nativeSearchPath(context), parent);
+        if (profiler != null) profiler.stage("class_loader", dexes.length, totalBytes);
+        return loader;
     }
 
     private static String nativeSearchPath(Context context) {

@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+val runtimeProfileEnabled = providers.environmentVariable("MOCIKA_RUNTIME_PROFILE")
+    .orNull == "1"
+
 android {
     namespace = "dev.mocika.shield.stub"
     compileSdk = 35
@@ -19,6 +22,7 @@ android {
         }
 
         buildConfigField("boolean", "DEBUG_LOGS", "true")
+        buildConfigField("boolean", "RUNTIME_PROFILE", runtimeProfileEnabled.toString())
     }
 
     buildTypes {
