@@ -38,6 +38,7 @@ pub(crate) fn read_native_lib_packaging_policy(apk_dir: &Path) -> Result<NativeL
 pub(crate) fn modify_manifest(
     apk_dir: &Path,
     stub_app: &str,
+    stub_component_factory: Option<&str>,
     environment_policy: EnvironmentPolicy,
 ) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
@@ -46,6 +47,12 @@ pub(crate) fn modify_manifest(
         || content.contains("android:name='dev.mocika.shield.ENV_POLICY'")
     {
         anyhow::bail!("原 APK 已占用 Mocika Shield 环境策略字段，无法安全写入运行策略");
+    }
+    if stub_component_factory.is_some()
+        && (content.contains("android:name=\"dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY\"")
+            || content.contains("android:name='dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY'"))
+    {
+        anyhow::bail!("原 APK 已占用 Mocika Shield 原组件工厂字段，无法安全保存原配置");
     }
 
     let app_tag_start = content
@@ -57,10 +64,14 @@ pub(crate) fn modify_manifest(
 
     let orig_app = extract_xml_attr(app_tag, "android:name")
         .unwrap_or_else(|| "android.app.Application".to_string());
+    let orig_component_factory = extract_xml_attr(app_tag, "android:appComponentFactory");
     log::info!("检测到原始 Application: {}", orig_app);
 
     let new_app_tag = set_xml_attr(app_tag, "android:name", stub_app);
-    let new_app_tag = remove_xml_attr(&new_app_tag, "android:appComponentFactory");
+    let new_app_tag = match stub_component_factory {
+        Some(factory) => set_xml_attr(&new_app_tag, "android:appComponentFactory", factory),
+        None => remove_xml_attr(&new_app_tag, "android:appComponentFactory"),
+    };
 
     let already_injected = content.contains("android:name=\"ORIGINAL_APPLICATION\"");
     let meta_original = if already_injected {
@@ -75,6 +86,14 @@ pub(crate) fn modify_manifest(
         "\n        <meta-data\n            android:name=\"dev.mocika.shield.ENV_POLICY\"\n            android:value=\"{}\" />",
         environment_policy.as_str()
     );
+    let meta_component_factory = match (stub_component_factory, orig_component_factory) {
+        (Some(_), Some(original)) => format!(
+            "\n        <meta-data\n            android:name=\"dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY\"\n            android:value=\"{}\" />",
+            original
+        ),
+        _ => String::new(),
+    };
+    let injected_metadata = meta_original + &meta_component_factory + &meta_environment;
 
     let (prefix_tag, suffix) = if new_app_tag.trim_end().ends_with("/>") {
         let tag_body = new_app_tag
@@ -85,10 +104,10 @@ pub(crate) fn modify_manifest(
             .to_string();
         (
             format!("{}>", tag_body),
-            meta_original + &meta_environment + "\n    </application>",
+            injected_metadata + "\n    </application>",
         )
     } else {
-        (new_app_tag.to_string(), meta_original + &meta_environment)
+        (new_app_tag.to_string(), injected_metadata)
     };
 
     let result = format!(
@@ -301,6 +320,7 @@ mod tests {
         modify_manifest(
             dir.path(),
             "dev.mocika.StubApp",
+            None,
             EnvironmentPolicy::Compatible,
         )
         .unwrap();
@@ -319,13 +339,89 @@ mod tests {
             "    </application>\n</manifest>"
         );
         fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
-        modify_manifest(dir.path(), "dev.mocika.StubApp", EnvironmentPolicy::Strict).unwrap();
+        modify_manifest(
+            dir.path(),
+            "dev.mocika.StubApp",
+            None,
+            EnvironmentPolicy::Strict,
+        )
+        .unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert!(result.contains(r#"android:name="dev.mocika.StubApp""#));
         assert!(result.contains("ORIGINAL_APPLICATION"));
         assert!(result.contains("com.example.App"));
         assert!(result.contains("dev.mocika.shield.ENV_POLICY"));
         assert!(result.contains("strict"));
+    }
+
+    #[test]
+    fn 内存候选保存并替换原组件工厂() {
+        let dir = tempfile::tempdir().unwrap();
+        let manifest = concat!(
+            "<manifest><application android:name=\"com.example.App\" ",
+            "android:appComponentFactory=\"androidx.core.app.CoreComponentFactory\">",
+            "</application></manifest>"
+        );
+        fs::write(dir.path().join("AndroidManifest.xml"), manifest).unwrap();
+
+        modify_manifest(
+            dir.path(),
+            "msk.StubApp",
+            Some("msk.StubFactory"),
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap();
+
+        let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
+        assert!(result.contains(r#"android:appComponentFactory="msk.StubFactory""#));
+        assert!(result.contains("dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY"));
+        assert!(result.contains("androidx.core.app.CoreComponentFactory"));
+    }
+
+    #[test]
+    fn 内存候选未声明原组件工厂时不生成原工厂元数据() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("AndroidManifest.xml"),
+            r#"<manifest><application android:name="App" /></manifest>"#,
+        )
+        .unwrap();
+
+        modify_manifest(
+            dir.path(),
+            "msk.StubApp",
+            Some("msk.StubFactory"),
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap();
+
+        let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
+        assert!(result.contains(r#"android:appComponentFactory="msk.StubFactory""#));
+        assert!(!result.contains("dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY"));
+    }
+
+    #[test]
+    fn 内存候选拒绝原应用占用原组件工厂字段() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("AndroidManifest.xml"),
+            concat!(
+                "<manifest><application>",
+                "<meta-data android:name=\"dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY\" ",
+                "android:value=\"occupied\" />",
+                "</application></manifest>"
+            ),
+        )
+        .unwrap();
+
+        let error = modify_manifest(
+            dir.path(),
+            "msk.StubApp",
+            Some("msk.StubFactory"),
+            EnvironmentPolicy::Compatible,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("已占用"));
     }
 
     #[test]
@@ -341,6 +437,7 @@ mod tests {
         modify_manifest(
             dir.path(),
             "dev.mocika.StubApp",
+            None,
             EnvironmentPolicy::Compatible,
         )
         .unwrap();
@@ -365,6 +462,7 @@ mod tests {
         modify_manifest(
             dir.path(),
             "dev.mocika.StubApp",
+            None,
             EnvironmentPolicy::Compatible,
         )
         .unwrap();
@@ -381,6 +479,7 @@ mod tests {
         let error = modify_manifest(
             dir.path(),
             "dev.mocika.StubApp",
+            None,
             EnvironmentPolicy::Compatible,
         )
         .unwrap_err();

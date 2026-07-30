@@ -2,14 +2,18 @@ use anyhow::{Context, Result};
 
 use crate::protect::native_alias::NativeAliasProtocol;
 
-const RUNTIME_PROTOCOL: u32 = 2;
+const STANDARD_RUNTIME_PROTOCOL: u32 = 2;
+const MEMORY_RUNTIME_PROTOCOL: u32 = 3;
 const CACHE_SCHEMA: u32 = 1;
+const MEMORY_DEX_MIN_API: u32 = 29;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeMetadata {
     pub(crate) stub_application: String,
+    pub(crate) stub_component_factory: Option<String>,
     pub(crate) native_alias: NativeAliasProtocol,
     pub(crate) environment_policy: bool,
+    pub(crate) memory_dex: bool,
 }
 
 impl RuntimeMetadata {
@@ -21,22 +25,55 @@ impl RuntimeMetadata {
         let environment_policy = parse_bool(json, "environment_policy")
             .context("metadata.json 缺少 environment_policy")?;
         let memory_dex = parse_bool(json, "memory_dex").context("metadata.json 缺少 memory_dex")?;
-        if runtime_protocol != RUNTIME_PROTOCOL {
-            anyhow::bail!("不支持的 Runtime 资源协议: {runtime_protocol}");
-        }
         if cache_schema != CACHE_SCHEMA {
             anyhow::bail!("不支持的 DEX 缓存协议: {cache_schema}");
         }
-        if memory_dex {
-            anyhow::bail!("当前版本不支持启用内存 DEX 资源");
+        let stub_component_factory = match (runtime_protocol, memory_dex) {
+            (STANDARD_RUNTIME_PROTOCOL, false) => None,
+            (MEMORY_RUNTIME_PROTOCOL, true) => {
+                let min_api = parse_u32(json, "memory_dex_min_api")
+                    .context("metadata.json 缺少 memory_dex_min_api")?;
+                if min_api != MEMORY_DEX_MIN_API {
+                    anyhow::bail!("不支持的内存 DEX 最低 API: {min_api}");
+                }
+                Some(
+                    parse_string(json, "stub_component_factory")
+                        .context("metadata.json 缺少 stub_component_factory")?,
+                )
+            }
+            (STANDARD_RUNTIME_PROTOCOL, true) | (MEMORY_RUNTIME_PROTOCOL, false) => {
+                anyhow::bail!("Runtime 协议与内存 DEX 能力声明不一致");
+            }
+            _ => anyhow::bail!("不支持的 Runtime 资源协议: {runtime_protocol}"),
+        };
+        let stub_application = parse_string(json, "stub_application")
+            .context("metadata.json 缺少 stub_application")?;
+        if !is_java_class_name(&stub_application) {
+            anyhow::bail!("metadata.json 的 stub_application 不是有效类名");
+        }
+        if let Some(factory) = stub_component_factory.as_deref() {
+            if !is_java_class_name(factory) {
+                anyhow::bail!("metadata.json 的 stub_component_factory 不是有效类名");
+            }
         }
         Ok(Self {
-            stub_application: parse_string(json, "stub_application")
-                .context("metadata.json 缺少 stub_application")?,
+            stub_application,
+            stub_component_factory,
             native_alias: NativeAliasProtocol::parse(json)?,
             environment_policy,
+            memory_dex,
         })
     }
+}
+
+fn is_java_class_name(value: &str) -> bool {
+    value.split('.').all(|segment| {
+        let mut characters = segment.chars();
+        matches!(characters.next(), Some(first) if first.is_ascii_alphabetic() || first == '_' || first == '$')
+            && characters.all(|character| {
+                character.is_ascii_alphanumeric() || character == '_' || character == '$'
+            })
+    })
 }
 
 fn value_after_key<'a>(json: &'a str, field: &str) -> Option<&'a str> {
@@ -94,10 +131,12 @@ mod tests {
         assert_eq!(metadata.stub_application, "msk.d");
         assert_eq!(metadata.native_alias.name_length, 16);
         assert!(!metadata.environment_policy);
+        assert!(!metadata.memory_dex);
+        assert!(metadata.stub_component_factory.is_none());
     }
 
     #[test]
-    fn rejects_unsupported_protocol_or_memory_dex() {
+    fn rejects_unsupported_or_inconsistent_protocol() {
         assert!(RuntimeMetadata::parse(
             &METADATA.replace("\"runtime_protocol\":2", "\"runtime_protocol\":3")
         )
@@ -106,5 +145,29 @@ mod tests {
             &METADATA.replace("\"memory_dex\":false", "\"memory_dex\":true")
         )
         .is_err());
+    }
+
+    #[test]
+    fn parses_memory_candidate_protocol() {
+        let candidate = METADATA
+            .replace("\"runtime_protocol\":2", "\"runtime_protocol\":3")
+            .replace(
+                "\"memory_dex\":false",
+                "\"memory_dex\":true,\n        \"memory_dex_min_api\":29,\n        \"stub_component_factory\":\"msk.f\"",
+            );
+        let metadata = RuntimeMetadata::parse(&candidate).unwrap();
+        assert!(metadata.memory_dex);
+        assert_eq!(metadata.stub_component_factory.as_deref(), Some("msk.f"));
+    }
+
+    #[test]
+    fn rejects_invalid_candidate_factory_name() {
+        let candidate = METADATA
+            .replace("\"runtime_protocol\":2", "\"runtime_protocol\":3")
+            .replace(
+                "\"memory_dex\":false",
+                "\"memory_dex\":true,\n        \"memory_dex_min_api\":29,\n        \"stub_component_factory\":\"invalid factory\"",
+            );
+        assert!(RuntimeMetadata::parse(&candidate).is_err());
     }
 }

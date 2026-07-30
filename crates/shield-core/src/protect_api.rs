@@ -18,7 +18,7 @@ use crate::protect::{
         NativeLibPackagingPolicy,
     },
     native_alias::verify_in_apk,
-    runtime::{inject_runtime, read_stub_application},
+    runtime::{inject_runtime, read_runtime_selection},
 };
 use crate::utils::is_json_mode;
 use crate::utils::{
@@ -95,6 +95,7 @@ pub fn protect_apk(
         }
         None => find_apktool().map_err(ShieldError::from)?,
     };
+    let custom_runtime_resources = opts.resources_path.is_some();
     let runtime_resources = match &opts.resources_path {
         Some(p) if p.exists() => p.clone(),
         Some(p) => {
@@ -115,8 +116,12 @@ pub fn protect_apk(
         }
         None => find_apksigner().map_err(ShieldError::from)?,
     };
-    let stub_app = read_stub_application(&runtime_resources, opts.environment_policy)
-        .map_err(ShieldError::from)?;
+    let runtime_selection = read_runtime_selection(
+        &runtime_resources,
+        opts.environment_policy,
+        custom_runtime_resources,
+    )
+    .map_err(ShieldError::from)?;
 
     if !is_json_mode() {
         println!("{}", "========================================".cyan());
@@ -176,7 +181,13 @@ pub fn protect_apk(
         "修改AndroidManifest.xml",
     )?;
     print_step("修改AndroidManifest.xml");
-    modify_manifest(&apk_dir, &stub_app, opts.environment_policy).map_err(ShieldError::from)?;
+    modify_manifest(
+        &apk_dir,
+        &runtime_selection.stub_application,
+        runtime_selection.stub_component_factory.as_deref(),
+        opts.environment_policy,
+    )
+    .map_err(ShieldError::from)?;
     print_success("Manifest修改完成");
 
     emit_progress(
