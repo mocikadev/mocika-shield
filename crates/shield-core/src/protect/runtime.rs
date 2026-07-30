@@ -163,10 +163,17 @@ pub(crate) fn inject_runtime(
     })
 }
 
-pub(crate) fn read_stub_application(
+#[derive(Debug)]
+pub(crate) struct RuntimeSelection {
+    pub(crate) stub_application: String,
+    pub(crate) stub_component_factory: Option<String>,
+}
+
+pub(crate) fn read_runtime_selection(
     resources_path: &Path,
     environment_policy: EnvironmentPolicy,
-) -> Result<String> {
+    allow_memory_candidate: bool,
+) -> Result<RuntimeSelection> {
     let file = fs::File::open(resources_path).context("打开 resources.zip 失败")?;
     let mut archive = zip::ZipArchive::new(file).context("解析 resources.zip 失败")?;
     let content = read_archive_text(&mut archive, "metadata.json")?;
@@ -175,7 +182,13 @@ pub(crate) fn read_stub_application(
     if environment_policy == EnvironmentPolicy::Strict && !metadata.environment_policy {
         anyhow::bail!("所选 Runtime 资源不支持严格环境策略，请更新资源包或改用兼容模式");
     }
-    Ok(metadata.stub_application)
+    if metadata.memory_dex && !allow_memory_candidate {
+        anyhow::bail!("内存 DEX 候选资源只能通过显式资源路径用于内部回归");
+    }
+    Ok(RuntimeSelection {
+        stub_application: metadata.stub_application,
+        stub_component_factory: metadata.stub_component_factory,
+    })
 }
 
 fn read_archive_text<R: std::io::Read + std::io::Seek>(
@@ -282,9 +295,43 @@ mod tests {
         zip.write_all(metadata.as_bytes()).unwrap();
         zip.finish().unwrap();
 
-        assert!(read_stub_application(&resources, EnvironmentPolicy::Compatible).is_ok());
-        let error = read_stub_application(&resources, EnvironmentPolicy::Strict).unwrap_err();
+        assert!(read_runtime_selection(&resources, EnvironmentPolicy::Compatible, false).is_ok());
+        let error =
+            read_runtime_selection(&resources, EnvironmentPolicy::Strict, false).unwrap_err();
         assert!(error.to_string().contains("不支持严格环境策略"));
+    }
+
+    #[test]
+    fn 内存候选资源必须显式授权() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().join("resources-memory.zip");
+        let file = fs::File::create(&resources).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let metadata = r#"{
+            "stub_application":"msk.d",
+            "stub_component_factory":"msk.f",
+            "native_library":"libmocikashield.so",
+            "native_name_placeholder":"mocikanativeslot",
+            "native_name_length":16,
+            "native_name_scheme":1,
+            "runtime_protocol":3,
+            "cache_schema":1,
+            "environment_policy":true,
+            "memory_dex":true,
+            "memory_dex_min_api":29
+        }"#;
+        zip.start_file("metadata.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(metadata.as_bytes()).unwrap();
+        zip.finish().unwrap();
+
+        let error =
+            read_runtime_selection(&resources, EnvironmentPolicy::Compatible, false).unwrap_err();
+        assert!(error.to_string().contains("显式资源路径"));
+        let selection =
+            read_runtime_selection(&resources, EnvironmentPolicy::Compatible, true).unwrap();
+        assert_eq!(selection.stub_application, "msk.d");
+        assert_eq!(selection.stub_component_factory.as_deref(), Some("msk.f"));
     }
 
     #[test]
