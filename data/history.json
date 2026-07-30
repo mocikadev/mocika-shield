@@ -9992,7 +9992,7 @@
     },
     {
       "date": "2026-07-30",
-      "collected_at": "2026-07-30T02:44:40.899427Z",
+      "collected_at": "2026-07-30T03:48:59.182927Z",
       "repository": {
         "stars": 38,
         "forks": 10,
@@ -10010,8 +10010,8 @@
         "available": true,
         "active_devices": 2,
         "latest_complete_date": "2026-07-29",
-        "app_starts": 60,
-        "protect_successes": 55,
+        "app_starts": 67,
+        "protect_successes": 60,
         "protect_failures": 5,
         "trend": [
           {
@@ -10097,20 +10097,20 @@
           },
           {
             "usage_date": "2026-07-28",
-            "active_devices": 3,
-            "app_starts": 7,
-            "protect_successes": 4,
+            "active_devices": 4,
+            "app_starts": 13,
+            "protect_successes": 8,
             "protect_failures": 0,
-            "sign_successes": 5,
+            "sign_successes": 8,
             "date": "2026-07-28"
           },
           {
             "usage_date": "2026-07-29",
             "active_devices": 2,
-            "app_starts": 14,
-            "protect_successes": 5,
+            "app_starts": 15,
+            "protect_successes": 6,
             "protect_failures": 0,
-            "sign_successes": 8,
+            "sign_successes": 9,
             "date": "2026-07-29"
           }
         ]
@@ -10778,7 +10778,7 @@
           "tag": "v1.3.0",
           "published_at": "2026-07-30T02:27:06Z",
           "name": "MocikaShield_1.3.0_windows_x64_setup.exe",
-          "download_count": 1,
+          "download_count": 3,
           "platform": "Windows"
         },
         {
@@ -10895,9 +10895,9 @@
         }
       ],
       "totals": {
-        "downloads": 368,
+        "downloads": 370,
         "platform_downloads": {
-          "Windows": 232,
+          "Windows": 234,
           "macOS": 100,
           "Linux": 36,
           "其他": 0
@@ -10905,5 +10905,5 @@
       }
     }
   ],
-  "updated_at": "2026-07-30T02:44:40.899427Z"
+  "updated_at": "2026-07-30T03:48:59.182927Z"
 }
