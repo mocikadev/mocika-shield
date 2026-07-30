@@ -78,8 +78,8 @@ public final class ProbeApplication extends Application {
         if (className == null || className.isEmpty()) {
             throw new IllegalStateException("MEMORY_PROBE_REAL_APP_NAME_MISSING");
         }
-        Application application = (Application) loader.loadClass(className)
-                .getDeclaredConstructor().newInstance();
+        Application application = ProbeAppComponentFactory.instantiateOriginalApplication(
+                loader, className);
         Method attach = Application.class.getDeclaredMethod("attach", Context.class);
         attach.setAccessible(true);
         attach.invoke(application, base);

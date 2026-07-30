@@ -50,6 +50,7 @@ MEMORY_PROBE_ASSETS="$ASSET_DIR" "$GRADLE" -p "$PROJECT_DIR" \
 run_probe() {
   local mode="$1"
   local expected_loader_marker="$2"
+  local expect_factory_delegate="$3"
   local apk="$PROJECT_DIR/app/build/outputs/apk/$mode/debug/app-$mode-debug.apk"
 
   "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
@@ -69,6 +70,15 @@ run_probe() {
     fi
   done
 
+  if [[ "$expect_factory_delegate" == "true" ]]; then
+    for marker in FACTORY_DELEGATE_READY ORIGINAL_FACTORY_APPLICATION ORIGINAL_FACTORY_PROVIDER ORIGINAL_FACTORY_ACTIVITY ORIGINAL_FACTORY_SERVICE ORIGINAL_FACTORY_RECEIVER RECEIVER_OK; do
+      if ! grep -Fq "$marker" <<<"$logs"; then
+        echo "$mode 原应用工厂委托缺少标记：$marker" >&2
+        exit 1
+      fi
+    done
+  fi
+
   local loader_process_count
   loader_process_count="$(grep -F "$expected_loader_marker" <<<"$logs" | awk '{print $3}' | sort -u | wc -l | tr -d ' ')"
   if (( loader_process_count < 2 )); then
@@ -85,7 +95,7 @@ run_probe() {
   fi
 }
 
-run_probe reflection "LOADER_READY:REFLECTION"
-run_probe factory "LOADER_READY:FACTORY"
+run_probe reflection "LOADER_READY:REFLECTION" false
+run_probe factory "LOADER_READY:FACTORY" true
 
 echo "API $SDK_INT 两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"

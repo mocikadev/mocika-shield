@@ -40,7 +40,7 @@ ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
 bash tests/scripts/run-memory-loader-probe.sh
 ```
 
-脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。该结果只证明最小框架链路可行，不代表早期签名绑定解密、原应用工厂委托、ARouter、系统共享库、覆盖安装或生产回退已经通过。
+脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service、Receiver 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。工厂变体还会验证载荷中的原应用工厂收到五类组件的实例化回调。该结果只证明最小框架链路可行，不代表早期签名绑定解密、正式工厂元数据、ARouter、系统共享库、覆盖安装或生产回退已经通过。
 
 ## Android 4.4 Native 加载探针
 

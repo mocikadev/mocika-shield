@@ -315,12 +315,14 @@ BootClassLoader
 
 两种变体均在主进程和远程 Service 进程通过真实 Application、Provider、Activity、Service、跨 DEX 引用、APK 内 Native 库、GC 后延迟首次加载和私有目录无 DEX 检查。公开工厂入口由系统在 Application Context 初始化和任何应用组件实例化前调用，加载器时序与框架契约更明确，因此作为下一阶段首选；反射路径只保留为对照和止损依据，不进入正式实现。
 
-公开入口仍有两个生产阻塞项：
+公开入口最初识别出两个生产阻塞项：
 
 - 回调只有默认 ClassLoader 与 `ApplicationInfo`，尚无可用 `Context`。当前 DEXB v5 解密必须通过 `Context` 读取设备实际签名，不能原样前移；必须先设计不降低签名绑定强度的早期证书读取边界。
 - 原应用可能声明 AndroidX 或自定义 `AppComponentFactory`。壳工厂不能直接覆盖其 Application、Activity、Service、Receiver 和 Provider 实例化语义；必须验证加载业务 DEX 后的安全委托方案，并处理委托工厂创建失败和递归配置。
 
-这两个阻塞项未通过前，不把工厂探针接入正式 Stub，也不开放 `memory_dex` 能力字段。
+2026-07-30 已在工厂变体中增加载荷侧自定义工厂：壳工厂创建业务加载器后，由该加载器创建原工厂；真实 Application 由壳 Application 主动通过原工厂创建，Provider、Activity、Receiver 和远程进程 Service 则由系统回调壳工厂后转发。五类组件的原工厂标记与实际生命周期标记均通过，证明委托机制在最小框架链路中可行。
+
+正式接入仍需把原工厂类名以独立元数据保存，区分“原应用未声明工厂”、AndroidX 工厂、自定义工厂和错误地指回壳工厂的递归配置；委托创建失败必须失败关闭，不能静默退回默认工厂。无 `Context` 阶段的签名绑定解密仍是进入正式 Stub 前的主要阻塞项。在这些边界完成前，不开放 `memory_dex` 能力字段。
 
 ## 任务阶段与版本规划
 
