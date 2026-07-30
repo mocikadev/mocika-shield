@@ -51,6 +51,7 @@ else
 endif
 	@echo "✅ 产物: shield-stub/build/outputs/resources/resources.zip"
 	@echo "✅ 兼容产物: shield-stub/build/outputs/resources/resources-api19.zip"
+	@echo "✅ 内存候选: shield-stub/build/outputs/resources/resources-memory.zip"
 
 audit-stub-dex:
 	$(PYTHON) scripts/analyze_stub_dex.py $(RESOURCES_ZIP) \

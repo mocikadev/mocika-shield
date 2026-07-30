@@ -27,6 +27,13 @@
     public android.content.Context getApplicationContext();
 }
 
+# AppComponentFactory 由系统按 Manifest 类名创建，类名写入候选资源元数据。
+# 所有框架回调必须整体保留，避免 R8 无法感知的系统调用被裁剪。
+-keep,allowobfuscation class dev.mocika.shield.loader.StubComponentFactory { *; }
+
+# 桥内包含旧系统不存在的 AppComponentFactory 引用，禁止 R8 内联回 StubApp。
+-keep,allowobfuscation class dev.mocika.shield.loader.MemoryRuntimeBridge { *; }
+
 # ARouterCompat：由 StubApp.onCreate 调用链追踪保留，无需显式 keep。
 # 类名和方法名均可被 R8 混淆。
 

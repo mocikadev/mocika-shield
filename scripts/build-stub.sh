@@ -185,13 +185,15 @@ parse_mapping_method() {
 
 ORIG_BINLOADER="dev.mocika.shield.loader.Ld"
 ORIG_STUBAPP="dev.mocika.shield.loader.StubApp"
+ORIG_STUB_FACTORY="dev.mocika.shield.loader.StubComponentFactory"
 
 OBF_BINLOADER=$(parse_mapping_class "$ORIG_BINLOADER" "$MAPPING_FILE")
 OBF_STUBAPP=$(parse_mapping_class "$ORIG_STUBAPP" "$MAPPING_FILE")
+OBF_STUB_FACTORY=$(parse_mapping_class "$ORIG_STUB_FACTORY" "$MAPPING_FILE")
 
-if [ -z "$OBF_BINLOADER" ] || [ -z "$OBF_STUBAPP" ]; then
+if [ -z "$OBF_BINLOADER" ] || [ -z "$OBF_STUBAPP" ] || [ -z "$OBF_STUB_FACTORY" ]; then
     echo -e "${RED}错误: 无法从 mapping.txt 提取混淆类名${NC}"
-    echo -e "${YELLOW}  BinLoader: '${OBF_BINLOADER}', StubApp: '${OBF_STUBAPP}'${NC}"
+    echo -e "${YELLOW}  BinLoader: '${OBF_BINLOADER}', StubApp: '${OBF_STUBAPP}', StubFactory: '${OBF_STUB_FACTORY}'${NC}"
     echo -e "${YELLOW}  请检查 proguard-rules.pro 是否正确配置了 allowobfuscation${NC}"
     exit 1
 fi
@@ -214,6 +216,7 @@ OBF_STUBAPP_DOTTED="$OBF_STUBAPP"
 
 echo -e "${GREEN}  Ld: ${ORIG_BINLOADER} → ${OBF_BINLOADER}${NC}"
 echo -e "${GREEN}  StubApp:   $(echo $ORIG_STUBAPP | sed 's/.*\.//') → ${OBF_STUBAPP}${NC}"
+echo -e "${GREEN}  StubFactory: $(echo $ORIG_STUB_FACTORY | sed 's/.*\.//') → ${OBF_STUB_FACTORY}${NC}"
 echo -e "${GREEN}  方法: p→${OBF_METHOD_INJECT}, q→${OBF_METHOD_EXTRACT}, r→${OBF_METHOD_CHECK_ENV}, getSignatureSha256→${OBF_METHOD_GET_SIG}${NC}"
 echo ""
 
@@ -402,6 +405,38 @@ cd "$OLDPWD"
 
 # 创建符号链接指向最新版本
 ln -sf "mocika-runtime-resources-${BUILD_VERSION}.zip" "$OUTPUT_DIR/resources.zip"
+
+# 候选资源复用同一份已混淆 Stub，只改变受核心严格校验的运行时能力声明。
+# 自动资源发现仍只返回 resources.zip；resources-memory.zip 仅供显式内部回归。
+cp "$OUTPUT_DIR/metadata.json" "$OUTPUT_DIR/metadata-standard.json"
+cat > "$OUTPUT_DIR/metadata.json" << EOF
+{
+  "version": "$BUILD_VERSION",
+  "build_date": "$BUILD_DATE",
+  "stub_dex": "stub-classes.dex",
+  "stub_application": "$OBF_STUBAPP_DOTTED",
+  "stub_component_factory": "$OBF_STUB_FACTORY",
+  "supported_architectures": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
+  "min_android_api": 29,
+  "target_android_api": 35,
+  "native_library": "libmocikashield.so",
+  "native_name_placeholder": "mocikanativeslot",
+  "native_name_length": 16,
+  "native_name_scheme": 1,
+  "runtime_protocol": 3,
+  "cache_schema": 1,
+  "environment_policy": true,
+  "memory_dex": true,
+  "memory_dex_min_api": 29
+}
+EOF
+cd "$OUTPUT_DIR"
+rm -f "resources-memory.zip"
+zip -r "resources-memory.zip" stub-classes.dex lib/ metadata.json \
+    -x '*.DS_Store' '__MACOSX/*' > /dev/null
+cd "$OLDPWD"
+mv "$OUTPUT_DIR/metadata-standard.json" "$OUTPUT_DIR/metadata.json"
+echo -e "${GREEN}✓ 内存 DEX 候选资源: $OUTPUT_DIR/resources-memory.zip${NC}"
 
 echo ""
 echo -e "${GREEN}================================================${NC}"

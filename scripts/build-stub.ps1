@@ -167,12 +167,14 @@ Success "R8 mapping: $mappingFile"
 
 $origBinLoader = "dev.mocika.shield.loader.Ld"
 $origStubApp   = "dev.mocika.shield.loader.StubApp"
+$origStubFactory = "dev.mocika.shield.loader.StubComponentFactory"
 
 $obfBinLoader = Parse-MappingClass $origBinLoader $mappingFile
 $obfStubApp   = Parse-MappingClass $origStubApp   $mappingFile
+$obfStubFactory = Parse-MappingClass $origStubFactory $mappingFile
 
-if (-not $obfBinLoader -or -not $obfStubApp) {
-    Err "无法从 mapping.txt 提取混淆类名`n  Ld: '$obfBinLoader'  StubApp: '$obfStubApp'`n  请检查 proguard-rules.pro 是否正确配置了 allowobfuscation"
+if (-not $obfBinLoader -or -not $obfStubApp -or -not $obfStubFactory) {
+    Err "无法从 mapping.txt 提取混淆类名`n  Ld: '$obfBinLoader'  StubApp: '$obfStubApp'  StubFactory: '$obfStubFactory'`n  请检查 proguard-rules.pro 是否正确配置了 allowobfuscation"
 }
 
 $obfMethodInject  = Parse-MappingMethod $origBinLoader "p"                 $mappingFile
@@ -191,6 +193,7 @@ $obfBinLoaderJvm = $obfBinLoader.Replace(".", "/")
 
 Write-Host "  Ld:      $origBinLoader → $obfBinLoader" -ForegroundColor Green
 Write-Host "  StubApp: $origStubApp → $obfStubApp" -ForegroundColor Green
+Write-Host "  StubFactory: $origStubFactory → $obfStubFactory" -ForegroundColor Green
 Write-Host "  方法: p→$obfMethodInject, q→$obfMethodExtract, r→$obfMethodCheckEnv, getSignatureSha256→$obfMethodGetSig" -ForegroundColor Green
 Write-Host ""
 
@@ -414,6 +417,35 @@ Success "资源包创建成功"
 Write-Host "  文件: $resourcesZip" -ForegroundColor Green
 Write-Host "  大小: $sizeMB" -ForegroundColor Green
 Success "resources.zip 已更新"
+
+# 候选资源只通过显式资源路径用于内部回归，不参与自动资源发现。
+$standardMetadata = Get-Content (Join-Path $OutputDir "metadata.json") -Raw
+@"
+{
+  "version": "$ShieldVersion",
+  "build_date": "$buildDate",
+  "stub_dex": "stub-classes.dex",
+  "stub_application": "$obfStubApp",
+  "stub_component_factory": "$obfStubFactory",
+  "supported_architectures": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
+  "min_android_api": 29,
+  "target_android_api": 35,
+  "native_library": "libmocikashield.so",
+  "native_name_placeholder": "mocikanativeslot",
+  "native_name_length": 16,
+  "native_name_scheme": 1,
+  "runtime_protocol": 3,
+  "cache_schema": 1,
+  "environment_policy": true,
+  "memory_dex": true,
+  "memory_dex_min_api": 29
+}
+"@ | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
+$memoryResources = Join-Path $OutputDir "resources-memory.zip"
+if (Test-Path $memoryResources) { Remove-Item $memoryResources -Force }
+Compress-Archive -Path $filesToPack -DestinationPath $memoryResources
+$standardMetadata | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
+Success "内存 DEX 候选资源: $memoryResources"
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
