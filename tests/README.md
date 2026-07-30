@@ -32,7 +32,7 @@ ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
 
 ## API 29+ 内存 DEX 加载探针
 
-`fixtures/android-memory-loader-probe` 是隔离研究夹具，不进入正式 Stub 或资源包。它把 Application、Activity、Service、Provider 和跨 DEX 依赖编译到两个独立 DEX 资源中，启动壳只负责创建 `InMemoryDexClassLoader` 并替换框架 `LoadedApk` 持有的应用 ClassLoader。
+`fixtures/android-memory-loader-probe` 是隔离研究夹具，不进入正式 Stub 或资源包。它把 Application、Activity、Service、Provider 和跨 DEX 依赖编译到两个独立 DEX 资源中，并分别构建反射写入 `LoadedApk.mClassLoader` 与公开 `AppComponentFactory.instantiateClassLoader()` 两种入口进行对照。
 
 连接 API 29 及以上设备后执行：
 
@@ -40,7 +40,7 @@ ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
 bash tests/scripts/run-memory-loader-probe.sh
 ```
 
-探针必须同时确认主进程与远程 Service 进程分别完成加载器替换，Application、Provider、Activity、Service 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。该结果只证明最小框架链路可行，不代表 ARouter、系统共享库、覆盖安装或生产回退已经通过。
+脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。该结果只证明最小框架链路可行，不代表早期签名绑定解密、原应用工厂委托、ARouter、系统共享库、覆盖安装或生产回退已经通过。
 
 ## Android 4.4 Native 加载探针
 
