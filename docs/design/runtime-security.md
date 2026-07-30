@@ -339,7 +339,21 @@ API 29 验证还发现，Receiver 等组件回调可能落到另一个壳工厂�
 
 2026-07-30 已进一步在 API 35 ARM64 真机接入正式 Stub Native 和由核心加固流程生成的 DEXB v5 双 DEX 载荷。探针只保留与正式 `Ld` 一致的最小 JNI 契约，实际证书指纹读取、HKDF 派生、ChaCha20-Poly1305 解密、签名比较和 Zstd 解压均由正式 Native 执行。使用生成载荷时的同一证书签名探针，主进程与远程进程均通过解密、五类组件、原工厂委托、业务 Native、GC 后延迟加载和私有目录无 DEX 检查；改用另一张证书签名后，解密在业务类定义前失败，未出现业务生命周期标记。
 
-这证明“获得 Context 后复用现有 DEXB v5 签名绑定解密，再挂接稳定代理”的完整最小链路可行，并且不需要改变加密协议或扩大正式 Native 接口。当前仍是隔离测试契约，不等同于正式 Stub 已接入内存加载。下一步验证原工厂元数据、ARouter 和 Android 9 系统共享库，再覆盖 split、Instrumentation、覆盖安装和版本级回退；通过前不修改正式资源能力声明。
+这证明“获得 Context 后复用现有 DEXB v5 签名绑定解密，再挂接稳定代理”的完整最小链路可行，并且不需要改变加密协议或扩大正式 Native 接口。当前仍是隔离测试契约，不等同于正式 Stub 已接入内存加载；通过生产门槛前不修改正式资源能力声明。
+
+#### 原组件工厂元数据与 ARouter 实样
+
+2026-07-30 已补齐隔离元数据契约。壳 Manifest 声明自身 `appComponentFactory`，同时用独立元数据保存原应用组件工厂类名；获得 Context 并完成 DEXB 解密后，代理加载器再创建原工厂。未声明原工厂时使用系统默认 `AppComponentFactory`；元数据指回壳工厂、类不存在、类型不匹配或构造失败时均在业务组件定义前失败关闭。API 35 真机已通过自定义工厂、无工厂和递归工厂三条路径。
+
+真实 ARouter 多模块样本原本声明 `androidx.core.app.CoreComponentFactory`。隔离原型保留原 APK 资源、Manifest 组件、Native 库和 `arouter_routes.txt`，仅把业务 DEX 改为正式 DEXB v5 内存载荷，并恢复 AndroidX 工厂委托。验证覆盖：
+
+- 同签名从未加固 APK 覆盖升级后启动并跳转 `/home/main`。
+- 清除应用数据后首次启动并跳转 `/home/main`。
+- 全新安装后首次启动并跳转 `/home/main`。
+
+三种场景均在 API 35 ARM64 真机进入真实 `HomeActivity`。该验证同时发现 `ARouterCompat` 不能再使用自身定义加载器查找业务 `LogisticsCenter`；已改为使用 `Context.getClassLoader()`，现有文件加载路径仍指向原应用加载器，内存代理路径则指向业务代理。
+
+Android 9（API 28）不进入 API 29 以上内存 DEX 承诺范围。现有文件加载资源已在 API 28 ARM64 模拟器使用同一 ARouter 样本复验清除数据和同签名覆盖升级，均能跳转真实首页，确认低版本回退未受影响。下一步集中验证 split、Instrumentation、覆盖安装状态迁移和版本级回退。
 
 #### API 29～36 关键版本矩阵
 

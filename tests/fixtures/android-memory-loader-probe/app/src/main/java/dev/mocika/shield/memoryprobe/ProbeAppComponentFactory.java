@@ -16,8 +16,6 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
     private static final String TAG = "MOCIKA_MEMORY_PROBE";
     private static final String PROBE_APPLICATION =
             "dev.mocika.shield.memoryprobe.ProbeApplication";
-    private static final String ORIGINAL_FACTORY =
-            "dev.mocika.shield.memorypayload.PayloadAppComponentFactory";
     private static volatile FactoryState activeState;
 
     @Override
@@ -34,8 +32,9 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         }
     }
 
-    static ClassLoader initializePayload(Context context) throws Exception {
-        return initializePayloadOnce(requireState(), context);
+    static ClassLoader initializePayload(Context context, String originalFactoryClass)
+            throws Exception {
+        return initializePayloadOnce(requireState(), context, originalFactoryClass);
     }
 
     static Application instantiateOriginalApplication(ClassLoader loader, String className)
@@ -88,7 +87,8 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         return state.originalFactory;
     }
 
-    private static ClassLoader initializePayloadOnce(FactoryState state, Context context)
+    private static ClassLoader initializePayloadOnce(
+            FactoryState state, Context context, String originalFactoryClass)
             throws Exception {
         synchronized (state) {
             if (state.originalFactory != null) {
@@ -97,8 +97,8 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
             }
             ClassLoader candidate = MemoryPayloadLoader.create(
                     context, state.deferredLoader.getParent());
-            AppComponentFactory candidateFactory = (AppComponentFactory) candidate
-                    .loadClass(ORIGINAL_FACTORY).getDeclaredConstructor().newInstance();
+            AppComponentFactory candidateFactory = createOriginalFactory(
+                    candidate, originalFactoryClass);
             state.deferredLoader.initialize(candidate);
             state.originalFactory = candidateFactory;
         }
@@ -107,10 +107,27 @@ public final class ProbeAppComponentFactory extends AppComponentFactory {
         return state.deferredLoader;
     }
 
+    private static AppComponentFactory createOriginalFactory(
+            ClassLoader loader, String className) throws Exception {
+        if (className == null || className.trim().isEmpty()) {
+            Log.i(TAG, "ORIGINAL_FACTORY_DEFAULT");
+            return new AppComponentFactory();
+        }
+        if (ProbeAppComponentFactory.class.getName().equals(className)) {
+            throw new IllegalStateException("MEMORY_PROBE_FACTORY_RECURSION");
+        }
+        Class<?> factoryClass = loader.loadClass(className);
+        if (!AppComponentFactory.class.isAssignableFrom(factoryClass)) {
+            throw new IllegalStateException("MEMORY_PROBE_FACTORY_TYPE_INVALID:" + className);
+        }
+        Log.i(TAG, "ORIGINAL_FACTORY_METADATA:" + className);
+        return (AppComponentFactory) factoryClass.getDeclaredConstructor().newInstance();
+    }
+
     private static void verifyPayloadBlockedBeforeInitialization(ClassLoader loader)
             throws Exception {
         try {
-            loader.loadClass(ORIGINAL_FACTORY);
+            loader.loadClass("dev.mocika.shield.memorypayload.PayloadAppComponentFactory");
             throw new IllegalStateException("MEMORY_PROBE_PAYLOAD_EARLY_LOAD_ALLOWED");
         } catch (ClassNotFoundException expected) {
             Log.i(TAG, "PROXY_BUSINESS_BLOCKED");

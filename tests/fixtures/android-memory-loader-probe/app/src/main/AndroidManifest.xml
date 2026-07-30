@@ -7,6 +7,12 @@
         <meta-data
             android:name="REAL_APPLICATION"
             android:value="dev.mocika.shield.memorypayload.PayloadApplication" />
+        <meta-data
+            android:name="ORIGINAL_COMPONENT_FACTORY"
+            android:value="${originalComponentFactory}" />
+        <meta-data
+            android:name="PROBE_CONCURRENT_CLASSES"
+            android:value="dev.mocika.shield.memorypayload.PayloadActivity,dev.mocika.shield.memorypayload.PayloadService" />
         <activity
             android:name="dev.mocika.shield.memorypayload.PayloadActivity"
             android:exported="true">
