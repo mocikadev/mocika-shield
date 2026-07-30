@@ -4,6 +4,8 @@ plugins {
 
 val runtimeProfileEnabled = providers.environmentVariable("MOCIKA_RUNTIME_PROFILE")
     .orNull == "1"
+val directBufferEnabled = providers.environmentVariable("MOCIKA_DIRECT_BUFFER")
+    .orNull == "1"
 
 android {
     namespace = "dev.mocika.shield.stub"
@@ -23,6 +25,7 @@ android {
 
         buildConfigField("boolean", "DEBUG_LOGS", "true")
         buildConfigField("boolean", "RUNTIME_PROFILE", runtimeProfileEnabled.toString())
+        buildConfigField("boolean", "DIRECT_BUFFER", directBufferEnabled.toString())
     }
 
     buildTypes {
