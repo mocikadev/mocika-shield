@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Bundle;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -15,6 +16,9 @@ import java.util.Map;
 
 public class StubApp extends Application {
 
+    private static final String ORIGINAL_COMPONENT_FACTORY =
+            "dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY";
+
     private Application realApp;
 
     @Override
@@ -23,9 +27,17 @@ public class StubApp extends Application {
         try {
             exemptHiddenApi();
             RuntimeSecurity.checkEnvironment(base);
-            List<File> dexFiles = Ld.extractDexFiles(base);
-            DexInjector.inject(base, dexFiles);
-            realApp = makeRealApp(base.getClassLoader(), base);
+            ClassLoader loader;
+            if (android.os.Build.VERSION.SDK_INT >= 29
+                    && base.getClassLoader() instanceof DeferredPayloadClassLoader) {
+                loader = MemoryRuntimeBridge.initialize(base, getOriginalComponentFactory(base));
+            } else {
+                List<File> dexFiles = Ld.extractDexFiles(base);
+                DexInjector.inject(base, dexFiles);
+                loader = base.getClassLoader();
+            }
+            Thread.currentThread().setContextClassLoader(loader);
+            realApp = makeRealApp(loader, base);
         } catch (Exception e) {
             throw new RuntimeException("init", e);
         }
@@ -70,7 +82,13 @@ public class StubApp extends Application {
 
     private Application makeRealApp(ClassLoader cl, Context base) throws Exception {
         String name = getRealAppName();
-        Application app = (Application) cl.loadClass(name).newInstance();
+        Application app;
+        if (android.os.Build.VERSION.SDK_INT >= 29
+                && cl instanceof DeferredPayloadClassLoader) {
+            app = MemoryRuntimeBridge.instantiateApplication(cl, name);
+        } else {
+            app = (Application) cl.loadClass(name).newInstance();
+        }
         Method attach = Application.class.getDeclaredMethod("attach", Context.class);
         attach.setAccessible(true);
         attach.invoke(app, base);
@@ -87,6 +105,13 @@ public class StubApp extends Application {
             }
         } catch (Exception ignored) {}
         return "android.app.Application";
+    }
+
+    private static String getOriginalComponentFactory(Context context) throws Exception {
+        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
+                context.getPackageName(), PackageManager.GET_META_DATA);
+        Bundle metadata = info.metaData;
+        return metadata == null ? null : metadata.getString(ORIGINAL_COMPONENT_FACTORY);
     }
 
     private void replaceAppReferences(Application newApp) {
