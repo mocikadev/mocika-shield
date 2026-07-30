@@ -9,7 +9,7 @@ FIXTURE="$ROOT/tests/fixtures/android-smoke-app"
 WORK="${1:?请提供测试产物目录}"
 PASSWORD="mocika-test-123"
 
-for command in cargo java keytool unzip; do
+for command in cargo java keytool python3 unzip; do
     command -v "$command" >/dev/null || { echo "缺少命令：$command" >&2; exit 1; }
 done
 
@@ -49,3 +49,34 @@ protect_and_sign() {
 
 protect_and_sign "$STANDARD_RESOURCES" standard
 protect_and_sign "$MEMORY_RESOURCES" memory
+
+create_budget_denied_variant() {
+    local source="$WORK/output-memory-signed.apk"
+    local decoded="$WORK/budget-denied-decoded"
+    local unsigned="$WORK/output-memory-budget-denied-unsigned.apk"
+    local final="$WORK/output-memory-budget-denied-signed.apk"
+    java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$source" -o "$decoded" -f --no-src >/dev/null
+    python3 - "$decoded/AndroidManifest.xml" <<'PY'
+import pathlib
+import re
+import sys
+
+manifest = pathlib.Path(sys.argv[1])
+content = manifest.read_text(encoding="utf-8")
+updated, count = re.subn(
+    r'(android:name="dev\.mocika\.shield\.PAYLOAD_DEX_BYTES"\s+android:value=")bytes:\d+("\s*/>)',
+    r'\1bytes:402653185\2',
+    content,
+)
+if count != 1:
+    raise SystemExit(f"预算元数据替换数量异常：{count}")
+manifest.write_text(updated, encoding="utf-8")
+PY
+    java -jar "$ROOT/tools/apktool_3.0.1.jar" b "$decoded" -o "$unsigned" -f >/dev/null
+    java -jar "$ROOT/tools/apksigner.jar" sign \
+        --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" --ks-key-alias smoke \
+        --out "$final" "$unsigned"
+    java -jar "$ROOT/tools/apksigner.jar" verify --verbose "$final" >/dev/null
+}
+
+create_budget_denied_variant

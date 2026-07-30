@@ -34,6 +34,7 @@ fi
 
 STANDARD_APK="$WORK/output-standard-signed.apk"
 MEMORY_APK="$WORK/output-memory-signed.apk"
+BUDGET_DENIED_APK="$WORK/output-memory-budget-denied-signed.apk"
 "$ROOT/tests/scripts/prepare-memory-runtime-e2e-apks.sh" "$WORK"
 
 BASE_MARKERS=(
@@ -241,6 +242,20 @@ verify_bidirectional_migration() {
     echo "标准与内存资源双向覆盖迁移验证通过"
 }
 
+verify_budget_reassessment() {
+    install_clean "$BUDGET_DENIED_APK"
+    verify_full_launch "预算超限候选首次安装"
+    assert_file_mode
+    state_contains "$PACKAGE_NAME" file_ready
+    state_contains "$PACKAGE_NAME:remote" file_ready
+
+    install_replace "$MEMORY_APK"
+    verify_full_launch "预算恢复后重新选择内存路径"
+    state_contains "$PACKAGE_NAME" memory_ready
+    state_contains "$PACKAGE_NAME:remote" memory_ready
+    echo "预算文件模式与非粘性重新评估验证通过"
+}
+
 verify_recovery_and_process_isolation() {
     install_clean "$MEMORY_APK"
     verify_full_launch "崩溃回退基线"
@@ -304,6 +319,7 @@ verify_state_authentication_failures() {
 
 verify_basic_boundary
 if (( SDK_VERSION >= 31 )); then
+    verify_budget_reassessment
     verify_bidirectional_migration
     verify_recovery_and_process_isolation
     verify_file_failure_closed
