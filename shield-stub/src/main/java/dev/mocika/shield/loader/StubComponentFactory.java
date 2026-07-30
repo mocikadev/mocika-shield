@@ -1,5 +1,6 @@
 package dev.mocika.shield.loader;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AppComponentFactory;
 import android.app.Application;
@@ -11,6 +12,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 
 /** 候选内存运行时的公开框架入口，并完整委托原应用组件工厂。 */
+@TargetApi(28)
 public final class StubComponentFactory extends AppComponentFactory {
     private static volatile FactoryState activeState;
 
@@ -25,7 +27,8 @@ public final class StubComponentFactory extends AppComponentFactory {
         FactoryState state = requireState();
         synchronized (state) {
             if (state.delegate != null) return state.proxy;
-            ClassLoader payload = MemoryPayloadLoader.create(context, state.proxy.getParent());
+            ClassLoader payload = MemoryRuntimeCoordinator.initialize(
+                    context, state.proxy.getParent());
             AppComponentFactory delegate = createDelegate(payload, originalFactoryClass);
             state.proxy.initialize(payload);
             state.delegate = delegate;

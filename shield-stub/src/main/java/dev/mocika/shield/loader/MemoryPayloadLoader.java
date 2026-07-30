@@ -1,5 +1,6 @@
 package dev.mocika.shield.loader;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.Build;
@@ -12,6 +13,7 @@ import java.util.Set;
 import dalvik.system.InMemoryDexClassLoader;
 
 /** 只负责把正式 DEXB 解密结果转换为唯一的内存业务加载器。 */
+@TargetApi(29)
 final class MemoryPayloadLoader {
     private MemoryPayloadLoader() {}
 

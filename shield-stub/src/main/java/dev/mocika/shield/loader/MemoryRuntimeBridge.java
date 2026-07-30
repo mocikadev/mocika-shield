@@ -15,4 +15,8 @@ final class MemoryRuntimeBridge {
             throws Exception {
         return StubComponentFactory.instantiateOriginalApplication(loader, className);
     }
+
+    static void complete() throws Exception {
+        MemoryRuntimeCoordinator.complete();
+    }
 }

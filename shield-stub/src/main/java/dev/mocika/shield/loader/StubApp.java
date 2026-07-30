@@ -50,6 +50,14 @@ public class StubApp extends Application {
         replaceAppReferences(realApp);
         ARouterCompat.prepareARouterRouteMap(this);
         realApp.onCreate();
+        if (android.os.Build.VERSION.SDK_INT >= 29
+                && getBaseContext().getClassLoader() instanceof DeferredPayloadClassLoader) {
+            try {
+                MemoryRuntimeBridge.complete();
+            } catch (Exception e) {
+                throw new RuntimeException("complete", e);
+            }
+        }
     }
 
     @Override
