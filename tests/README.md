@@ -69,6 +69,8 @@ bash tests/scripts/run-memory-loader-arouter-probe.sh \
 
 性能阶段使用不自动路由、不预加载首页类且不开启观测日志的独立 APK，分别采集三种形态的五次冷启动、即时 TOTAL PSS 和统一内存整理后的稳定 PSS 中位数。诊断 APK 单独输出读取、解密、直接缓冲区复制、加载器创建及启动后 GC 快照，并用弱引用确认临时载荷对象是否回收。结果只代表当前设备和样本，不作为跨设备性能承诺。脚本是隔离原型，不生成正式发布资源。
 
+脚本还会构建两个故障注入变体：第一个使内存路径在业务 Application 启动前崩溃，验证下一独立进程进入认证文件回退且后续保持粘性；第二个继续使文件路径失败，验证遗留 `file_pending` 状态会在再次启动时失败关闭。认证记录绑定加密载荷身份，HMAC 软件密钥由 Android Keystore 包装。该状态机仍只属于隔离探针，不会写入正式 Stub 或资源包。
+
 ## Android 4.4 Native 加载探针
 
 `fixtures/android-api19-native-probe` 只负责验证 NDK r25c、Rust 1.77.2、API 19 构建的生产 `libmocikashield.so` 能够被 Android 4.4 的动态链接器加载，并成功执行 `JNI_OnLoad` 动态注册。它不包含 DEX 解密、Dalvik 注入或业务兼容逻辑。

@@ -13,6 +13,12 @@
         <meta-data
             android:name="PROBE_CONCURRENT_CLASSES"
             android:value="dev.mocika.shield.memorypayload.PayloadActivity,dev.mocika.shield.memorypayload.PayloadService" />
+        <meta-data
+            android:name="PROBE_CRASH_MEMORY_START"
+            android:value="${crashMemoryStart}" />
+        <meta-data
+            android:name="PROBE_FAIL_FILE_START"
+            android:value="${failFileStart}" />
         <activity
             android:name="dev.mocika.shield.memorypayload.PayloadActivity"
             android:exported="true">

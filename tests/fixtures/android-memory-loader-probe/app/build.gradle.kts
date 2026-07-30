@@ -15,6 +15,12 @@ android {
         manifestPlaceholders["originalComponentFactory"] = providers
             .environmentVariable("MEMORY_PROBE_ORIGINAL_FACTORY")
             .getOrElse("dev.mocika.shield.memorypayload.PayloadAppComponentFactory")
+        manifestPlaceholders["crashMemoryStart"] = providers
+            .environmentVariable("MEMORY_PROBE_CRASH_MEMORY_START")
+            .getOrElse("false")
+        manifestPlaceholders["failFileStart"] = providers
+            .environmentVariable("MEMORY_PROBE_FAIL_FILE_START")
+            .getOrElse("false")
         testInstrumentationRunner = "dev.mocika.shield.memoryprobe.ProbeInstrumentation"
 
         ndk {

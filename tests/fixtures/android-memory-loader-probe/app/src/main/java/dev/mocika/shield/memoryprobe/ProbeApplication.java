@@ -34,6 +34,12 @@ public final class ProbeApplication extends Application {
                 verifyConcurrentBusinessLoad(
                         businessLoader, readMetadata(base, "PROBE_CONCURRENT_CLASSES"));
                 Log.i(TAG, "LOADER_READY:FACTORY");
+                if (ProbeRecoveryCoordinator.hasActiveAttempt()
+                        && ProbeRecoveryCoordinator.activeMode()
+                        == ProbeRecoveryCoordinator.Mode.MEMORY
+                        && readBooleanMetadata(base, "PROBE_CRASH_MEMORY_START")) {
+                    throw new IllegalStateException("MEMORY_PROBE_INJECTED_MEMORY_CRASH");
+                }
             } else {
                 exemptHiddenApi();
                 businessLoader = MemoryPayloadLoader.create(
@@ -58,6 +64,7 @@ public final class ProbeApplication extends Application {
             replaceApplicationReferences(realApplication);
             ARouterProbeVerifier.prepareIfPresent(this);
             realApplication.onCreate();
+            ProbeRecoveryCoordinator.complete(this);
             ARouterProbeVerifier.scheduleNavigation(
                     this, realApplication, readMetadata(this, "PROBE_AROUTER_ROUTE"));
             MemoryProbeMetrics.schedulePostStartupSnapshot();
@@ -101,6 +108,12 @@ public final class ProbeApplication extends Application {
                 context.getPackageName(), ApplicationInfo.FLAG_HAS_CODE | 128);
         Bundle metadata = info.metaData;
         return metadata == null ? null : metadata.getString(key);
+    }
+
+    private static boolean readBooleanMetadata(Context context, String key) throws Exception {
+        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
+                context.getPackageName(), ApplicationInfo.FLAG_HAS_CODE | 128);
+        return info.metaData != null && info.metaData.getBoolean(key, false);
     }
 
     private void replaceApplicationReferences(Application replacement) throws Exception {
