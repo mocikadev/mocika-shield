@@ -23,8 +23,8 @@ final class ProbeRecoveryCoordinator {
     enum Mode { MEMORY, FILE }
 
     private static final String TAG = "MOCIKA_MEMORY_PROBE";
-    private static final String PREFS = "memory_probe_recovery";
-    private static final String KEY_ALIAS = "mocika_memory_probe_recovery_wrap_v1";
+    private static final String PREFS_PREFIX = "memory_probe_recovery_";
+    private static final String KEY_ALIAS_PREFIX = "mocika_memory_probe_recovery_wrap_v2_";
     private static final String RECORD = "record";
     private static final String MAC = "mac";
     private static final String WRAPPED_KEY = "wrapped_key";
@@ -84,7 +84,8 @@ final class ProbeRecoveryCoordinator {
     }
 
     private static Record read(Context context) throws Exception {
-        SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String processId = processId();
+        SharedPreferences preferences = preferences(context, processId);
         String record = preferences.getString(RECORD, null);
         String encodedMac = preferences.getString(MAC, null);
         if (record == null && encodedMac == null) return null;
@@ -92,22 +93,24 @@ final class ProbeRecoveryCoordinator {
             throw new SecurityException("MEMORY_PROBE_RECOVERY_RECORD_INCOMPLETE");
         }
         byte[] actual = Base64.getDecoder().decode(encodedMac);
-        byte[] expected = sign(context, record);
+        byte[] expected = sign(context, processId, record);
         if (!java.security.MessageDigest.isEqual(actual, expected)) {
             throw new SecurityException("MEMORY_PROBE_RECOVERY_MAC_INVALID");
         }
         String[] fields = record.split("\\|", -1);
-        if (fields.length != 3 || !"1".equals(fields[0])) {
+        if (fields.length != 4 || !"2".equals(fields[0]) || !processId.equals(fields[1])) {
             throw new SecurityException("MEMORY_PROBE_RECOVERY_SCHEMA_INVALID");
         }
-        return new Record(fields[1], fields[2]);
+        return new Record(fields[2], fields[3]);
     }
 
     private static void write(
             Context context, String identity, String state, boolean durable) throws Exception {
-        String record = "1|" + identity + "|" + state;
-        String encodedMac = Base64.getEncoder().encodeToString(sign(context, record));
-        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        String processId = processId();
+        String record = "2|" + processId + "|" + identity + "|" + state;
+        String encodedMac = Base64.getEncoder().encodeToString(
+                sign(context, processId, record));
+        SharedPreferences.Editor editor = preferences(context, processId)
                 .edit().putString(RECORD, record).putString(MAC, encodedMac);
         if (durable) {
             if (!editor.commit()) {
@@ -118,18 +121,18 @@ final class ProbeRecoveryCoordinator {
         }
     }
 
-    private static byte[] sign(Context context, String record) throws Exception {
+    private static byte[] sign(Context context, String processId, String record) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(key(context));
+        mac.init(key(context, processId));
         return mac.doFinal(record.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static SecretKey key(Context context) throws Exception {
+    private static SecretKey key(Context context, String processId) throws Exception {
         SecretKey cached = softwareHmacKey;
         if (cached != null) return cached;
         synchronized (ProbeRecoveryCoordinator.class) {
             if (softwareHmacKey != null) return softwareHmacKey;
-            SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SharedPreferences preferences = preferences(context, processId);
             String wrapped = preferences.getString(WRAPPED_KEY, null);
             String encodedIv = preferences.getString(WRAPPED_IV, null);
             byte[] raw;
@@ -140,7 +143,7 @@ final class ProbeRecoveryCoordinator {
                 raw = new byte[32];
                 new SecureRandom().nextBytes(raw);
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.ENCRYPT_MODE, wrappingKey());
+                cipher.init(Cipher.ENCRYPT_MODE, wrappingKey(processId));
                 byte[] ciphertext = cipher.doFinal(raw);
                 boolean committed = preferences.edit()
                         .putString(WRAPPED_KEY, Base64.getEncoder().encodeToString(ciphertext))
@@ -151,10 +154,14 @@ final class ProbeRecoveryCoordinator {
                 if (wrapped == null || encodedIv == null) {
                     throw new SecurityException("MEMORY_PROBE_RECOVERY_KEY_INCOMPLETE");
                 }
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.DECRYPT_MODE, wrappingKey(), new GCMParameterSpec(
-                        128, Base64.getDecoder().decode(encodedIv)));
-                raw = cipher.doFinal(Base64.getDecoder().decode(wrapped));
+                try {
+                    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                    cipher.init(Cipher.DECRYPT_MODE, wrappingKey(processId), new GCMParameterSpec(
+                            128, Base64.getDecoder().decode(encodedIv)));
+                    raw = cipher.doFinal(Base64.getDecoder().decode(wrapped));
+                } catch (Exception error) {
+                    throw new SecurityException("MEMORY_PROBE_RECOVERY_KEY_UNWRAP_FAILED", error);
+                }
             }
             softwareHmacKey = new SecretKeySpec(raw, "HmacSHA256");
             java.util.Arrays.fill(raw, (byte) 0);
@@ -162,19 +169,36 @@ final class ProbeRecoveryCoordinator {
         }
     }
 
-    private static SecretKey wrappingKey() throws Exception {
+    private static SecretKey wrappingKey(String processId) throws Exception {
+        String alias = KEY_ALIAS_PREFIX + processId;
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
-        java.security.Key existing = store.getKey(KEY_ALIAS, null);
+        java.security.Key existing = store.getKey(alias, null);
         if (existing instanceof SecretKey) return (SecretKey) existing;
         KeyGenerator generator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
         generator.init(new KeyGenParameterSpec.Builder(
-                KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(256).build());
         return generator.generateKey();
+    }
+
+    private static SharedPreferences preferences(Context context, String processId) {
+        return context.getSharedPreferences(PREFS_PREFIX + processId, Context.MODE_PRIVATE);
+    }
+
+    private static String processId() throws Exception {
+        return hex(java.security.MessageDigest.getInstance("SHA-256").digest(
+                android.app.Application.getProcessName().getBytes(StandardCharsets.UTF_8)))
+                .substring(0, 16);
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder result = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) result.append(String.format("%02x", value & 0xff));
+        return result.toString();
     }
 
     static final class Attempt {
