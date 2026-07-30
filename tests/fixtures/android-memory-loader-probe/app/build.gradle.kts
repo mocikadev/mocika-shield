@@ -15,6 +15,7 @@ android {
         manifestPlaceholders["originalComponentFactory"] = providers
             .environmentVariable("MEMORY_PROBE_ORIGINAL_FACTORY")
             .getOrElse("dev.mocika.shield.memorypayload.PayloadAppComponentFactory")
+        testInstrumentationRunner = "dev.mocika.shield.memoryprobe.ProbeInstrumentation"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -58,4 +59,6 @@ android {
             version = "3.22.1"
         }
     }
+
+    dynamicFeatures += setOf(":payload_split")
 }

@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "mocika-memory-loader-probe"
-include(":app", ":payload-main", ":payload-secondary")
+include(":app", ":payload-main", ":payload-secondary", ":payload_split")

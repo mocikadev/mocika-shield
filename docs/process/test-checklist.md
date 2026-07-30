@@ -123,6 +123,9 @@ Java 兼容下限调整或内置 JAR 升级后，必须使用真实 JDK 8 完成
 - Android 4.4 工控兼容任务默认使用兼容策略，不能因弱信号误杀
 - 标准资源与 Android 4.4 资源的 `runtime_protocol`、`cache_schema` 和策略能力必须一致
 - 内存 DEX 候选必须单独验证多 DEX、ARouter、API 28 共享库、Native 库、GC 后类加载、16 KB、冷启动耗时与峰值内存
+- split 验证必须区分“安装后可运行”与“每个代码 split 已加密”，不得把明文动态特性可加载视为保护通过
+- Instrumentation 必须使用与目标 APK 同签名的独立测试 APK，验证目标 Context 持有代理且业务类没有泄漏到测试加载器
+- 文件/内存迁移必须保持签名和应用数据，双向覆盖后分别启动；崩溃自动回退需另验认证状态与独立进程重启
 
 ## APK 对齐与 Google Play 兼容
 

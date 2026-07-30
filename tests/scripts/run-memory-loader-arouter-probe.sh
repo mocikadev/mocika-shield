@@ -38,6 +38,7 @@ PROTECTED_DIR="$TEMP_DIR/protected"
 SHARED_JAVA="$TEMP_DIR/shared-java/dev/mocika/shield/loader"
 ASSET_DIR="$TEMP_DIR/assets"
 PROTECTED_UNSIGNED="$TEMP_DIR/protected-unsigned.apk"
+PROTECTED_SIGNED="$TEMP_DIR/protected-signed.apk"
 PROTOTYPE_UNSIGNED="$TEMP_DIR/arouter-memory-unsigned.apk"
 PROTOTYPE_SIGNED="$TEMP_DIR/arouter-memory-signed.apk"
 NORMALIZED_INPUT="$TEMP_DIR/arouter-input-signed.apk"
@@ -57,6 +58,7 @@ fi
 
 cargo build --release -p shield-cli --manifest-path "$ROOT_DIR/Cargo.toml"
 "$ROOT_DIR/target/release/shield" protect --input "$NORMALIZED_INPUT" --output "$PROTECTED_UNSIGNED"
+"$SIGNER" "$PROTECTED_UNSIGNED" "$PROTECTED_SIGNED" >/dev/null
 java -jar "$ROOT_DIR/tools/apktool_3.0.1.jar" d "$PROTECTED_UNSIGNED" \
   -o "$PROTECTED_DIR" -f --no-src >/dev/null
 
@@ -122,11 +124,59 @@ verify_route() {
   echo "$scenario 验证通过"
 }
 
+verify_file_start() {
+  local scenario="$1"
+  "${ADB[@]}" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" shell am start -W -n "$LAUNCH_COMPONENT" >/dev/null
+  sleep 3
+  local activities
+  activities="$("${ADB[@]}" shell dumpsys activity activities)"
+  grep -Fq "$LAUNCH_COMPONENT" <<<"$activities" || {
+    echo "$scenario 未进入原始启动页：$LAUNCH_COMPONENT" >&2
+    exit 1
+  }
+  echo "$scenario 验证通过"
+}
+
+median() {
+  printf '%s\n' "$@" | sort -n | awk '{ values[NR] = $1 } END { print values[int((NR + 1) / 2)] }'
+}
+
+measure_variant() {
+  local name="$1"
+  local apk="$2"
+  local -a times=()
+  local -a pss_values=()
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$apk" >/dev/null
+  for _ in 1 2 3 4 5; do
+    "${ADB[@]}" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
+    local launch total_time total_pss
+    launch="$("${ADB[@]}" shell am start -W -n "$LAUNCH_COMPONENT")"
+    total_time="$(awk -F': ' '/^TotalTime:/{print $2}' <<<"$launch" | tr -d '\r')"
+    total_pss="$("${ADB[@]}" shell dumpsys meminfo "$PACKAGE" | \
+      awk '/TOTAL PSS:/{print $3; exit} /^TOTAL[[:space:]]/{print $2; exit}' | tr -d '\r')"
+    [[ "$total_time" =~ ^[0-9]+$ && "$total_pss" =~ ^[0-9]+$ ]] || {
+      echo "$name 性能采样解析失败" >&2
+      exit 1
+    }
+    times+=("$total_time")
+    pss_values+=("$total_pss")
+  done
+  echo "${name}：冷启动中位数 $(median "${times[@]}") 毫秒，启动完成后即时 TOTAL PSS 中位数 $(median "${pss_values[@]}") KB"
+}
+
 "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
 "${ADB[@]}" install "$NORMALIZED_INPUT" >/dev/null
 "${ADB[@]}" shell am start -W -n "$LAUNCH_COMPONENT" >/dev/null
 "${ADB[@]}" install -r "$PROTOTYPE_SIGNED" >/dev/null
 verify_route "同签名覆盖升级"
+
+"${ADB[@]}" install -r "$PROTECTED_SIGNED" >/dev/null
+verify_file_start "内存路径回退到认证文件路径"
+
+"${ADB[@]}" install -r "$PROTOTYPE_SIGNED" >/dev/null
+verify_route "认证文件路径再次迁移到内存路径"
 
 "${ADB[@]}" shell pm clear "$PACKAGE" >/dev/null
 verify_route "清除数据后首次启动"
@@ -135,5 +185,9 @@ verify_route "清除数据后首次启动"
 "${ADB[@]}" install "$PROTOTYPE_SIGNED" >/dev/null
 verify_route "全新安装首次启动"
 
+measure_variant "未加固基线" "$NORMALIZED_INPUT"
+measure_variant "认证文件路径" "$PROTECTED_SIGNED"
+measure_variant "内存路径原型" "$PROTOTYPE_SIGNED"
+
 "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
-echo "正式 DEXB 内存加载、AndroidX 组件工厂与 ARouter 三场景验证通过"
+echo "正式 DEXB 内存加载、双向路径迁移、AndroidX 组件工厂、ARouter 与性能基线验证通过"
