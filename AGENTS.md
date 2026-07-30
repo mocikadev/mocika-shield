@@ -170,6 +170,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/native-library-alias.md](docs/design/native-library-alias.md) | Native 库名去品牌化：任务别名、DEX 联动改写、冲突规避与兼容回归方案 |
 | [docs/design/stub-dex-minimization.md](docs/design/stub-dex-minimization.md) | Stub DEX 最小化：能力变体、职责下沉、二阶段加载实验与停止条件 |
 | [docs/design/runtime-security.md](docs/design/runtime-security.md) | Android 运行时安全：每次启动检查、DEX 缓存认证、Root 策略与内存 DEX 规划 |
+| [docs/design/memory-dex-production.md](docs/design/memory-dex-production.md) | API 29 以上内存 DEX 正式接入：资源隔离、状态协议、迁移与回滚边界 |
 | [docs/design/dex-code-separation.md](docs/design/dex-code-separation.md) | DEX 代码保护研究：结构/方法代码分离、内存重建、分片恢复与停止条件 |
 | [docs/design/toolchain-modernization.md](docs/design/toolchain-modernization.md) | 工具链轻量化与自动化：CLI 契约、CI/Gradle 集成、局部原生重写与回退边界 |
 | [docs/design/asset-protection.md](docs/design/asset-protection.md) | 可选资源保护：显式资源清单、应用侧读取接口、性能与兼容边界 |
