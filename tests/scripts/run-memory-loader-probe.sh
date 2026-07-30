@@ -24,6 +24,7 @@ if [[ ! "$SDK_INT" =~ ^[0-9]+$ ]] || (( SDK_INT < 29 )); then
   echo "内存 DEX 加载探针只支持 API 29 及以上设备，当前 API：${SDK_INT:-未知}" >&2
   exit 1
 fi
+PAGE_SIZE="$("${ADB[@]}" shell getconf PAGE_SIZE | tr -d '\r')"
 
 ANDROID_SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 if [[ -z "$ANDROID_SDK_DIR" ]]; then
@@ -98,4 +99,4 @@ run_probe() {
 run_probe reflection "LOADER_READY:REFLECTION" false
 run_probe factory "LOADER_READY:FACTORY" true
 
-echo "API $SDK_INT 两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"
+echo "API $SDK_INT（页大小 $PAGE_SIZE）两种 ClassLoader 入口的内存双 DEX 探针均通过，应用私有目录未发现 DEX 文件"

@@ -42,6 +42,8 @@ bash tests/scripts/run-memory-loader-probe.sh
 
 脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service、Receiver 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。工厂变体还会验证载荷中的原应用工厂收到五类组件的实例化回调。该结果只证明最小框架链路可行，不代表早期签名绑定解密、正式工厂元数据、ARouter、系统共享库、覆盖安装或生产回退已经通过。
 
+当前已通过 API 29 ARM64 4 KB、API 35 ARM64 16 KB、API 36 ARM64 4 KB 模拟器和 API 35 ARM64 真机。探针 Native 库显式生成 SysV/GNU 双哈希表并按 16 KB 最大页大小链接，防止测试资产自身在 16 KB 系统中先于内存 DEX 验证失败。
+
 ## Android 4.4 Native 加载探针
 
 `fixtures/android-api19-native-probe` 只负责验证 NDK r25c、Rust 1.77.2、API 19 构建的生产 `libmocikashield.so` 能够被 Android 4.4 的动态链接器加载，并成功执行 `JNI_OnLoad` 动态注册。它不包含 DEX 解密、Dalvik 注入或业务兼容逻辑。
