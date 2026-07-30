@@ -1,6 +1,7 @@
 package dev.mocika.shield.smoke;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.TextView;
 import android.util.Log;
@@ -13,6 +14,8 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         Log.i("MocikaSmoke", "MOCIKA_SMOKE_ACTIVITY_OK");
         verifySecondaryDex();
+        sendBroadcast(new Intent(this, SmokeReceiver.class));
+        startService(new Intent(this, SmokeRemoteService.class));
         TextView content = new TextView(this);
         content.setText("Mocika Shield 端到端测试");
         setContentView(content);

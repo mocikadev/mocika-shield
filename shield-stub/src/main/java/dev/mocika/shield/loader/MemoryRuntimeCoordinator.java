@@ -11,7 +11,7 @@ import java.io.File;
 import java.util.List;
 
 /** 编排当前进程的一次加载尝试，不拥有具体解密或存储实现。 */
-@TargetApi(29)
+@TargetApi(28)
 final class MemoryRuntimeCoordinator {
     private static final String CACHE_ROOT = "dev.mocika.shield.CACHE_ROOT_SHA256";
     private static Attempt activeAttempt;
@@ -21,6 +21,11 @@ final class MemoryRuntimeCoordinator {
     static synchronized ClassLoader initialize(Context context, ClassLoader defaultLoader)
             throws Exception {
         if (activeAttempt != null) return activeAttempt.loader;
+        if (!usesMemory(android.os.Build.VERSION.SDK_INT)) {
+            List<File> dexFiles = Ld.extractDexFiles(context);
+            DexInjector.inject(context, defaultLoader, dexFiles);
+            return defaultLoader;
+        }
         String identity = payloadIdentity(context);
         RecoveryStateStore store = new RecoveryStateStore(
                 context, Application.getProcessName());
@@ -40,6 +45,10 @@ final class MemoryRuntimeCoordinator {
         }
         activeAttempt = new Attempt(identity, mode, loader, store);
         return loader;
+    }
+
+    static boolean usesMemory(int sdkInt) {
+        return sdkInt >= 31;
     }
 
     static synchronized void complete() throws Exception {
