@@ -2,6 +2,7 @@
 name = "mocika-shield"
 version = "1.3.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
 publish = false
 description = "Mocika Shield APK 加固工具桌面 GUI"
 default-run = "mocika-shield"
