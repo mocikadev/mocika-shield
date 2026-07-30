@@ -256,6 +256,56 @@ Native 内部可返回位标志用于自动化测试，但 Java 和业务日志�
 
 因此本阶段不合入内存加载代码，不增加 Manifest 开关，`metadata.json` 保持 `memory_dex: false`。若后续继续研究，只能独立评估“替换应用 ClassLoader”方案；该方案会改变既有唯一加载器边界，必须重新验证 ARouter、Native 库查找、系统共享库、组件实例化和框架 ClassLoader 引用，不得直接复用本阶段结论进入正式资源。
 
+### 替换应用 ClassLoader 的候选边界
+
+`1.4.0` 不再尝试把由 `InMemoryDexClassLoader` 创建的 Element 搬运到原 `PathClassLoader`，也不依赖非 SDK 的内存 DexFile 构造器。候选方案是在壳 `Application.attachBaseContext()` 内完成解密后创建唯一的业务 `InMemoryDexClassLoader`，并在任何业务组件实例化前替换当前 `LoadedApk.mClassLoader`。业务 Application、Provider、Activity、Service 和 Receiver 后续都必须由该加载器定义。
+
+加载器关系固定为：
+
+```text
+BootClassLoader
+├── 原 PathClassLoader：只负责启动壳和 APK 中保留的静态类
+└── InMemoryDexClassLoader：负责全部业务 DEX，并继承原应用 Native 搜索目录
+```
+
+业务加载器的 parent 必须是原 `PathClassLoader` 的 parent，不能把原加载器作为 parent。否则原 APK 中尚未抽离或重复存在的业务类会被父优先委派提前定义，重新形成双加载器类身份。正式接入前还必须证明壳类与业务类集合不存在交叉；无法稳定分离时停止该方案。
+
+`InMemoryDexClassLoader` 的 `librarySearchPath` 必须继承原 APK 的完整 Native 搜索语义。只传 `ApplicationInfo.nativeLibraryDir` 无法覆盖 `extractNativeLibs=false` 时直接从 APK 加载 `.so` 的路径；至少需要包含 `sourceDir!/lib/<ABI>`、应用 Native 目录和系统公开库路径，并验证任务级别名壳库与原业务库均可加载。路径无法从公开稳定信息重建时，不允许接入生产资源。
+
+框架引用至少包括：
+
+- 当前包 `LoadedApk.mClassLoader`
+- `ContextImpl.mPackageInfo` 指向的同一 `LoadedApk`
+- 当前线程的 context ClassLoader
+- 真实 Application 创建后已有的 `mInitialApplication`、`mAllApplications`、`LoadedApk.mApplication`
+- 多进程场景中每个进程独立执行的相同替换时序
+
+`mDefaultClassLoader`、`AppComponentFactory`、split ClassLoader、Instrumentation 和厂商框架缓存是否需要同步，必须通过真实样本和 AOSP 版本差异调查决定，不能仅靠设置 `mClassLoader` 推定兼容。
+
+#### 回退边界
+
+替换加载器不是运行期可随时切换的开关：
+
+1. 解密、ByteBuffer 构造、加载器创建或框架引用写入失败，并且尚未定义任何业务类时，可以放弃候选加载器并重启到文件路径模式。
+2. 一旦真实 Application、Provider 或其他业务类已经由内存加载器定义，禁止在同一进程静默切回文件加载器；这会产生重复类身份和部分初始化状态。
+3. 首期原型不实现自动重启回退。生产接入前应使用持久化的“下次启动使用文件模式”状态，并由独立进程重启完成回退；状态必须认证且不能绕过缓存安全检查。
+4. API 28 及以下始终保持现有认证文件缓存，不参与内存路径失败判断。
+
+#### 隔离探针结果
+
+2026-07-30 在 API 35 真机运行 `tests/scripts/run-memory-loader-probe.sh`：主进程和远程 Service 进程分别完成加载器替换；业务 Application、Provider、Activity、Service 和第二个 DEX 中的跨包类均由替换后的 `InMemoryDexClassLoader` 正常创建；主动触发 GC 后，第二个 DEX 中此前未访问的类仍可延迟加载；`extractNativeLibs=false` 场景下业务类可从 APK 内加载 Native 库并执行 JNI；应用私有目录未生成 DEX 文件。该探针与正式 Stub、DEXB v5、GUI 和资源包完全隔离。
+
+这只证明最小框架链路可行。以下项目仍是进入正式资源前的阻塞项：
+
+- 任务级别名壳库与正式 Stub Native 初始化
+- ARouter 编译期插入与运行期扫描
+- Android 9 系统共享库和 AppComponentFactory
+- split APK、Instrumentation 和厂商 ClassLoader
+- 首次安装、清除数据、同签名覆盖安装和崩溃后文件模式重启回退
+- API 29、API 35 16 KB、API 36 的性能和内存矩阵
+
+探针通过不改变正式能力：`metadata.json` 继续保持 `memory_dex: false`，标准/API 19 资源与 GUI 均不接入该路径。
+
 ## 任务阶段与版本规划
 
 ### `1.2.7-rc.5`：修复启动检查绕过
@@ -330,7 +380,7 @@ Root 策略范围：
 
 ### `1.4.0-alpha.1`：内存 DEX 实验候选
 
-基于 `1.3.0-alpha.2` 的实验报告和性能数据，将 API 29 以上内存 DEX 作为生产候选，并确定文件路径回退条件。未达到多 DEX、ARouter、Android 9、16 KB 和启动性能门槛时，不进入生产资源。
+分成两个独立门禁：先用隔离探针验证替换 `LoadedApk` 应用 ClassLoader 的最小框架链路；再扩展到真实加固链路。最小探针不得进入正式 Stub、GUI 或资源包。只有 ARouter、Native、Android 9、split、多进程、覆盖安装、GC 延迟加载和跨版本矩阵全部达到门槛后，才允许把候选实现接入开发资源并发布 `alpha.1`。
 
 ### `1.4.0-beta.1`：内存 DEX 扩大验证
 
