@@ -14,8 +14,6 @@ from scripts.project_stats import (
     collect_usage_stats,
     load_history,
     merge_snapshot,
-    summarize_versions,
-    version_sort_key,
     write_outputs,
 )
 
@@ -67,25 +65,10 @@ class ProjectStatsTests(unittest.TestCase):
             history = load_history(root / "missing.json", "mocikadev/mocika-shield")
             merge_snapshot(history, snapshot)
             write_outputs(history, root)
-            self.assertTrue((root / "index.html").exists())
-            self.assertTrue((root / "charts/platform-downloads.svg").exists())
-            self.assertTrue((root / "charts/version-downloads.svg").exists())
             self.assertTrue((root / "data/history.json").exists())
-            page = (root / "index.html").read_text(encoding="utf-8")
-            self.assertIn("匿名使用统计接口本次采集不可用", page)
-            self.assertIn('data-live=\'downloads\'', page)
-            self.assertIn("data-snapshot='0'", page)
-            self.assertIn("实时数据加载中", page)
-            self.assertIn("实时接口暂不可用 · 每日快照", page)
-            self.assertIn("今日暂未收到匿名使用事件", page)
-            self.assertIn("controller.abort(), 8000", page)
-            self.assertIn("当前指标近实时", page)
-            self.assertIn("issues/new?template=feature_request.yml", page)
-            self.assertIn("需求评审规则", page)
-            self.assertIn('id="community"', page)
-            self.assertIn("QQ 用户交流群", page)
-            self.assertIn("assets/qq-group.png", page)
-            self.assertNotIn("不包含客户端遥测", page)
+            self.assertFalse((root / "index.html").exists())
+            saved = json.loads((root / "data/history.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["snapshots"][-1]["totals"]["downloads"], 0)
 
     def test_unavailable_traffic_is_not_recorded_as_zero(self):
         payload = {
@@ -97,19 +80,6 @@ class ProjectStatsTests(unittest.TestCase):
         snapshot = build_snapshot(payload, datetime(2026, 7, 10, tzinfo=timezone.utc))
         self.assertFalse(snapshot["traffic"]["available"])
         self.assertIsNone(snapshot["traffic"]["unique_visitors"])
-
-    def test_version_summary_separates_stable_and_prerelease(self):
-        snapshot = {
-            "release_assets": [
-                {"tag": "v1.2.0", "name": "stable.exe", "platform": "Windows", "download_count": 8},
-                {"tag": "v1.2.0-rc.1", "name": "preview.dmg", "platform": "macOS", "download_count": 3},
-            ]
-        }
-        versions = summarize_versions(snapshot)
-        self.assertEqual([item["tag"] for item in versions], ["v1.2.0", "v1.2.0-rc.1"])
-        self.assertFalse(versions[0]["prerelease"])
-        self.assertTrue(versions[1]["prerelease"])
-        self.assertGreater(version_sort_key("v1.2.0"), version_sort_key("v1.2.0-rc.1"))
 
     @patch("scripts.project_stats.urllib.request.urlopen")
     def test_usage_stats_使用明确请求标识(self, urlopen):
@@ -151,8 +121,8 @@ class ProjectStatsTests(unittest.TestCase):
             history = load_history(root / "missing.json", "mocikadev/mocika-shield")
             merge_snapshot(history, snapshot)
             write_outputs(history, root)
-            chart = (root / "charts/usage-trend.svg").read_text(encoding="utf-8")
-            self.assertIn("2026-07-10", chart)
+            saved = json.loads((root / "data/history.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["snapshots"][-1]["usage"]["trend"][0]["date"], "2026-07-10")
 
     @patch("scripts.project_stats.urllib.request.urlopen")
     def test_usage_stats_接口失败时明确标记不可用(self, urlopen):
