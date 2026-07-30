@@ -3,7 +3,7 @@ name = "shield-core"
 version = "1.3.0"
 edition = "2021"
 authors = ["MocikaDev"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 description = "Mocika Shield 核心加固与签名能力"
 repository = "git@github.com:mocikadev/mocika-shield.git"
 
