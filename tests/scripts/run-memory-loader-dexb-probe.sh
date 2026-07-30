@@ -91,7 +91,8 @@ grep -a -q 'MSHD' "$TEMP_DIR/final-assets/protected-payload.dex"
 
 MEMORY_PROBE_ASSETS="$TEMP_DIR/final-assets" \
 MEMORY_PROBE_NATIVE_LIBS="$ROOT_DIR/shield-stub/build/jniLibs" \
-  "$GRADLE" -p "$PROJECT_DIR" :app:clean :app:assembleFactoryDebug --no-daemon
+  "$GRADLE" -p "$PROJECT_DIR" :app:clean :app:assembleFactoryDebug \
+  :app:assembleFactoryDebugAndroidTest :app:bundleFactoryDebug --no-daemon
 
 FINAL_UNSIGNED="$PROJECT_DIR/app/build/outputs/apk/factory/debug/app-factory-debug.apk"
 FINAL_GOOD="$TEMP_DIR/memory-dexb-good.apk"
@@ -119,6 +120,77 @@ verify_good_signature() {
     echo "同签名探针在私有目录发现明文 DEX：$private_dex" >&2
     exit 1
   fi
+}
+
+verify_instrumentation() {
+  local test_apk="$PROJECT_DIR/app/build/outputs/apk/androidTest/factory/debug/app-factory-debug-androidTest.apk"
+  local signed_test_apk="$TEMP_DIR/memory-dexb-androidTest.apk"
+  test -f "$test_apk" || { echo "缺少 Instrumentation 测试 APK" >&2; exit 1; }
+  java -jar "$ROOT_DIR/tools/apksigner.jar" sign --ks "$GOOD_KEYSTORE" \
+    --ks-pass "pass:$PASSWORD" --ks-key-alias probe --out "$signed_test_apk" "$test_apk"
+  "${ADB[@]}" uninstall "$PACKAGE.test" >/dev/null 2>&1 || true
+  "${ADB[@]}" install "$signed_test_apk" >/dev/null
+  "${ADB[@]}" logcat -c
+  local output logs
+  output="$("${ADB[@]}" shell am instrument -w \
+    "$PACKAGE.test/dev.mocika.shield.memoryprobe.ProbeInstrumentation")"
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  grep -Fq 'INSTRUMENTATION_LOADER_OK' <<<"$logs" || {
+    echo "Instrumentation 未能使用业务代理加载器" >&2
+    printf '%s\n%s\n' "$output" "$logs" >&2
+    exit 1
+  }
+  if grep -Fq 'INSTRUMENTATION_LOADER_FAILED' <<<"$logs"; then
+    echo "Instrumentation 加载器验证失败" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  fi
+  echo "外部测试 APK 的 Instrumentation 加载器验证通过"
+}
+
+verify_split_installation() {
+  local bundletool="${BUNDLETOOL_JAR:-}"
+  if [[ -z "$bundletool" || ! -f "$bundletool" ]]; then
+    echo "split 验证需要通过 BUNDLETOOL_JAR 指定 bundletool.jar" >&2
+    exit 1
+  fi
+  local bundle="$PROJECT_DIR/app/build/outputs/bundle/factoryDebug/app-factory-debug.aab"
+  local apks="$TEMP_DIR/memory-dexb-split.apks"
+  java -jar "$bundletool" build-apks --bundle="$bundle" --output="$apks" \
+    --ks="$GOOD_KEYSTORE" --ks-pass="pass:$PASSWORD" \
+    --ks-key-alias=probe --key-pass="pass:$PASSWORD" >/dev/null
+  unzip -q "$apks" -d "$TEMP_DIR/split-apks"
+  local split_code_apk=""
+  local candidate dex_entry
+  while IFS= read -r candidate; do
+    while IFS= read -r dex_entry; do
+      if unzip -p "$candidate" "$dex_entry" | grep -aFq 'SplitMarker'; then
+        split_code_apk="$candidate"
+        break 2
+      fi
+    done < <(unzip -Z1 "$candidate" | awk '$0 ~ /^classes[0-9]*\.dex$/')
+  done < <(find "$TEMP_DIR/split-apks" -type f -name '*.apk' | sort)
+  if [[ -z "$split_code_apk" ]]; then
+    echo "生成的 split 集中没有代码 split 标记" >&2
+    exit 1
+  fi
+  "${ADB[@]}" uninstall "$PACKAGE" >/dev/null 2>&1 || true
+  local install_args=(install-apks "--apks=$apks")
+  if [[ -n "${ANDROID_SERIAL:-}" ]]; then
+    install_args+=("--device-id=$ANDROID_SERIAL")
+  fi
+  java -jar "$bundletool" "${install_args[@]}" >/dev/null
+  "${ADB[@]}" logcat -c
+  "${ADB[@]}" shell am start -W -n "$COMPONENT" >/dev/null
+  sleep 2
+  local logs
+  logs="$("${ADB[@]}" logcat -d -s MOCIKA_MEMORY_PROBE:I AndroidRuntime:E '*:S')"
+  grep -Fq 'SPLIT_LOADER_OK:SPLIT_CODE_OK' <<<"$logs" || {
+    echo "split 安装后业务代理加载器未能访问动态特性代码" >&2
+    printf '%s\n' "$logs" >&2
+    exit 1
+  }
+  echo "真实 split 安装与代理加载验证通过；代码 split 仍为明文生产阻塞项"
 }
 
 build_factory_variant() {
@@ -192,6 +264,8 @@ verify_wrong_signature() {
 }
 
 verify_good_signature
+verify_instrumentation
+verify_split_installation
 verify_wrong_signature
 verify_no_original_factory
 verify_recursive_factory_rejected

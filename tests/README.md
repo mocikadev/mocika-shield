@@ -49,10 +49,11 @@ bash tests/scripts/run-memory-loader-probe.sh
 完成上述框架探针后，可在 API 29 以上设备验证正式 Stub Native 与 DEXB v5 签名绑定解密：
 
 ```bash
-bash tests/scripts/run-memory-loader-dexb-probe.sh
+BUNDLETOOL_JAR=/path/to/bundletool.jar \
+  bash tests/scripts/run-memory-loader-dexb-probe.sh
 ```
 
-该脚本要求已执行 `make build-stub`。它使用项目核心加固流程和临时证书生成真实 DEXB v5 双 DEX 载荷，把正式 `libmocikashield.so` 装入工厂变体，并验证同签名时主进程、远程进程和全部业务生命周期正常且私有目录无 DEX；随后使用另一张临时证书重签同一探针，确认正式 Native 在业务类定义前拒绝解密。所有证书和中间 APK 都只存放在系统临时目录，退出时自动清理。
+该脚本要求已执行 `make build-stub`，并通过 `BUNDLETOOL_JAR` 指定本机 bundletool。它使用项目核心加固流程和临时证书生成真实 DEXB v5 双 DEX 载荷，把正式 `libmocikashield.so` 装入工厂变体，并验证同签名时主进程、远程进程和全部业务生命周期正常且私有目录无 DEX；随后验证同签名外部 Instrumentation、设备 split 集安装和异签名失败关闭。动态特性代码会由 bundletool 合入安装时 master split，脚本会确认代理能够访问该类，同时确认该类仍以明文 DEX 存在。因此这里只证明 split 运行兼容，不能宣称代码 split 已获得保护。所有证书和中间 APK 都只存放在系统临时目录，退出时自动清理。
 
 当前正式 Native/DEXB 链路已通过 API 35 ARM64 真机；其他 API 节点仍沿用框架明文载荷矩阵，不能据此宣称正式解密链路已覆盖全部系统版本。
 
@@ -64,7 +65,7 @@ bash tests/scripts/run-memory-loader-arouter-probe.sh \
   /path/to/sign-apk.sh
 ```
 
-签名脚本接口固定为 `<输入 APK> <输出 APK>`。脚本会先用该证书重新签名原始样本，确保未加固基线和内存加载原型能够同签名覆盖；随后保留样本资源、Manifest 组件、Native 库和 ARouter 路由清单，验证 AndroidX 原组件工厂、正式 DEXB v5 解密及 `/home/main` 路由。当前样本在 API 35 ARM64 真机的覆盖升级、清除数据和全新安装三种场景均通过。脚本是隔离原型，不生成正式发布资源。
+签名脚本接口固定为 `<输入 APK> <输出 APK>`。脚本会先用该证书重新签名原始样本，确保未加固基线、认证文件路径和内存加载原型能够同签名覆盖；随后保留样本资源、Manifest 组件、Native 库和 ARouter 路由清单，验证 AndroidX 原组件工厂、正式 DEXB v5 解密及 `/home/main` 路由。当前样本在 API 35 ARM64 真机的文件到内存、内存到文件、再次切回内存、清除数据和全新安装场景均通过。脚本还分别采集三种形态的五次冷启动与启动完成后即时 TOTAL PSS 中位数；结果仅代表当前设备和样本，不作为跨设备性能承诺。脚本是隔离原型，不生成正式发布资源。
 
 ## Android 4.4 Native 加载探针
 
