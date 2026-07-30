@@ -8,8 +8,8 @@ import android.util.Log;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-
-import dalvik.system.InMemoryDexClassLoader;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** 仅用于验证 API 29+ 框架 ClassLoader 替换边界，不进入正式壳。 */
 public final class ProbeApplication extends Application {
@@ -22,8 +22,15 @@ public final class ProbeApplication extends Application {
         try {
             ClassLoader original = base.getClassLoader();
             ClassLoader businessLoader;
-            if (original instanceof InMemoryDexClassLoader) {
-                businessLoader = original;
+            if (original instanceof DeferredPayloadClassLoader) {
+                businessLoader = ProbeAppComponentFactory.initializePayload(
+                        base.getApplicationInfo());
+                ClassLoader repeated = ProbeAppComponentFactory.initializePayload(
+                        base.getApplicationInfo());
+                if (repeated != businessLoader) {
+                    throw new IllegalStateException("MEMORY_PROBE_REINITIALIZE_CHANGED_LOADER");
+                }
+                verifyConcurrentBusinessLoad(businessLoader);
                 Log.i(TAG, "LOADER_READY:FACTORY");
             } else {
                 exemptHiddenApi();
@@ -122,5 +129,41 @@ public final class ProbeApplication extends Application {
             exemptions.invoke(runtime, (Object) new String[] {"L"});
         } catch (Exception ignored) {
         }
+    }
+
+    private static void verifyConcurrentBusinessLoad(ClassLoader loader) throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread activityLoad = classLoadThread(
+                loader, "dev.mocika.shield.memorypayload.PayloadActivity", start, failure);
+        Thread serviceLoad = classLoadThread(
+                loader, "dev.mocika.shield.memorypayload.PayloadService", start, failure);
+        activityLoad.start();
+        serviceLoad.start();
+        start.countDown();
+        activityLoad.join(5_000);
+        serviceLoad.join(5_000);
+        if (activityLoad.isAlive() || serviceLoad.isAlive()) {
+            throw new IllegalStateException("MEMORY_PROBE_CONCURRENT_LOAD_TIMEOUT");
+        }
+        if (failure.get() != null) {
+            throw new RuntimeException("MEMORY_PROBE_CONCURRENT_LOAD_FAILED", failure.get());
+        }
+        Log.i(TAG, "CONCURRENT_LOAD_OK");
+    }
+
+    private static Thread classLoadThread(
+            ClassLoader loader,
+            String className,
+            CountDownLatch start,
+            AtomicReference<Throwable> failure) {
+        return new Thread(() -> {
+            try {
+                start.await();
+                loader.loadClass(className);
+            } catch (Throwable error) {
+                failure.compareAndSet(null, error);
+            }
+        }, "memory-probe-load");
     }
 }

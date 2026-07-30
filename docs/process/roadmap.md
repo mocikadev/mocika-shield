@@ -61,7 +61,7 @@
 | 认证缓存与资源能力 | `alpha.1` 候选完成 | 摘要、原子重建、协议握手、异常缓存自动回归及低版本运行回归已完成 | 发布 `alpha.1` 后收集兼容反馈，不阻塞后续 `alpha.2` 开发 |
 | Root 策略与内存 DEX 实验 | `alpha.2` 已发布 | GUI、核心、Manifest、双资源与兼容/严格策略链路已接通；普通真机和 LineageOS ADB Root 已完成双向回归。API 29+ 原加载器内存注入实验已止损，不合入运行代码 | 已进入 Beta 功能冻结；替换 ClassLoader 方案留待后续独立评估 |
 | `1.3.0` 功能冻结与完整回归 | 已完成 | 全部单元测试、双资源、Stub DEX 指标、端到端加固、普通/Root 双向策略、缓存篡改重建、私有目录隔离和启动耗时均已验证 | 正式版后只在补丁版本处理可复现缺陷，不再改变协议和默认行为 |
-| `1.4.0` 替换 ClassLoader 原型 | 进行中 | API 29、API 35 16 KB、API 36 模拟器与 API 35 真机上，反射和公开 `AppComponentFactory` 两种入口均通过双进程、五类组件、原工厂委托、双 DEX、Native、GC 延迟加载和私有目录无 DEX 验证。公开入口作为首选，下一步解决无 Context 时的签名绑定解密，再补齐正式元数据、Stub Native、ARouter、Android 9、split、Instrumentation 和回退 | 隔离夹具不进入正式 Stub、GUI 或资源包；完整门槛通过后才发布 `alpha.1` |
+| `1.4.0` 替换 ClassLoader 原型 | 进行中 | API 29、API 35 16 KB、API 36 模拟器与 API 35 真机上，两种入口均通过双进程、五类组件、原工厂委托、双 DEX、Native、GC 延迟加载和私有目录无 DEX 验证。公开入口的稳定代理已验证可在 `attachBaseContext()` 获得 Context 后再初始化，且重复初始化、并发类加载与 API 29 多工厂实例均通过 | 下一步在隔离链路接入正式 Stub Native 与 DEXB v5 签名绑定解密，再验证原工厂元数据、ARouter、Android 9、split、Instrumentation 和回退；完整门槛通过前不进入正式资源 |
 
 用户诊断中的低风险静态预检可以按真实反馈独立插入，不必等待整条安全主线完成；但不得与高风险壳加载改动混在同一提交或候选版本中。
 

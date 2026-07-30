@@ -40,7 +40,9 @@ ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
 bash tests/scripts/run-memory-loader-probe.sh
 ```
 
-脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service、Receiver 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。工厂变体还会验证载荷中的原应用工厂收到五类组件的实例化回调。该结果只证明最小框架链路可行，不代表早期签名绑定解密、正式工厂元数据、ARouter、系统共享库、覆盖安装或生产回退已经通过。
+脚本会依次安装两个变体。两者都必须确认主进程与远程 Service 进程分别创建业务加载器，Application、Provider、Activity、Service、Receiver 与第二 DEX 类均正常创建，APK 内 Native 库可以通过业务类加载，并且 GC 后仍可首次访问延迟类；应用私有目录不得生成完整 DEX 文件。
+
+工厂变体先由 `AppComponentFactory` 返回未初始化的稳定代理，确认业务类在获得 Context 前不能加载；随后在壳 Application 的 `attachBaseContext()` 中创建真实内存加载器并挂接代理。测试同时验证重复初始化不改变加载器、两个线程并发首次加载业务类，以及载荷中的原应用工厂收到五类组件实例化回调。该结果只证明最小框架链路可行，不代表正式 Stub Native、DEXB v5 签名绑定解密、原工厂元数据、ARouter、系统共享库、覆盖安装或生产回退已经通过。
 
 当前已通过 API 29 ARM64 4 KB、API 35 ARM64 16 KB、API 36 ARM64 4 KB 模拟器和 API 35 ARM64 真机。探针 Native 库显式生成 SysV/GNU 双哈希表并按 16 KB 最大页大小链接，防止测试资产自身在 16 KB 系统中先于内存 DEX 验证失败。
 
