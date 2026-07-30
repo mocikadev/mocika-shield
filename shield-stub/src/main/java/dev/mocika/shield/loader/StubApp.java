@@ -20,6 +20,7 @@ public class StubApp extends Application {
             "dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY";
 
     private Application realApp;
+    private boolean componentFactoryActive;
 
     @Override
     protected void attachBaseContext(Context base) {
@@ -28,13 +29,18 @@ public class StubApp extends Application {
             exemptHiddenApi();
             RuntimeSecurity.checkEnvironment(base);
             ClassLoader loader;
-            if (android.os.Build.VERSION.SDK_INT >= 29
+            if (android.os.Build.VERSION.SDK_INT >= 28
                     && base.getClassLoader() instanceof DeferredPayloadClassLoader) {
                 loader = MemoryRuntimeBridge.initialize(base, getOriginalComponentFactory(base));
+                componentFactoryActive = true;
             } else {
                 List<File> dexFiles = Ld.extractDexFiles(base);
                 DexInjector.inject(base, dexFiles);
                 loader = base.getClassLoader();
+                if (android.os.Build.VERSION.SDK_INT == 28) {
+                    componentFactoryActive = MemoryRuntimeBridge.initializeLegacyIfInstalled(
+                            base, loader, getOriginalComponentFactory(base));
+                }
             }
             Thread.currentThread().setContextClassLoader(loader);
             realApp = makeRealApp(loader, base);
@@ -50,7 +56,7 @@ public class StubApp extends Application {
         replaceAppReferences(realApp);
         ARouterCompat.prepareARouterRouteMap(this);
         realApp.onCreate();
-        if (android.os.Build.VERSION.SDK_INT >= 29
+        if (android.os.Build.VERSION.SDK_INT >= 28
                 && getBaseContext().getClassLoader() instanceof DeferredPayloadClassLoader) {
             try {
                 MemoryRuntimeBridge.complete();
@@ -91,8 +97,7 @@ public class StubApp extends Application {
     private Application makeRealApp(ClassLoader cl, Context base) throws Exception {
         String name = getRealAppName();
         Application app;
-        if (android.os.Build.VERSION.SDK_INT >= 29
-                && cl instanceof DeferredPayloadClassLoader) {
+        if (componentFactoryActive) {
             app = MemoryRuntimeBridge.instantiateApplication(cl, name);
         } else {
             app = (Application) cl.loadClass(name).newInstance();

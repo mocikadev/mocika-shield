@@ -36,6 +36,24 @@ public final class StubComponentFactory extends AppComponentFactory {
         }
     }
 
+    static void initializeLegacy(ClassLoader loader, String originalFactoryClass)
+            throws Exception {
+        synchronized (StubComponentFactory.class) {
+            FactoryState state = activeState;
+            if (state == null) {
+                state = new FactoryState(null);
+                activeState = state;
+            }
+            if (state.delegate == null) {
+                state.delegate = createDelegate(loader, originalFactoryClass);
+            }
+        }
+    }
+
+    static boolean isInstalled(ApplicationInfo info) {
+        return info != null && StubComponentFactory.class.getName().equals(info.appComponentFactory);
+    }
+
     static Application instantiateOriginalApplication(ClassLoader loader, String className)
             throws Exception {
         return requireDelegate(requireState()).instantiateApplication(loader, className);

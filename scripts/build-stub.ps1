@@ -428,7 +428,7 @@ $standardMetadata = Get-Content (Join-Path $OutputDir "metadata.json") -Raw
   "stub_application": "$obfStubApp",
   "stub_component_factory": "$obfStubFactory",
   "supported_architectures": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
-  "min_android_api": 29,
+  "min_android_api": 28,
   "target_android_api": 35,
   "native_library": "libmocikashield.so",
   "native_name_placeholder": "mocikanativeslot",
@@ -438,7 +438,7 @@ $standardMetadata = Get-Content (Join-Path $OutputDir "metadata.json") -Raw
   "cache_schema": 1,
   "environment_policy": true,
   "memory_dex": true,
-  "memory_dex_min_api": 29
+  "memory_dex_min_api": 31
 }
 "@ | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
 $memoryResources = Join-Path $OutputDir "resources-memory.zip"

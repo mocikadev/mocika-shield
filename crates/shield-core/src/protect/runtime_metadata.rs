@@ -5,7 +5,7 @@ use crate::protect::native_alias::NativeAliasProtocol;
 const STANDARD_RUNTIME_PROTOCOL: u32 = 2;
 const MEMORY_RUNTIME_PROTOCOL: u32 = 3;
 const CACHE_SCHEMA: u32 = 1;
-const MEMORY_DEX_MIN_API: u32 = 29;
+const MEMORY_DEX_MIN_API: u32 = 31;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeMetadata {
@@ -153,7 +153,7 @@ mod tests {
             .replace("\"runtime_protocol\":2", "\"runtime_protocol\":3")
             .replace(
                 "\"memory_dex\":false",
-                "\"memory_dex\":true,\n        \"memory_dex_min_api\":29,\n        \"stub_component_factory\":\"msk.f\"",
+                "\"memory_dex\":true,\n        \"memory_dex_min_api\":31,\n        \"stub_component_factory\":\"msk.f\"",
             );
         let metadata = RuntimeMetadata::parse(&candidate).unwrap();
         assert!(metadata.memory_dex);
@@ -166,7 +166,7 @@ mod tests {
             .replace("\"runtime_protocol\":2", "\"runtime_protocol\":3")
             .replace(
                 "\"memory_dex\":false",
-                "\"memory_dex\":true,\n        \"memory_dex_min_api\":29,\n        \"stub_component_factory\":\"invalid factory\"",
+                "\"memory_dex\":true,\n        \"memory_dex_min_api\":31,\n        \"stub_component_factory\":\"invalid factory\"",
             );
         assert!(RuntimeMetadata::parse(&candidate).is_err());
     }

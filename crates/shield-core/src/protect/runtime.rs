@@ -318,7 +318,7 @@ mod tests {
             "cache_schema":1,
             "environment_policy":true,
             "memory_dex":true,
-            "memory_dex_min_api":29
+            "memory_dex_min_api":31
         }"#;
         zip.start_file("metadata.json", zip::write::SimpleFileOptions::default())
             .unwrap();

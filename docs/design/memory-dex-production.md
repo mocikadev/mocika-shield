@@ -1,4 +1,4 @@
-# API 29 以上内存 DEX 正式接入设计
+# API 31 以上内存 DEX 正式接入设计
 
 ## 目标与结论
 
@@ -6,7 +6,7 @@
 
 推荐采用“独立候选资源包、显式选择、默认关闭”的渐进方案：现有标准资源和 Android 4.4 资源保持原协议与文件加载行为；新增内存候选资源只供内部回归使用。完整门槛通过前不进入 GUI、不成为自动选择项，也不对用户承诺。
 
-这项能力解决 API 29 以上设备在正常启动后长期保存完整明文业务 DEX 的问题。它不能阻止 Root、进程注入或运行时内存转储，也不改变 DEXB v5 加密格式。
+这项能力解决 API 31 以上设备在正常启动后长期保存完整明文业务 DEX 的问题。API 28～30 保留原组件工厂语义但固定使用认证文件缓存；其中 [Android 10](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-10.0.0_r1/keystore/java/android/security/KeyStore.java) 和 [Android 11](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-11.0.0_r1/keystore/java/android/security/KeyStore.java) 的 Keystore 在 Application 附加阶段仍依赖尚未建立的全局 Application，[Android 12](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-12.0.0_r1/keystore/java/android/security/KeyStore.java) 已移除这项依赖。为避免提前篡改框架 Application 引用或降低状态认证强度，内存边界提升到 API 31。它不能阻止 Root、进程注入或运行时内存转储，也不改变 DEXB v5 加密格式。
 
 ## 已有证据
 
@@ -39,7 +39,7 @@
 |------|------|----------|
 | `resources.zip` | API 21 以上标准文件加载 | 保持正式默认 |
 | `resources-api19.zip` | Android 4.4 工控兼容文件加载 | 保持现有可选项 |
-| `resources-memory.zip` | API 29 以上内存候选，API 28 以下认证文件加载 | 仅内部回归 |
+| `resources-memory.zip` | API 31 以上内存候选，API 30 以下认证文件加载 | 仅内部回归 |
 
 候选资源通过现有隐藏 `--resources` 参数显式传入，不新增公开模式参数。自动资源查找永远只返回标准资源，避免候选能力被意外启用。
 
@@ -52,7 +52,7 @@
   "runtime_protocol": 3,
   "cache_schema": 1,
   "memory_dex": true,
-  "memory_dex_min_api": 29,
+  "memory_dex_min_api": 31,
   "stub_application": "混淆后的壳 Application",
   "stub_component_factory": "混淆后的壳组件工厂"
 }
@@ -79,7 +79,7 @@
 
 ## 启动与回退流程
 
-### API 29 以上
+### API 31 以上
 
 1. 系统创建壳组件工厂，工厂返回尚未初始化的稳定代理加载器。
 2. `StubApp.attachBaseContext()` 执行隐藏 API 兼容与每次启动环境检查。
@@ -88,9 +88,9 @@
 5. 文件回退模式调用正式 `DexCache.load()`，再使用现有文件注入路径；不得复制探针的临时文件实现。
 6. 业务类开始定义后禁止切换模式。真实 Application 完成 `onCreate()` 后才异步写入成功状态。
 
-### API 28 及以下
+### API 30 及以下
 
-壳组件工厂不得触发内存解密。`StubApp` 直接执行现有环境检查、`DexCache.load()` 和 `DexInjector.inject()`；原组件工厂语义仍需保持。候选 APK 在低版本系统上的行为必须与标准资源一致，Android 4.4 仍只使用专用工控资源，不使用内存候选资源。
+壳组件工厂不得触发内存解密。API 28～30 由壳工厂保持原组件工厂语义，再执行现有环境检查、`DexCache.load()` 和 `DexInjector.inject()`；API 27 以下不会创建壳组件工厂。候选 APK 在低版本系统上的行为必须与标准资源一致，Android 4.4 仍只使用专用工控资源，不使用内存候选资源。
 
 ### 状态转换
 
@@ -151,13 +151,13 @@ file_pending           → 失败关闭
 - 文件模式复用正式 `DexCache` 和现有 DEX 注入器，不维护第二套明文缓存；一次未确认的内存启动后保持文件模式，文件启动再次未确认时失败关闭。
 - API 28 以下固定走现有文件路径。
 
-当前证据：API 35 真机已通过同签名 DEXB v5、双 DEX、Application 与 Activity 冷启动，正常内存路径的应用私有目录没有生成明文 `.dex`；真实 Application 主动退出后，下一进程成功进入文件回退，后续重启保持文件模式；认证状态追加脏数据后以 `SecurityException` 失败关闭。标准资源和 Android 4.4 资源仍沿用协议 2，候选能力未进入 GUI。
+当前证据：API 28、API 29 ARM64 模拟器已通过认证文件路径、双 DEX、原组件工厂五类回调和主/远程进程，且未创建内存状态文件。API 35 真机已通过同签名 DEXB v5、双 DEX、原组件工厂五类回调和主/远程进程，两个进程分别生成认证状态，正常内存路径的应用私有目录没有生成明文 `.dex`；真实 Application 主动退出后，下一进程成功进入文件回退，后续重启保持文件模式；认证状态追加脏数据后以 `SecurityException` 失败关闭。标准资源和 Android 4.4 资源仍沿用协议 2，候选能力未进入 GUI。
 
-完成条件：API 29 真机最小链路、API 28 以下文件路径、原组件工厂正式样本和多进程回归通过，候选能力仍不进入 GUI。
+完成条件：补充 API 30 文件路径、API 31 最低内存边界和另一台不同厂商 API 31 以上真机；候选能力仍不进入 GUI。
 
 ### 完整生产门禁
 
-- API 29、API 35 16 KB、API 36，至少补充一台不同厂商 API 29 以上真机。
+- API 28～30 文件路径、API 31 最低内存边界、API 35 16 KB、API 36，并至少补充一台不同厂商 API 31 以上真机。
 - 真实 ARouter、AndroidX/自定义组件工厂、多 DEX、Native、Instrumentation、主/远程进程。
 - 首次安装、清除数据、双向覆盖迁移、内存崩溃、文件失败、状态和密钥异常。
 - Root 兼容/严格策略、冷启动中位数、即时与整理后 PSS、私有目录 DEX 暴露检查。

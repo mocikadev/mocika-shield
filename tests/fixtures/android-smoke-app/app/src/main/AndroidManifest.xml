@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
+        android:appComponentFactory="dev.mocika.shield.smoke.SmokeComponentFactory"
         android:name=".SmokeApplication"
         android:allowBackup="false"
         android:extractNativeLibs="false"
@@ -13,5 +14,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="dev.mocika.shield.smoke.SmokeProvider"
+            android:authorities="dev.mocika.shield.smoke.provider"
+            android:exported="false" />
+        <receiver
+            android:name="dev.mocika.shield.smoke.SmokeReceiver"
+            android:exported="false" />
+        <service
+            android:name="dev.mocika.shield.smoke.SmokeRemoteService"
+            android:exported="false"
+            android:process=":remote" />
     </application>
 </manifest>
