@@ -46,6 +46,16 @@ bash tests/scripts/run-memory-loader-probe.sh
 
 当前已通过 API 29 ARM64 4 KB、API 35 ARM64 16 KB、API 36 ARM64 4 KB 模拟器和 API 35 ARM64 真机。探针 Native 库显式生成 SysV/GNU 双哈希表并按 16 KB 最大页大小链接，防止测试资产自身在 16 KB 系统中先于内存 DEX 验证失败。
 
+完成上述框架探针后，可在 API 29 以上设备验证正式 Stub Native 与 DEXB v5 签名绑定解密：
+
+```bash
+bash tests/scripts/run-memory-loader-dexb-probe.sh
+```
+
+该脚本要求已执行 `make build-stub`。它使用项目核心加固流程和临时证书生成真实 DEXB v5 双 DEX 载荷，把正式 `libmocikashield.so` 装入工厂变体，并验证同签名时主进程、远程进程和全部业务生命周期正常且私有目录无 DEX；随后使用另一张临时证书重签同一探针，确认正式 Native 在业务类定义前拒绝解密。所有证书和中间 APK 都只存放在系统临时目录，退出时自动清理。
+
+当前正式 Native/DEXB 链路已通过 API 35 ARM64 真机；其他 API 节点仍沿用框架明文载荷矩阵，不能据此宣称正式解密链路已覆盖全部系统版本。
+
 ## Android 4.4 Native 加载探针
 
 `fixtures/android-api19-native-probe` 只负责验证 NDK r25c、Rust 1.77.2、API 19 构建的生产 `libmocikashield.so` 能够被 Android 4.4 的动态链接器加载，并成功执行 `JNI_OnLoad` 动态注册。它不包含 DEX 解密、Dalvik 注入或业务兼容逻辑。

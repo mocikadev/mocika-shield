@@ -24,9 +24,9 @@ public final class ProbeApplication extends Application {
             ClassLoader businessLoader;
             if (original instanceof DeferredPayloadClassLoader) {
                 businessLoader = ProbeAppComponentFactory.initializePayload(
-                        base.getApplicationInfo());
+                        base);
                 ClassLoader repeated = ProbeAppComponentFactory.initializePayload(
-                        base.getApplicationInfo());
+                        base);
                 if (repeated != businessLoader) {
                     throw new IllegalStateException("MEMORY_PROBE_REINITIALIZE_CHANGED_LOADER");
                 }
@@ -35,7 +35,7 @@ public final class ProbeApplication extends Application {
             } else {
                 exemptHiddenApi();
                 businessLoader = MemoryPayloadLoader.create(
-                        base.getApplicationInfo(), original.getParent());
+                        base, original.getParent());
                 replaceFrameworkClassLoader(base, businessLoader);
                 Log.i(TAG, "LOADER_READY:REFLECTION");
             }
