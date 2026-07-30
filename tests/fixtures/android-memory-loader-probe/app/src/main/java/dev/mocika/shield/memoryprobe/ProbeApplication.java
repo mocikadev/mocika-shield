@@ -60,6 +60,7 @@ public final class ProbeApplication extends Application {
             realApplication.onCreate();
             ARouterProbeVerifier.scheduleNavigation(
                     this, realApplication, readMetadata(this, "PROBE_AROUTER_ROUTE"));
+            MemoryProbeMetrics.schedulePostStartupSnapshot();
         } catch (Exception error) {
             throw new RuntimeException("MEMORY_PROBE_APP_REPLACE", error);
         }
