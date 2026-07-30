@@ -57,6 +57,14 @@ BUNDLETOOL_JAR=/path/to/bundletool.jar \
 
 当前正式 Native/DEXB 链路已通过 API 35 ARM64 真机；其他 API 节点仍沿用框架明文载荷矩阵，不能据此宣称正式解密链路已覆盖全部系统版本。
 
+正式候选资源的系统边界使用独立端到端脚本验证。脚本会构建真实双 DEX 加固包，检查原组件工厂五类回调和主/远程进程，并按设备系统版本自动断言：API 28～30 使用认证文件缓存且不生成内存状态，API 31 以上生成分进程认证状态且不落盘明文 DEX。
+
+```bash
+ANDROID_SERIAL=emulator-5554 bash tests/scripts/run-memory-runtime-e2e.sh
+```
+
+连续验证多个设备时，首次执行完成构建后可以设置 `SKIP_BUILD=1` 复用构建产物；每次仍会重新生成临时证书和加固包，不在仓库留下密钥或 APK。
+
 使用真实、已签名的 AndroidX/ARouter APK 验证原组件工厂恢复和三种安装状态：
 
 ```bash
