@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Clipboard, FolderOpen, RotateCcw, Square } from "lucide-react";
 import { AppButton, DropZone, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { ProtectConfigurationPanel } from "@/components/app/protect-configuration-panel";
+import { PreflightSummary } from "@/components/app/preflight-summary";
 import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
@@ -101,6 +102,7 @@ export function ProtectPage({
     ? t(locale, "outputFilenameRequired")
     : workflow.outputFilenameError === "invalid" ? t(locale, "outputFilenameInvalid") : "";
   const startDisabled = !runtimeInfoLoaded || Boolean(workflow.precheck) || workflow.state === "prechecking"
+    || workflow.preflight?.verdict === "blocked"
     || Boolean(workflow.outputFilenameError) || (signAfterProtect && !signingCertificate)
     || (workflow.outputDirectoryMode === "fixed" && !workflow.fixedOutputDirectory);
 
@@ -137,7 +139,7 @@ export function ProtectPage({
                   {!locked && <AppButton size="sm" variant="secondary" onClick={() => void chooseOutputDirectory()}><FolderOpen className="h-4 w-4" />{t(locale, "change")}</AppButton>}
                 </div>
               </div>
-              {workflow.nativeAbis.length > 0 && <StatusMessage kind="info">ABI：{workflow.nativeAbis.join(", ")}</StatusMessage>}
+              <PreflightSummary locale={locale} loading={workflow.state === "prechecking"} report={workflow.preflight} />
               {workflow.warning && <StatusMessage kind="warning">{workflow.warning}</StatusMessage>}
               {workflow.precheck && <StatusMessage kind="error"><b>{t(locale, "precheckFailed")}：</b>{workflow.precheck}</StatusMessage>}
               {workflow.state === "done" && <StatusMessage kind="success" action={<AppButton size="sm" variant="secondary" onClick={() => void api.showInFolder(workflow.output)}><FolderOpen className="h-4 w-4" />{t(locale, "showInFolder")}</AppButton>}>{t(locale, "done")}</StatusMessage>}

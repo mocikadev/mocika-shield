@@ -204,10 +204,30 @@ fn delete_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn check_apk(app: tauri::AppHandle, path: String) -> Result<ApkCheckResult, String> {
-    tokio::task::spawn_blocking(move || Ok(do_check_apk(path, find_apksigner_path(&app))))
-        .await
-        .map_err(|err| format!("后台任务执行失败: {err}"))?
+async fn check_apk(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, CertificateStoreState>,
+    path: String,
+    runtime_mode: RuntimeMode,
+    certificate_id: Option<String>,
+) -> Result<ApkCheckResult, String> {
+    let certificate = certificate_id
+        .map(|id| {
+            state
+                .get_certificate(&id)?
+                .ok_or_else(|| "未找到自动签名证书".to_string())
+        })
+        .transpose()?;
+    tokio::task::spawn_blocking(move || {
+        Ok(do_check_apk(
+            path,
+            find_apksigner_path(&app),
+            runtime_mode.preflight_profile(),
+            certificate,
+        ))
+    })
+    .await
+    .map_err(|err| format!("后台任务执行失败: {err}"))?
 }
 
 #[tauri::command]
