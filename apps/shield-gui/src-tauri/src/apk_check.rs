@@ -1,16 +1,35 @@
+use crate::cert_store::CertificateRecord;
 use serde::Serialize;
 use shield_core::{
-    check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint,
-    normalize_fingerprint,
+    extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint, normalize_fingerprint,
+    preflight_apk, PreflightCheck, PreflightReport, PreflightSeverity, RuntimeProfile,
 };
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct ApkCheckResult {
-    pub already_protected: bool,
-    pub is_signed: bool,
-    pub native_abis: Vec<String>,
+    pub verdict: &'static str,
+    pub checks: Vec<ApkPreflightCheck>,
+    pub facts: ApkPreflightFacts,
+    pub error_code: Option<&'static str>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct ApkPreflightCheck {
+    pub code: &'static str,
+    pub severity: &'static str,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Serialize, Default)]
+pub(crate) struct ApkPreflightFacts {
+    pub apk_size: u64,
+    pub dex_count: u32,
+    pub dex_total_size: u64,
+    pub native_library_count: u32,
+    pub compressed_native_library_count: u32,
+    pub native_abis: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -75,19 +94,83 @@ fn extract_keystore_fingerprint(
         .map_err(|e| e.to_string())
 }
 
-pub(crate) fn do_check_apk(path: String, apksigner_path: Option<PathBuf>) -> ApkCheckResult {
-    match check_apk(Path::new(&path), apksigner_path.as_deref()) {
-        Ok(result) => ApkCheckResult {
-            already_protected: result.already_protected,
-            is_signed: result.is_signed,
-            native_abis: result.native_abis,
-            error: None,
+pub(crate) fn do_check_apk(
+    path: String,
+    apksigner_path: Option<PathBuf>,
+    runtime_profile: RuntimeProfile,
+    certificate: Option<CertificateRecord>,
+) -> ApkCheckResult {
+    let expected_output_cert_fingerprint = certificate
+        .as_ref()
+        .map(|certificate| {
+            extract_keystore_cert_fingerprint(
+                Path::new(&certificate.keystore_path),
+                &certificate.key_alias,
+                &certificate.keystore_password,
+                Some(&certificate.ks_type),
+            )
+        })
+        .transpose();
+    let expected_output_cert_fingerprint = match expected_output_cert_fingerprint {
+        Ok(value) => value,
+        Err(error) => {
+            return ApkCheckResult {
+                verdict: "blocked",
+                checks: Vec::new(),
+                facts: ApkPreflightFacts::default(),
+                error_code: Some("certificate_unreadable"),
+                error: Some(format!("读取所选签名证书失败：{error}")),
+            };
+        }
+    };
+    match preflight_apk(
+        Path::new(&path),
+        shield_core::PreflightOptions {
+            runtime_profile,
+            apksigner_path: apksigner_path.as_deref(),
+            expected_output_cert_fingerprint: expected_output_cert_fingerprint.as_deref(),
         },
+    ) {
+        Ok(report) => map_report(report),
         Err(error) => ApkCheckResult {
-            already_protected: false,
-            is_signed: false,
-            native_abis: Vec::new(),
+            verdict: "blocked",
+            checks: Vec::new(),
+            facts: ApkPreflightFacts::default(),
+            error_code: Some("inspection_failed"),
             error: Some(error.to_string()),
         },
+    }
+}
+
+fn map_report(report: PreflightReport) -> ApkCheckResult {
+    ApkCheckResult {
+        verdict: severity_value(report.verdict),
+        checks: report.checks.into_iter().map(map_check).collect(),
+        facts: ApkPreflightFacts {
+            apk_size: report.facts.apk_size,
+            dex_count: report.facts.dex_count,
+            dex_total_size: report.facts.dex_total_size,
+            native_library_count: report.facts.native_library_count,
+            compressed_native_library_count: report.facts.compressed_native_library_count,
+            native_abis: report.facts.native_abis,
+        },
+        error_code: None,
+        error: None,
+    }
+}
+
+fn map_check(check: PreflightCheck) -> ApkPreflightCheck {
+    ApkPreflightCheck {
+        code: check.code,
+        severity: severity_value(check.severity),
+        detail: check.detail,
+    }
+}
+
+fn severity_value(severity: PreflightSeverity) -> &'static str {
+    match severity {
+        PreflightSeverity::Ready => "ready",
+        PreflightSeverity::Warning => "warning",
+        PreflightSeverity::Blocked => "blocked",
     }
 }

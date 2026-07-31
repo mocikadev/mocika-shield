@@ -26,6 +26,15 @@ pub(crate) enum RuntimeMode {
     AndroidApi19,
 }
 
+impl RuntimeMode {
+    pub(crate) fn preflight_profile(self) -> shield_core::RuntimeProfile {
+        match self {
+            Self::Standard => shield_core::RuntimeProfile::Standard,
+            Self::AndroidApi19 => shield_core::RuntimeProfile::AndroidApi19,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum EnvironmentPolicyRequest {

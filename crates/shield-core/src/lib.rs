@@ -3,6 +3,7 @@ mod dex_packer;
 #[cfg(test)]
 mod dex_research;
 pub mod error;
+mod preflight;
 mod protect;
 mod protect_api;
 pub mod signing;
@@ -14,6 +15,10 @@ pub use apk_inspect::{
     normalize_fingerprint, ApkCheckOutcome,
 };
 pub use error::ShieldError;
+pub use preflight::{
+    preflight_apk, PreflightCheck, PreflightFacts, PreflightOptions, PreflightReport,
+    PreflightSeverity, RuntimeProfile,
+};
 pub use protect_api::{
     protect_apk, EnvironmentPolicy, ProgressEvent, ProgressStep, ProtectOptions,
 };

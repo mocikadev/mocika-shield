@@ -108,10 +108,26 @@ export type CreateManagedCertificateInput = {
 };
 
 export type ApkCheckResult = {
-  already_protected: boolean;
-  is_signed: boolean;
-  native_abis: string[];
+  verdict: "ready" | "warning" | "blocked";
+  checks: ApkPreflightCheck[];
+  facts: ApkPreflightFacts;
+  error_code?: "inspection_failed" | "certificate_unreadable" | string | null;
   error?: string | null;
+};
+
+export type ApkPreflightCheck = {
+  code: string;
+  severity: "ready" | "warning" | "blocked";
+  detail?: string | null;
+};
+
+export type ApkPreflightFacts = {
+  apk_size: number;
+  dex_count: number;
+  dex_total_size: number;
+  native_library_count: number;
+  compressed_native_library_count: number;
+  native_abis: string[];
 };
 
 export type CertCompareResult = {
@@ -172,7 +188,8 @@ export type DragDropPayload = {
 };
 
 export const api = {
-  checkApk: (path: string) => invoke<ApkCheckResult>("check_apk", { path }),
+  checkApk: (path: string, runtimeMode: "standard" | "android_api19", certificateId?: string | null) =>
+    invoke<ApkCheckResult>("check_apk", { path, runtimeMode, certificateId: certificateId ?? null }),
   protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", environmentPolicy: "compatible" | "strict", signedOutput?: string | null, certificateId?: string | null) =>
     invoke<void>("protect_apk", {
       request: {

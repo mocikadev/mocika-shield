@@ -15,7 +15,8 @@
 6. [与 360 加固的差异](#六与-360-加固的差异)
 7. [加固前后 APK 结构对比](#七加固前后-apk-结构对比)
 8. [已知 Bug 与设计隐患](#八已知-bug-与设计隐患)
-9. [后续迭代方向](#九后续迭代方向)
+9. [统一 APK 预检模型](#九统一-apk-预检模型)
+10. [后续迭代方向](#十后续迭代方向)
 
 ---
 
@@ -566,7 +567,33 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 ---
 
-## 九、后续迭代方向
+## 九、统一 APK 预检模型
+
+`shield-core::preflight_apk` 是加固前只读检查的唯一规则入口。它不修改输入 APK，也不依赖 GUI 状态；Tauri 只负责解析所选证书、调用核心并把结果映射为 IPC 数据，前端只按稳定检查代码展示本地化文案。
+
+预检结果由三部分组成：
+
+- `verdict`：`ready`、`warning`、`blocked`，按最严重检查项汇总。
+- `checks`：稳定检查代码、严重级别与有限动态明细；检查代码不直接使用界面文案。
+- `facts`：APK 大小、DEX 数量和总体积、Native 库数量与压缩数量、ABI 集合等只读事实。
+
+当前稳定检查代码如下：
+
+| 检查代码 | 含义 | 阻断条件 |
+|----------|------|----------|
+| `apk_structure` | 必要 ZIP 结构 | 缺少 `AndroidManifest.xml` 或根目录标准 `classes*.dex` |
+| `already_protected` / `not_protected` | Mocika Shield 载荷状态 | 已存在有效 MSHD 载荷 |
+| `signature` / `unsigned` | APK 签名状态 | 未签名或签名验证失败 |
+| `certificate` / `certificate_mismatch` | 原 APK 与输出证书关系 | 自动签名证书不一致或无法读取 |
+| `dex_profile` | DEX 数量和总体积 | 仅记录事实，不单独阻断 |
+| `runtime_abi` | 所选目标系统与 ABI 的关系 | Android 4.4 出现非 `armeabi-v7a`；标准运行时仅有未支持架构 |
+| `native_packaging` | SO 数量和压缩情况 | 仅记录事实，最终打包仍服从 Manifest 策略 |
+
+未知 ABI 与支持 ABI 并存时标记为 `warning`，用户确认后可继续；确定会生成不可运行产物的条件使用 `blocked`。Manifest 二进制属性、split 形态、签名方案明细、ELF 16 KB 条件和第三方壳信号只有在能够稳定解析且不会误判后才加入，禁止用文件名猜测或把占位检查伪装成已支持能力。
+
+---
+
+## 十、后续迭代方向
 
 待实现功能及进度见 [docs/process/roadmap.md](../process/roadmap.md)。
 
@@ -579,4 +606,4 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 ---
 
-*最后更新：2026-07-27*
+*最后更新：2026-07-31*

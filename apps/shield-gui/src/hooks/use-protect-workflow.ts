@@ -26,19 +26,6 @@ export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed
 export type RuntimeMode = "standard" | "android_api19";
 export type EnvironmentPolicy = "compatible" | "strict";
 
-function precheckMessage(locale: Locale, result: ApkCheckResult) {
-  if (result.error) {
-    return `${t(locale, "readApkFailed")}: ${result.error}`;
-  }
-  if (result.already_protected) {
-    return t(locale, "alreadyProtected");
-  }
-  if (!result.is_signed) {
-    return t(locale, "notSigned");
-  }
-  return "";
-}
-
 export function useProtectWorkflow({
   active,
   locale,
@@ -62,9 +49,9 @@ export function useProtectWorkflow({
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [precheck, setPrecheck] = useState("");
+  const [preflight, setPreflight] = useState<ApkCheckResult | null>(null);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(defaults.runtime_mode);
   const [environmentPolicy, setEnvironmentPolicy] = useState<EnvironmentPolicy>(defaults.environment_policy);
-  const [nativeAbis, setNativeAbis] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState("");
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
@@ -109,6 +96,7 @@ export function useProtectWorkflow({
     setState("idle");
     setError("");
     setPrecheck("");
+    setPreflight(null);
     setWarning("");
     setCurrentStep("");
     setStartedAt(null);
@@ -119,7 +107,6 @@ export function useProtectWorkflow({
     setEnvironmentPolicy(defaults.environment_policy);
     setOutputDirectoryMode(defaults.output_directory_mode);
     setFixedOutputDirectory(defaults.fixed_output_directory);
-    setNativeAbis([]);
     taskId.current = null;
     taskLocked.current = false;
   }, [defaults]);
@@ -139,6 +126,7 @@ export function useProtectWorkflow({
       setWarning("");
       setError("");
       setPrecheck("");
+      setPreflight(null);
       setCurrentStep("");
       if (!isApk(path)) {
         const message = t(locale, "onlyApk");
@@ -158,25 +146,15 @@ export function useProtectWorkflow({
       const request = ++precheckRequest.current;
       setState("prechecking");
       setPrecheck("");
+      setPreflight(null);
       try {
-        const result = await api.checkApk(path);
-        setNativeAbis(result.native_abis);
-        let message = precheckMessage(locale, result);
-        if (!message && autoSignCertificateId) {
-          const compare = await api.compareCertFingerprints({
-            apkPath: path,
-            certificateId: autoSignCertificateId,
-          });
-          if (compare.error) {
-            message = compare.error;
-          } else if (!compare.matches) {
-            message = t(locale, "signMismatch");
-          }
-        }
+        const result = await api.checkApk(path, runtimeMode, autoSignCertificateId);
         if (request !== precheckRequest.current) {
           return;
         }
-        if (message) {
+        setPreflight(result);
+        if (result.error) {
+          const message = `${t(locale, "readApkFailed")}: ${result.error}`;
           setPrecheck(message);
           notifyError(message);
         }
@@ -191,7 +169,7 @@ export function useProtectWorkflow({
         setState("idle");
       }
     },
-    [autoSignCertificateId, locale],
+    [autoSignCertificateId, locale, runtimeMode],
   );
 
   useEffect(() => {
@@ -246,10 +224,13 @@ export function useProtectWorkflow({
   }, [handleSelected]);
 
   const start = useCallback(async () => {
-    if (!input || !output || precheck || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
+    if (!input || !output || precheck || preflight?.verdict === "blocked" || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
       return;
     }
     try {
+      if (preflight?.verdict === "warning" && !window.confirm(t(locale, "confirmPreflightWarning"))) {
+        return;
+      }
       if (await api.checkFileExists(output)) {
         const confirmed = window.confirm(t(locale, "confirmOverwriteOutput"));
         if (!confirmed) return;
@@ -294,7 +275,7 @@ export function useProtectWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, runtimeMode]);
+  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, preflight?.verdict, runtimeMode]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -321,11 +302,11 @@ export function useProtectWorkflow({
     warning,
     error,
     precheck,
+    preflight,
     runtimeMode,
     setRuntimeMode,
     environmentPolicy,
     setEnvironmentPolicy,
-    nativeAbis,
     currentStep,
     startedAt,
     finishedAt,
