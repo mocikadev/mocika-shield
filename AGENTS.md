@@ -95,7 +95,7 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 凡是面向用户本机直接测试 GUI 效果、交互、签名、加固流程的构建，默认必须提供 **macOS `.app` 应用包**（如当前在 macOS 环境）。不要只交付裸二进制 `target/release/mocika-shield`，因为其运行时资源不完整，不能代表真实桌面应用形态。
 
 ### 配置文件命名
-GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。如未来增加 CLI 人工配置文件，必须与 GUI 自动维护的 `config.toml` 明确区分，不得复用同一个文件。
+GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。CLI 人工配置固定使用独立的 `shield-cli.toml`，不得复用 GUI 的 `config.toml`；CLI 配置不保存密码，自动化密码通过环境变量或当前命令参数提供。
 
 ### 证书与密码持久化策略
 本工具定位为**本地离线桌面工具**，证书管理以“省事、减少重复输入”为优先目标。GUI 允许在本机持久化保存签名证书相关数据，包括 `keystore_password` 与 `key_password`；默认不引入系统 Keychain 作为前置依赖。
@@ -181,4 +181,5 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/process/release.md](docs/process/release.md) | 发布流程、版本号管理、三平台发布检查清单 |
 | [docs/process/test-checklist.md](docs/process/test-checklist.md) | 发布前与关键改动后的回归测试清单 |
 | [docs/process/feature-requests.md](docs/process/feature-requests.md) | 功能需求收集、投票口径与评审流程 |
-| [docs/process/roadmap.md](docs/process/roadmap.md) | 功能路线图：待实现功能、进度与优先级 |
+| [docs/process/roadmap.md](docs/process/roadmap.md) | 当前功能路线图：稳定线、下一版本、候选与停止项 |
+| [docs/process/roadmap-history.md](docs/process/roadmap-history.md) | 已完成版本、旧缺陷与研究过程历史档案 |
