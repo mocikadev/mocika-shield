@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isApk, protectedOutputPath, signedOutputPath } from "@/lib/path";
+import {
+  dirname,
+  isApk,
+  joinPath,
+  normalizeApkFilename,
+  protectedOutputFilename,
+  validateOutputFilename,
+} from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getProtectJavaError } from "@/lib/java";
 import { notifyError, notifySuccess } from "@/lib/notify";
@@ -11,6 +18,7 @@ import {
   type BuildInfo,
   type CertificateRecord,
   type DragDropPayload,
+  type ProtectDefaults,
   type TaskSnapshot,
 } from "@/lib/tauri";
 
@@ -36,21 +44,26 @@ export function useProtectWorkflow({
   locale,
   certificate,
   buildInfo,
+  defaults,
 }: {
   active: boolean;
   locale: Locale;
   certificate: CertificateRecord | null;
   buildInfo: BuildInfo | null;
+  defaults: ProtectDefaults;
 }) {
   const [input, setInput] = useState("");
-  const [output, setOutput] = useState("");
+  const [outputFilename, setOutputFilenameState] = useState("");
+  const [filenameEdited, setFilenameEdited] = useState(false);
+  const [outputDirectoryMode, setOutputDirectoryMode] = useState<"source" | "fixed">(defaults.output_directory_mode);
+  const [fixedOutputDirectory, setFixedOutputDirectory] = useState(defaults.fixed_output_directory);
   const [state, setState] = useState<ProtectState>("idle");
   const [dragActive, setDragActive] = useState(false);
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [precheck, setPrecheck] = useState("");
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("standard");
-  const [environmentPolicy, setEnvironmentPolicy] = useState<EnvironmentPolicy>("compatible");
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(defaults.runtime_mode);
+  const [environmentPolicy, setEnvironmentPolicy] = useState<EnvironmentPolicy>(defaults.environment_policy);
   const [nativeAbis, setNativeAbis] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState("");
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -65,20 +78,34 @@ export function useProtectWorkflow({
   const autoSignReady = Boolean(activeCertificate);
   const autoSignCertificateId = activeCertificate?.id ?? null;
 
-  const computedOutput = useMemo(() => {
-    const protectedPath = protectedOutputPath(input);
-    return autoSignReady ? signedOutputPath(protectedPath) : protectedPath;
-  }, [autoSignReady, input]);
+  const outputDirectory = outputDirectoryMode === "fixed" && fixedOutputDirectory
+    ? fixedOutputDirectory
+    : dirname(input);
+  const normalizedOutputFilename = normalizeApkFilename(outputFilename);
+  const output = useMemo(
+    () => input && normalizedOutputFilename ? joinPath(outputDirectory, normalizedOutputFilename) : "",
+    [input, normalizedOutputFilename, outputDirectory],
+  );
+  const outputFilenameError = validateOutputFilename(outputFilename);
 
   useEffect(() => {
-    if (!taskLocked.current) {
-      setOutput(computedOutput);
+    if (taskLocked.current) return;
+    setRuntimeMode(defaults.runtime_mode);
+    setEnvironmentPolicy(defaults.environment_policy);
+    setOutputDirectoryMode(defaults.output_directory_mode);
+    setFixedOutputDirectory(defaults.fixed_output_directory);
+  }, [defaults]);
+
+  useEffect(() => {
+    if (!taskLocked.current && !filenameEdited && input) {
+      setOutputFilenameState(protectedOutputFilename(input, autoSignReady));
     }
-  }, [computedOutput]);
+  }, [autoSignReady, filenameEdited, input]);
 
   const resetSelection = useCallback(() => {
     setInput("");
-    setOutput("");
+    setOutputFilenameState("");
+    setFilenameEdited(false);
     setState("idle");
     setError("");
     setPrecheck("");
@@ -88,15 +115,20 @@ export function useProtectWorkflow({
     setFinishedAt(null);
     setTaskAutoSign(null);
     setTaskCertificate(null);
-    setRuntimeMode("standard");
-    setEnvironmentPolicy("compatible");
+    setRuntimeMode(defaults.runtime_mode);
+    setEnvironmentPolicy(defaults.environment_policy);
+    setOutputDirectoryMode(defaults.output_directory_mode);
+    setFixedOutputDirectory(defaults.fixed_output_directory);
     setNativeAbis([]);
     taskId.current = null;
     taskLocked.current = false;
-  }, []);
+  }, [defaults]);
 
-  const updateOutput = useCallback((path: string) => {
-    if (!taskLocked.current) setOutput(path);
+  const setOutputFilename = useCallback((filename: string) => {
+    if (!taskLocked.current) {
+      setFilenameEdited(true);
+      setOutputFilenameState(filename);
+    }
   }, []);
 
   const handleSelected = useCallback(
@@ -115,9 +147,10 @@ export function useProtectWorkflow({
         return;
       }
       setInput(path);
-      setOutput(protectedOutputPath(path));
+      setFilenameEdited(false);
+      setOutputFilenameState(protectedOutputFilename(path, Boolean(certificate)));
     },
-    [locale],
+    [certificate, locale],
   );
 
   const runPrecheck = useCallback(
@@ -213,10 +246,14 @@ export function useProtectWorkflow({
   }, [handleSelected]);
 
   const start = useCallback(async () => {
-    if (!input || !output || precheck) {
+    if (!input || !output || precheck || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
       return;
     }
     try {
+      if (await api.checkFileExists(output)) {
+        const confirmed = window.confirm(t(locale, "confirmOverwriteOutput"));
+        if (!confirmed) return;
+      }
       const javaError = getProtectJavaError(locale, buildInfo);
       if (javaError) {
         setError(javaError);
@@ -235,7 +272,10 @@ export function useProtectWorkflow({
       taskLocked.current = true;
       taskId.current = crypto.randomUUID();
 
-      const unsignedOutput = autoSignReady ? protectedOutputPath(input) : output;
+      const intermediateOutput = joinPath(outputDirectory, protectedOutputFilename(input, false));
+      const unsignedOutput = autoSignReady && intermediateOutput === output
+        ? joinPath(outputDirectory, `${protectedOutputFilename(input, false).replace(/\.apk$/i, "")}_unsigned.apk`)
+        : autoSignReady ? intermediateOutput : output;
       await api.protectApk(
         taskId.current,
         input,
@@ -254,7 +294,7 @@ export function useProtectWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [autoSignReady, buildInfo, certificate, environmentPolicy, input, locale, output, precheck, runtimeMode]);
+  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, runtimeMode]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -268,7 +308,14 @@ export function useProtectWorkflow({
   return {
     input,
     output,
-    setOutput: updateOutput,
+    outputFilename,
+    setOutputFilename,
+    outputFilenameError,
+    outputDirectory,
+    outputDirectoryMode,
+    setOutputDirectoryMode,
+    fixedOutputDirectory,
+    setFixedOutputDirectory,
     state,
     dragActive,
     warning,

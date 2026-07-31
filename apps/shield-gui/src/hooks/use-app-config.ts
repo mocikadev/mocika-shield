@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { detectSystemLocale, type Locale } from "@/lib/i18n";
-import { api, type AppConfig, type ThemeMode, type UpdateCheckResult } from "@/lib/tauri";
+import { api, type AppConfig, type ProtectDefaults, type ThemeMode, type UpdateCheckResult } from "@/lib/tauri";
 import { normalizeThemeMode } from "@/hooks/use-applied-theme-mode";
 
 export function useAppConfigState() {
@@ -8,6 +8,14 @@ export function useAppConfigState() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [configLoaded, setConfigLoaded] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
+  const [protectDefaults, setProtectDefaults] = useState<ProtectDefaults>({
+    runtime_mode: "standard",
+    environment_policy: "compatible",
+    sign_after_protect: null,
+    certificate_id: null,
+    output_directory_mode: "source",
+    fixed_output_directory: "",
+  });
 
   useEffect(() => {
     void api.syncTelemetry();
@@ -20,6 +28,9 @@ export function useAppConfigState() {
         setLocale(value.locale === "en" ? "en" : "zh");
         setThemeMode(normalizeThemeMode(value.theme_mode));
         setTelemetryEnabled(value.telemetry_enabled !== false);
+        if (value.protect_defaults) {
+          setProtectDefaults(value.protect_defaults);
+        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -40,6 +51,8 @@ export function useAppConfigState() {
     configLoaded,
     telemetryEnabled,
     setTelemetryEnabled,
+    protectDefaults,
+    setProtectDefaults,
   };
 }
 
