@@ -17,6 +17,7 @@ export function ProtectConfigurationPanel({
   disabled,
   startDisabled,
   runtimeMode,
+  runtimeModeGuidance,
   environmentPolicy,
   signAfterProtect,
   selectedCertificateId,
@@ -37,6 +38,7 @@ export function ProtectConfigurationPanel({
   disabled: boolean;
   startDisabled: boolean;
   runtimeMode: RuntimeMode;
+  runtimeModeGuidance?: string;
   environmentPolicy: EnvironmentPolicy;
   signAfterProtect: boolean;
   selectedCertificateId: string;
@@ -70,7 +72,7 @@ export function ProtectConfigurationPanel({
               <SheetDescription>{t(locale, "protectSettingsHint")}</SheetDescription>
             </SheetHeader>
             <div className="mt-7 space-y-6">
-              <SettingSelect label={t(locale, "targetSystem")} value={runtimeMode} onChange={(value) => onRuntimeModeChange(value as RuntimeMode)} hint={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44Hint") : t(locale, "runtimeStandardHint")}>
+              <SettingSelect label={t(locale, "targetSystem")} value={runtimeMode} onChange={(value) => onRuntimeModeChange(value as RuntimeMode)} hint={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44Hint") : t(locale, "runtimeStandardHint")} guidance={runtimeModeGuidance}>
                 <option value="standard">{t(locale, "runtimeStandard")}</option>
                 <option value="android_api19">{t(locale, "runtimeAndroid44")}</option>
               </SettingSelect>
@@ -118,7 +120,7 @@ export function ProtectConfigurationPanel({
         </Sheet>
       </div>
       <dl className="mt-5 space-y-3 text-sm">
-        <Summary label={t(locale, "targetSystem")} value={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44") : t(locale, "runtimeStandard")} hint={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44Summary") : t(locale, "runtimeStandardSummary")} />
+        <Summary label={t(locale, "targetSystem")} value={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44") : t(locale, "runtimeStandard")} hint={runtimeMode === "android_api19" ? t(locale, "runtimeAndroid44Summary") : t(locale, "runtimeStandardSummary")} guidance={runtimeModeGuidance} />
         <Summary label={t(locale, "environmentPolicy")} value={environmentPolicy === "strict" ? t(locale, "environmentStrict") : t(locale, "environmentCompatible")} hint={environmentPolicy === "strict" ? t(locale, "environmentStrictSummary") : t(locale, "environmentCompatibleSummary")} />
         <Summary label={t(locale, "signAfterProtect")} value={signAfterProtect ? t(locale, "enabled") : t(locale, "disabled")} />
       </dl>
@@ -129,10 +131,10 @@ export function ProtectConfigurationPanel({
   );
 }
 
-function SettingSelect({ label, value, onChange, hint, children }: { label: string; value: string; onChange: (value: string) => void; hint?: string; children: React.ReactNode }) {
-  return <div><label className="field-label">{label}</label><SelectInput className="mt-2" value={value} onChange={(event) => onChange(event.target.value)}>{children}</SelectInput>{hint && <p className="mt-2 text-xs leading-5 text-muted-foreground">{hint}</p>}</div>;
+function SettingSelect({ label, value, onChange, hint, guidance, children }: { label: string; value: string; onChange: (value: string) => void; hint?: string; guidance?: string; children: React.ReactNode }) {
+  return <div><label className="field-label">{label}</label><SelectInput className="mt-2" value={value} onChange={(event) => onChange(event.target.value)}>{children}</SelectInput>{hint && <p className="mt-2 text-xs leading-5 text-muted-foreground">{hint}</p>}{guidance && <p className="mt-2 text-xs leading-5 text-warning">{guidance}</p>}</div>;
 }
 
-function Summary({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <div className="border-b pb-3 last:border-b-0 last:pb-0"><div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-medium">{value}</dd></div>{hint && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{hint}</p>}</div>;
+function Summary({ label, value, hint, guidance }: { label: string; value: string; hint?: string; guidance?: string }) {
+  return <div className="border-b pb-3 last:border-b-0 last:pb-0"><div className="flex items-start justify-between gap-3"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-medium">{value}</dd></div>{hint && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{hint}</p>}{guidance && <p className="mt-2 text-xs leading-5 text-warning">{guidance}</p>}</div>;
 }

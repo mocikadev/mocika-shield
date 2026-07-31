@@ -102,7 +102,7 @@ fn parse_start_element(
     strings: &[String],
     facts: &mut ManifestFacts,
 ) -> Result<(), String> {
-    if header_size < 36 {
+    if header_size < 16 {
         return Err("Manifest 元素结构无效".to_string());
     }
     let name = string_at(strings, read_u32(bytes, offset + 20)?)?;
@@ -370,7 +370,7 @@ mod tests {
     fn start_element(name: u32, attributes: &[(u32, u32)]) -> Vec<u8> {
         let mut chunk = Vec::new();
         push_u16(&mut chunk, 0x0102);
-        push_u16(&mut chunk, 36);
+        push_u16(&mut chunk, 16);
         push_u32(&mut chunk, (36 + attributes.len() * 20) as u32);
         push_u32(&mut chunk, 0);
         push_u32(&mut chunk, u32::MAX);

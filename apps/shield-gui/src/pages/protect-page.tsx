@@ -8,7 +8,7 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
 import { basename } from "@/lib/path";
 import { buildProtectDiagnostic } from "@/lib/protect-diagnostic";
-import { t, type Locale } from "@/lib/i18n";
+import { t, tf, type Locale } from "@/lib/i18n";
 import { api, openDirectoryDialog, type BuildInfo, type CertificateRecord, type ProtectDefaults } from "@/lib/tauri";
 
 export function ProtectPage({
@@ -115,6 +115,14 @@ export function ProtectPage({
     failed: workflow.state === "failed",
   }));
   const diagnosticCopyLabel = copiedLabel === t(locale, "copied") ? copiedLabel : t(locale, "copyDiagnosticSummary");
+  const minSdk = workflow.preflight?.facts.min_sdk;
+  const runtimeModeGuidance = minSdk !== null && minSdk !== undefined
+    ? workflow.runtimeMode === "standard" && minSdk <= 20
+      ? tf(locale, "runtimeModeNeedsLegacyGuidance", { minSdk })
+      : workflow.runtimeMode === "android_api19" && minSdk >= 21
+        ? tf(locale, "runtimeModeLegacyOptionalGuidance", { minSdk })
+        : undefined
+    : undefined;
 
   return (
     <section className="min-h-full px-10 py-9">
@@ -160,7 +168,7 @@ export function ProtectPage({
             ) : (
               <ProtectConfigurationPanel
                 locale={locale} disabled={locked} startDisabled={startDisabled}
-                runtimeMode={workflow.runtimeMode} environmentPolicy={workflow.environmentPolicy}
+                runtimeMode={workflow.runtimeMode} runtimeModeGuidance={runtimeModeGuidance} environmentPolicy={workflow.environmentPolicy}
                 signAfterProtect={signAfterProtect} selectedCertificateId={selectedCertificateId} certificates={certificates}
                 outputDirectoryMode={workflow.outputDirectoryMode} fixedOutputDirectory={workflow.fixedOutputDirectory}
                 onRuntimeModeChange={(value) => { workflow.setRuntimeMode(value); updateDefaults({ runtime_mode: value }); }}
