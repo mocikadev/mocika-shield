@@ -15,6 +15,13 @@ pub(crate) struct ProgressEvent {
 }
 
 #[derive(Debug, Serialize)]
+pub(crate) struct ErrorEvent {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    message: String,
+}
+
+#[derive(Debug, Serialize)]
 pub(crate) struct ApkCheckOutput {
     pub already_protected: bool,
     pub is_signed: bool,
@@ -41,6 +48,14 @@ pub(crate) fn progress_event_json(step: &str, message: &str) -> String {
     .expect("序列化进度事件失败")
 }
 
+pub(crate) fn error_event_json(message: String) -> String {
+    serde_json::to_string(&ErrorEvent {
+        kind: "error",
+        message,
+    })
+    .expect("序列化 error 事件失败")
+}
+
 pub(crate) fn apk_check_json(
     already_protected: bool,
     is_signed: bool,
@@ -55,28 +70,10 @@ pub(crate) fn apk_check_json(
     .expect("序列化 APK 检查结果失败")
 }
 
-pub(crate) fn apk_check_error_json(message: String) -> String {
-    serde_json::to_string(&ApkCheckOutput {
-        already_protected: false,
-        is_signed: false,
-        cert_fingerprint: None,
-        error: Some(message),
-    })
-    .expect("序列化 APK 检查错误失败")
-}
-
 pub(crate) fn keystore_check_json(cert_fingerprint: String) -> String {
     serde_json::to_string(&KeystoreCheckOutput {
         cert_fingerprint: Some(cert_fingerprint),
         error: None,
     })
     .expect("序列化 keystore 检查结果失败")
-}
-
-pub(crate) fn keystore_check_error_json(message: String) -> String {
-    serde_json::to_string(&KeystoreCheckOutput {
-        cert_fingerprint: None,
-        error: Some(message),
-    })
-    .expect("序列化 keystore 检查错误失败")
 }

@@ -63,6 +63,7 @@
 | `1.3.0` 功能冻结与完整回归 | 已完成 | 全部单元测试、双资源、Stub DEX 指标、端到端加固、普通/Root 双向策略、缓存篡改重建、私有目录隔离和启动耗时均已验证 | 正式版后只在补丁版本处理可复现缺陷，不再改变协议和默认行为 |
 | `1.4.0` 替换 ClassLoader 原型 | 直接缓冲与自动预算候选闭环完成，长期内存门禁未通过 | 协议 3 候选默认使用 JNI 直接缓冲区，113 MB DEX 的进程高水位下降约一份 DEX；自动预算已完成允许、64/32 位拒绝、非粘性恢复和崩溃粘性回退真机验证 | 下一步区分“启动安全预算”与“长期内存性价比策略”，继续保持标准和工控资源默认文件路径；长期 PSS 边界明确前不进入 GUI 或 Alpha 集成版本 |
 | DEX 方法代码离线研究 | 已完成并停止产品接入 | 分层认证索引、逐 DEX 解封、真实 12 DEX 闭环和运行时路径评审均已完成；公开加载接口仍要求完整 DEX，分层协议无法消除长期完整 DEX 内存成本 | 保留测试私有研究成果，不修改 DEXB v5、Stub、CLI 或 GUI；只有出现稳定片段级公开接口或另立虚拟机专项时重新评审 |
+| CLI 自动化契约 | 进行中 | `protect`/`sign` 子命令、版本化 CLI 配置、环境变量密码、JSON 事件和退出码已实现首轮闭环 | 完成真实签名与三平台参数回归后冻结契约，再提供 GitHub Actions 示例 |
 
 用户诊断中的低风险静态预检可以按真实反馈独立插入，不必等待整条安全主线完成；但不得与高风险壳加载改动混在同一提交或候选版本中。
 
@@ -601,19 +602,21 @@ JNI 样本使用 NDK r29 构建独立 ARM64 测试库，通过 `JNI_OnLoad` 和 
 | 项 | 内容 |
 |----|------|
 | **优先级** | 高 |
-| **状态** | 待实现 |
+| **状态** | 进行中 |
 | **涉及模块** | shield-cli |
 
 **说明**：
 
-当前 CLI 只有单一隐式命令，计划改造为双子命令结构：
+CLI 已形成加固与签名双子命令结构：
 
 ```
-shield protect -i input.apk -o output.apk [--apktool <path>] [--resources <path>] [--keep-tmp]
-shield sign    -i input.apk -o output.apk --ks keystore.jks --ks-pass <pass> --key-alias <alias>
+shield protect -i input.apk -o output.apk [--apktool <path>] [--json]
+shield sign    -i input.apk -o output.apk --ks keystore.jks --key-alias <alias> [--json]
 ```
 
-同时支持 `--config <path>` 从文件读取参数，命令行优先级高于配置文件，方便 CI 复用。CLI 的人工配置必须与 GUI 自动维护的 `config.toml` 明确区分。
+`--config <path>` 从版本化 `shield-cli.toml` 读取参数，命令行优先级高于配置文件，相对路径以配置文件目录为基准。CLI 配置与 GUI 自动维护的 `config.toml` 明确分离，并禁止保存密码；CI 使用环境变量注入密码。JSON 模式输出逐行 `progress`、`done`、`error` 事件，失败使用非零退出码。
+
+当前实现已完成配置合并和错误路径单元测试，仍需使用真实 APK、JKS/PKCS12 分别完成签名闭环，并在 Linux、macOS、Windows 验证帮助、参数和路径语义后冻结自动化契约。
 
 ---
 

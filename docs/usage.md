@@ -104,6 +104,63 @@ shield protect -i input.apk -o protected.apk
 shield protect -v -i input.apk -o protected.apk
 ```
 
+签名命令会先执行内置 ZIP 对齐，再调用发布包中的 `apksigner.jar`：
+
+```bash
+MOCIKA_SHIELD_KS_PASS='keystore密码' \
+MOCIKA_SHIELD_KEY_PASS='key密码' \
+shield sign \
+  -i protected.apk \
+  -o protected-signed.apk \
+  --ks release.jks \
+  --key-alias release
+```
+
+未设置 `MOCIKA_SHIELD_KEY_PASS` 时，Key 密码默认沿用 Keystore 密码。也可以使用 `--ks-pass` 和 `--key-pass` 显式传入，但自动化环境优先使用环境变量，避免密码直接出现在命令历史中。
+
+### CLI 配置文件
+
+CLI 人工配置建议固定命名为 `shield-cli.toml`，与 GUI 自动维护的 `config.toml` 完全独立。当前格式版本为 `1`：
+
+```toml
+schema_version = 1
+
+[protect]
+input = "input.apk"
+output = "build/protected.apk"
+environment_policy = "compatible"
+
+[sign]
+input = "build/protected.apk"
+output = "build/protected-signed.apk"
+keystore = "release.jks"
+key_alias = "release"
+keystore_type = "jks"
+v1 = true
+v2 = true
+v3 = true
+v4 = false
+```
+
+配置中的相对路径以配置文件所在目录为基准。命令行参数优先于配置文件：
+
+```bash
+shield --config shield-cli.toml protect
+MOCIKA_SHIELD_KS_PASS='keystore密码' shield --config shield-cli.toml sign
+shield --config shield-cli.toml protect -i another.apk -o another-protected.apk
+```
+
+配置文件不接受密码字段，密码只能通过环境变量或当前命令参数提供；CLI 不会把密码写入进度、错误或调试输出。
+
+### 机器可读输出与退出码
+
+`protect`、`sign` 增加 `--json` 后，每行输出一个独立 JSON 事件，事件类型固定为 `progress`、`done` 或 `error`。原有 `--json-progress` 继续作为 `protect --json` 的兼容别名。
+
+- 成功退出码为 `0`，并以 `done` 事件结束。
+- 参数、配置、加固、对齐或签名失败的退出码为 `1`。
+- JSON 模式下错误写入标准输出的 `error` 事件；普通模式错误写入标准错误。
+- 调试日志不会混入 JSON 标准输出。
+
 ### 完整流程
 
 加固完成后 APK 未签名，需手动签名后才能安装：
@@ -112,12 +169,10 @@ shield protect -v -i input.apk -o protected.apk
 # 1. 加固
 shield protect -i input.apk -o protected.apk
 
-# 2. 签名（使用发布包内置 apksigner；无需额外执行 zipalign）
-java -jar lib/apksigner.jar sign \
-  --ks keystore.jks \
-  --ks-key-alias alias \
-  --out protected-signed.apk \
-  protected.apk
+# 2. 签名（无需额外执行 zipalign）
+MOCIKA_SHIELD_KS_PASS='keystore密码' \
+shield sign -i protected.apk -o protected-signed.apk \
+  --ks keystore.jks --key-alias alias
 
 # 3. 安装
 adb install -r protected-signed.apk

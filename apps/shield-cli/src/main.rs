@@ -1,90 +1,41 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand, ValueEnum};
-use std::path::PathBuf;
+use clap::Parser;
 
+mod args;
 mod cli_json;
 mod commands;
+mod config;
 
-use commands::{run_check_apk, run_check_keystore, run_protect};
+use args::{Cli, Commands};
+use cli_json::error_event_json;
+use commands::{run_check_apk, run_check_keystore, run_protect, run_sign};
+use config::CliConfig;
 
-#[derive(Clone, Copy, Default, ValueEnum)]
-enum EnvironmentPolicyArg {
-    #[default]
-    Compatible,
-    Strict,
-}
-
-#[derive(Parser)]
-#[command(
-    name = "shield",
-    version,
-    author,
-    about = "Android APK 加固工具",
-    arg_required_else_help = true
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Protect {
-        #[arg(short, long, value_name = "APK")]
-        input: PathBuf,
-        #[arg(short, long, value_name = "APK")]
-        output: PathBuf,
-        /// 内部回归测试使用的运行时资源包。
-        #[arg(long, value_name = "ZIP", hide = true)]
-        resources: Option<PathBuf>,
-        /// 运行时环境策略：兼容模式仅执行反调试，严格模式额外拒绝高置信 Root 环境。
-        #[arg(long, value_enum, default_value_t = EnvironmentPolicyArg::Compatible)]
-        environment_policy: EnvironmentPolicyArg,
-        #[arg(long)]
-        json_progress: bool,
-        #[arg(short, long)]
-        verbose: bool,
-    },
-    CheckApk {
-        path: PathBuf,
-    },
-    CheckKeystore {
-        #[arg(long)]
-        ks: PathBuf,
-        #[arg(long)]
-        alias: String,
-        #[arg(long)]
-        ks_pass: String,
-    },
-}
-
-fn main() -> Result<()> {
+fn main() {
     let cli = Cli::parse();
+    let machine_output = cli.command.machine_output();
+    if let Err(error) = execute(cli) {
+        if machine_output {
+            println!("{}", error_event_json(format!("{error:#}")));
+        } else {
+            eprintln!("{error:#}");
+        }
+        std::process::exit(1);
+    }
+}
+
+fn execute(cli: Cli) -> Result<()> {
+    let config = CliConfig::load(cli.config.as_deref())?;
 
     match cli.command {
-        Commands::Protect {
-            input,
-            output,
-            resources,
-            environment_policy,
-            json_progress,
-            verbose,
-        } => run_protect(
-            input,
-            output,
-            resources,
-            environment_policy,
-            json_progress,
-            verbose,
-        )?,
-
+        Commands::Protect(args) => run_protect(config.merge_protect(args)?)?,
+        Commands::Sign(args) => run_sign(config.merge_sign(args)?)?,
         Commands::CheckApk { path } => {
-            let result = run_check_apk(path);
+            let result = run_check_apk(path)?;
             println!("{result}");
         }
-
         Commands::CheckKeystore { ks, alias, ks_pass } => {
-            let result = run_check_keystore(ks, alias, ks_pass);
+            let result = run_check_keystore(ks, alias, ks_pass)?;
             println!("{result}");
         }
     }

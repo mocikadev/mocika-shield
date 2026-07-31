@@ -22,6 +22,16 @@
 - 不在标准输出混入影响解析的调试信息；敏感数据不得进入日志。
 - 同一配置在 Linux、macOS 和 Windows 上产生语义一致的结果。
 
+当前实施状态（2026-07-31）：
+
+- `protect` 保留既有参数，并统一支持 `--json`；原 `--json-progress` 作为兼容别名保留。
+- 新增 `sign` 子命令，直接复用核心对齐与签名能力，支持 JKS/PKCS12、V1～V4 开关和自定义 `apksigner.jar`。
+- 新增版本化 `shield-cli.toml`，命令行覆盖配置，相对路径以配置文件目录为基准；未知字段和未知版本失败关闭。
+- 配置文件不接收密码字段；自动化密码通过 `MOCIKA_SHIELD_KS_PASS`、`MOCIKA_SHIELD_KEY_PASS` 或当前命令参数提供。
+- JSON 流固定使用 `progress`、`done`、`error` 三类事件；成功退出码为 `0`，失败为 `1`。
+
+该契约完成真实签名和三平台参数回归后再视为冻结；在此之前不实施 GitHub Actions 模板和 Gradle 插件。
+
 ### GitHub Actions 示例
 
 在 CLI 契约稳定后提供官方工作流示例，负责下载指定版本、校验产物、执行加固并上传构建产物。示例不得内置用户证书，也不把 keystore、密码或业务 APK 上传到项目维护者服务。
