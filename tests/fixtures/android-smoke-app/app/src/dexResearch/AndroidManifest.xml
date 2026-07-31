@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:appComponentFactory="dev.mocika.shield.smoke.SmokeComponentFactory"
+        android:extractNativeLibs="true"
+        tools:replace="android:appComponentFactory,android:extractNativeLibs">
+        <activity
+            android:name="dev.mocika.shield.smoke.ARouterDexSeparationTarget"
+            android:exported="false" />
+    </application>
+</manifest>

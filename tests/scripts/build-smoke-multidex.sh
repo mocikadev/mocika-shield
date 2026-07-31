@@ -47,10 +47,22 @@ SECONDARY_CLASSES="$WORK_DIR/secondary-classes"
 SECONDARY_DEX="$WORK_DIR/secondary-dex"
 mkdir -p "$SECONDARY_CLASSES" "$SECONDARY_DEX"
 
+SECONDARY_SOURCES=()
+while IFS= read -r source; do
+    SECONDARY_SOURCES+=("$source")
+done < <(find "$FIXTURE/secondary-src" -type f -name '*.java' | sort)
+if [[ "${#SECONDARY_SOURCES[@]}" -eq 0 ]]; then
+    echo "第二 DEX 测试源码为空" >&2
+    exit 1
+fi
 javac -source 8 -target 8 -cp "$ANDROID_JAR" -d "$SECONDARY_CLASSES" \
-    "$FIXTURE/secondary-src/dev/mocika/shield/smoke/SecondaryMarker.java"
+    "${SECONDARY_SOURCES[@]}"
+SECONDARY_CLASS_FILES=()
+while IFS= read -r class_file; do
+    SECONDARY_CLASS_FILES+=("$class_file")
+done < <(find "$SECONDARY_CLASSES" -type f -name '*.class' | sort)
 "$D8" --min-api "$MIN_API" --lib "$ANDROID_JAR" --output "$SECONDARY_DEX" \
-    "$SECONDARY_CLASSES/dev/mocika/shield/smoke/SecondaryMarker.class"
+    "${SECONDARY_CLASS_FILES[@]}"
 
 mkdir -p "$(dirname "$OUTPUT_APK")"
 cp "$INPUT_APK" "$OUTPUT_APK"
