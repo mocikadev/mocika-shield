@@ -18,7 +18,11 @@ public final class MainActivity extends Activity {
             return;
         }
         Log.i("MocikaSmoke", "MOCIKA_SMOKE_ACTIVITY_OK");
-        verifySecondaryDex();
+        Log.i("MocikaDexSeparation", DexSeparationReporter.snapshot());
+        Log.i("MocikaKotlinSeparation", KotlinDexSeparationReporter.snapshot());
+        Log.i("MocikaMultiDexSeparation", MultiDexSeparationReporter.snapshot());
+        if (BuildConfig.DEX_SEPARATION_ONLY) logResearchVariant();
+        if (!BuildConfig.DEX_SEPARATION_ONLY) verifySecondaryDex();
         sendBroadcast(new Intent(this, SmokeReceiver.class));
         startService(new Intent(this, SmokeRemoteService.class));
         TextView content = new TextView(this);
@@ -33,6 +37,23 @@ public final class MainActivity extends Activity {
             verify.invoke(null);
         } catch (Exception error) {
             throw new IllegalStateException("第二个 DEX 加载失败", error);
+        }
+    }
+
+    private void logResearchVariant() {
+        try {
+            Class<?> reporter = Class.forName(
+                    "dev.mocika.shield.smoke.ARouterDexSeparationReporter");
+            Method snapshot = reporter.getDeclaredMethod("snapshot", android.app.Application.class);
+            Log.i("MocikaARouterSeparation", String.valueOf(
+                    snapshot.invoke(null, getApplication())));
+
+            Class<?> jniReporter = Class.forName(
+                    "dev.mocika.shield.smoke.JniDexSeparationReporter");
+            Method jniSnapshot = jniReporter.getDeclaredMethod("snapshot");
+            Log.i("MocikaJniSeparation", String.valueOf(jniSnapshot.invoke(null)));
+        } catch (Exception error) {
+            throw new IllegalStateException("研究构建验证失败", error);
         }
     }
 }

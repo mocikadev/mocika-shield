@@ -1,5 +1,7 @@
 pub mod apk_inspect;
 mod dex_packer;
+#[cfg(test)]
+mod dex_research;
 pub mod error;
 mod protect;
 mod protect_api;
