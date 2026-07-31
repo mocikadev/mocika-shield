@@ -47,6 +47,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 提交或评审功能建议 | [process/feature-requests.md](process/feature-requests.md) |
 | 提交代码 | [process/commit-convention.md](process/commit-convention.md) |
 | 查看后续计划 | [process/roadmap.md](process/roadmap.md) |
+| 追溯已完成版本与旧研究过程 | [process/roadmap-history.md](process/roadmap-history.md) |
 
 ## 文档归类
 
