@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, CircleSlash2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, CircleSlash2, Clipboard, Loader2 } from "lucide-react";
 import { t, tf, type Locale } from "@/lib/i18n";
 import type { ApkCheckResult, ApkPreflightCheck } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -8,10 +8,14 @@ export function PreflightSummary({
   locale,
   loading,
   report,
+  onCopyDiagnostic,
+  copyLabel,
 }: {
   locale: Locale;
   loading: boolean;
   report: ApkCheckResult | null;
+  onCopyDiagnostic?: () => void;
+  copyLabel?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (loading) {
@@ -36,12 +40,15 @@ export function PreflightSummary({
           <h2 className="text-sm font-semibold">{t(locale, verdict === "ready" ? "preflightReady" : verdict === "warning" ? "preflightWarning" : "preflightBlocked")}</h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(locale, verdict === "ready" ? "preflightReadyHint" : verdict === "warning" ? "preflightWarningHint" : "preflightBlockedHint")}</p>
         </div>
-        {hasCollapsedChecks && (
-          <button type="button" className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => setExpanded((value) => !value)}>
-            {expanded ? t(locale, "preflightHideDetails") : tf(locale, "preflightViewDetails", { count: report.checks.length })}
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {onCopyDiagnostic && verdict !== "ready" && <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground" onClick={onCopyDiagnostic}><Clipboard className="h-4 w-4" />{copyLabel ?? t(locale, "copyDiagnosticSummary")}</button>}
+          {hasCollapsedChecks && (
+            <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => setExpanded((value) => !value)}>
+              {expanded ? t(locale, "preflightHideDetails") : tf(locale, "preflightViewDetails", { count: report.checks.length })}
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
       </div>
       {visibleChecks.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {visibleChecks.map((check, index) => (
@@ -74,6 +81,11 @@ function checkTitle(locale: Locale, check: ApkPreflightCheck) {
     dex_profile: "preflightDex",
     runtime_abi: "preflightAbi",
     native_packaging: "preflightNative",
+    manifest_sdk: "preflightSdk",
+    split_apk: "preflightInstallShape",
+    native_manifest: "preflightNativeManifest",
+    http_legacy: "preflightCompatibility",
+    manifest_unreadable: "preflightManifest",
   };
   return t(locale, keys[check.code] ?? "unknown");
 }
@@ -97,6 +109,14 @@ function checkDetail(locale: Locale, check: ApkPreflightCheck) {
       const [count, compressed] = (check.detail ?? "0|0").split("|");
       return `${count} SO · ${compressed} ${t(locale, "preflightCompressedNative")}`;
     }
+    case "manifest_sdk": {
+      const [minSdk, targetSdk] = (check.detail ?? "-|- ").split("|");
+      return `${t(locale, "preflightMinSdk")} ${minSdk} · ${t(locale, "preflightTargetSdk")} ${targetSdk}`;
+    }
+    case "split_apk": return check.severity === "blocked" ? `${t(locale, "preflightSplitDetected")} ${check.detail ?? ""}` : t(locale, "preflightBaseApk");
+    case "native_manifest": return check.detail === "false" ? t(locale, "preflightExtractNativeLibsFalse") : check.detail === "true" ? t(locale, "preflightExtractNativeLibsTrue") : t(locale, "preflightExtractNativeLibsDefault");
+    case "http_legacy": return t(locale, "preflightHttpLegacy");
+    case "manifest_unreadable": return t(locale, "preflightManifestUnreadable");
     default: return check.detail ?? t(locale, "unknown");
   }
 }

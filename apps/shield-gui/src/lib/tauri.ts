@@ -128,6 +128,11 @@ export type ApkPreflightFacts = {
   native_library_count: number;
   compressed_native_library_count: number;
   native_abis: string[];
+  min_sdk?: number | null;
+  target_sdk?: number | null;
+  extract_native_libs?: boolean | null;
+  split_name?: string | null;
+  uses_http_legacy?: boolean;
 };
 
 export type CertCompareResult = {

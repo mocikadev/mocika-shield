@@ -7,6 +7,7 @@ mod build_info;
 mod cert_service;
 mod cert_store;
 mod file_ops;
+mod manifest_inspect;
 mod protect_runner;
 mod signing;
 mod task_manager;

@@ -569,7 +569,7 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 
 ## 九、统一 APK 预检模型
 
-`shield-core::preflight_apk` 是加固前只读检查的唯一规则入口。它不修改输入 APK，也不依赖 GUI 状态；Tauri 只负责解析所选证书、调用核心并把结果映射为 IPC 数据，前端只按稳定检查代码展示本地化文案。
+`shield-core::preflight_apk` 是加固前 ZIP、DEX、签名和 ABI 规则的唯一入口。它不修改输入 APK，也不依赖 GUI 状态；Tauri 在此基础上只读解析 APK 内的二进制 Manifest，补充安装形态与 Android 兼容事实，再统一映射为 IPC 数据。前端只按稳定检查代码展示本地化文案。
 
 预检结果由三部分组成：
 
@@ -588,8 +588,12 @@ API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用�
 | `dex_profile` | DEX 数量和总体积 | 仅记录事实，不单独阻断 |
 | `runtime_abi` | 所选目标系统与 ABI 的关系 | Android 4.4 出现非 `armeabi-v7a`；标准运行时仅有未支持架构 |
 | `native_packaging` | SO 数量和压缩情况 | 仅记录事实，最终打包仍服从 Manifest 策略 |
+| `manifest_sdk` | `minSdkVersion`、`targetSdkVersion` | 仅记录事实，不因未知数值误判 |
+| `split_apk` | 所选 APK 是否为 split | 检测到 `manifest split`，要求用户提供 base APK |
+| `native_manifest` | `extractNativeLibs` 三态 | 仅记录事实；`false` 时加固过程按未压缩库策略重打包 |
+| `http_legacy` | `org.apache.http.legacy` 声明 | 仅记录兼容信号，保留既有 Android 9 处理 |
 
-未知 ABI 与支持 ABI 并存时标记为 `warning`，用户确认后可继续；确定会生成不可运行产物的条件使用 `blocked`。Manifest 二进制属性、split 形态、签名方案明细、ELF 16 KB 条件和第三方壳信号只有在能够稳定解析且不会误判后才加入，禁止用文件名猜测或把占位检查伪装成已支持能力。
+Manifest 解析器直接读取 APK 内的 Android 二进制 XML 字符串池和元素属性，不调用 apktool、不展开资源、不创建临时目录；解析失败仅给出 `manifest_unreadable` 风险提示，不覆盖核心预检结论。未知 ABI 与支持 ABI 并存时标记为 `warning`，用户确认后可继续；确定会生成不可运行产物的条件使用 `blocked`。签名方案明细、ELF 16 KB 条件和第三方壳信号只有在能够稳定解析且不会误判后才加入，禁止用文件名猜测或把占位检查伪装成已支持能力。
 
 ---
 
