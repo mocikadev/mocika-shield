@@ -7,6 +7,7 @@ import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useProtectWorkflow } from "@/hooks/use-protect-workflow";
 import { basename } from "@/lib/path";
+import { buildProtectDiagnostic } from "@/lib/protect-diagnostic";
 import { t, type Locale } from "@/lib/i18n";
 import { api, openDirectoryDialog, type BuildInfo, type CertificateRecord, type ProtectDefaults } from "@/lib/tauri";
 
@@ -105,6 +106,15 @@ export function ProtectPage({
     || workflow.preflight?.verdict === "blocked"
     || Boolean(workflow.outputFilenameError) || (signAfterProtect && !signingCertificate)
     || (workflow.outputDirectoryMode === "fixed" && !workflow.fixedOutputDirectory);
+  const copyDiagnostic = () => void copy(buildProtectDiagnostic({
+    preflight: workflow.preflight,
+    locale,
+    runtimeMode: workflow.runtimeMode,
+    environmentPolicy: workflow.environmentPolicy,
+    currentStep: workflow.currentStep,
+    failed: workflow.state === "failed",
+  }));
+  const diagnosticCopyLabel = copiedLabel === t(locale, "copied") ? copiedLabel : t(locale, "copyDiagnosticSummary");
 
   return (
     <section className="min-h-full px-10 py-9">
@@ -139,11 +149,11 @@ export function ProtectPage({
                   {!locked && <AppButton size="sm" variant="secondary" onClick={() => void chooseOutputDirectory()}><FolderOpen className="h-4 w-4" />{t(locale, "change")}</AppButton>}
                 </div>
               </div>
-              <PreflightSummary locale={locale} loading={workflow.state === "prechecking"} report={workflow.preflight} />
+              <PreflightSummary locale={locale} loading={workflow.state === "prechecking"} report={workflow.preflight} onCopyDiagnostic={copyDiagnostic} copyLabel={diagnosticCopyLabel} />
               {workflow.warning && <StatusMessage kind="warning">{workflow.warning}</StatusMessage>}
               {workflow.precheck && <StatusMessage kind="error"><b>{t(locale, "precheckFailed")}：</b>{workflow.precheck}</StatusMessage>}
               {workflow.state === "done" && <StatusMessage kind="success" action={<AppButton size="sm" variant="secondary" onClick={() => void api.showInFolder(workflow.output)}><FolderOpen className="h-4 w-4" />{t(locale, "showInFolder")}</AppButton>}>{t(locale, "done")}</StatusMessage>}
-              {workflow.error && <StatusMessage kind="error" action={<AppButton size="sm" variant="secondary" onClick={() => void copy(workflow.error)}><Clipboard className="h-4 w-4" />{copiedLabel}</AppButton>}><b>{t(locale, "errorDetail")}：</b>{workflow.error}</StatusMessage>}
+              {workflow.error && <StatusMessage kind="error" action={<AppButton size="sm" variant="secondary" onClick={copyDiagnostic}><Clipboard className="h-4 w-4" />{diagnosticCopyLabel}</AppButton>}><b>{t(locale, "errorDetail")}：</b>{workflow.error}</StatusMessage>}
             </div>
             {workflow.showProgress ? (
               <ProtectProgressPanel locale={locale} state={workflow.state} currentStep={workflow.currentStep} steps={workflow.steps} showProgress startedAt={workflow.startedAt} finishedAt={workflow.finishedAt} />
