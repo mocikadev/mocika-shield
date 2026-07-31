@@ -7,28 +7,20 @@ use std::sync::{atomic::AtomicBool, Arc};
 use shield_core::utils::set_json_mode;
 use shield_core::{
     check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint, protect_apk,
-    EnvironmentPolicy, ProgressEvent, ProtectOptions,
+    sign_apk_with_progress, EnvironmentPolicy, KeystoreType, ProgressEvent, ProtectOptions,
+    SignOptions, SigningProgressStep, SigningVersions,
 };
 
-use crate::EnvironmentPolicyArg;
+use crate::args::{EnvironmentPolicyArg, KeystoreTypeArg};
+use crate::config::{ResolvedProtectArgs, ResolvedSignArgs};
 
-use crate::cli_json::{
-    apk_check_error_json, apk_check_json, done_event_json, keystore_check_error_json,
-    keystore_check_json, progress_event_json,
-};
+use crate::cli_json::{apk_check_json, done_event_json, keystore_check_json, progress_event_json};
 
-pub(crate) fn run_protect(
-    input: PathBuf,
-    output: PathBuf,
-    resources_path: Option<PathBuf>,
-    environment_policy: EnvironmentPolicyArg,
-    json_progress: bool,
-    verbose: bool,
-) -> Result<()> {
-    if json_progress {
+pub(crate) fn run_protect(args: ResolvedProtectArgs) -> Result<()> {
+    if args.json {
         set_json_mode(true);
     } else {
-        let level = if verbose {
+        let level = if args.verbose {
             log::LevelFilter::Debug
         } else {
             log::LevelFilter::Info
@@ -39,20 +31,20 @@ pub(crate) fn run_protect(
     }
 
     let opts = ProtectOptions {
-        input,
-        output,
-        apktool_path: None,
-        resources_path,
-        apksigner_path: None,
+        input: args.input,
+        output: args.output,
+        apktool_path: args.apktool,
+        resources_path: args.resources,
+        apksigner_path: args.apksigner,
         expected_output_cert_fingerprint: None,
-        environment_policy: match environment_policy {
+        environment_policy: match args.environment_policy {
             EnvironmentPolicyArg::Compatible => EnvironmentPolicy::Compatible,
             EnvironmentPolicyArg::Strict => EnvironmentPolicy::Strict,
         },
     };
 
     let cancel = Arc::new(AtomicBool::new(false));
-    let on_progress: Box<dyn Fn(ProgressEvent) + Send + 'static> = if json_progress {
+    let on_progress: Box<dyn Fn(ProgressEvent) + Send + 'static> = if args.json {
         Box::new(|event: ProgressEvent| {
             let step = format!("{:?}", event.step);
             println!("{}", progress_event_json(&step, &event.message));
@@ -62,23 +54,70 @@ pub(crate) fn run_protect(
         Box::new(|_| {})
     };
 
-    match protect_apk(&opts, on_progress, cancel) {
-        Ok(()) => {
-            if json_progress {
-                println!("{}", done_event_json());
-            } else {
-                println!("{}", "✓ 完成".green().bold());
-            }
-            Ok(())
+    protect_apk(&opts, on_progress, cancel)?;
+    if args.json {
+        println!("{}", done_event_json());
+    } else {
+        println!("{}", "✓ 完成".green().bold());
+    }
+    Ok(())
+}
+
+pub(crate) fn run_sign(args: ResolvedSignArgs) -> Result<()> {
+    let options = SignOptions {
+        apk_path: args.input,
+        output_path: Some(args.output),
+        keystore_path: args.keystore,
+        key_alias: args.key_alias,
+        keystore_password: args.keystore_password,
+        key_password: args.key_password,
+        apksigner_path: args.apksigner,
+        keystore_type: match args.keystore_type {
+            KeystoreTypeArg::Jks => KeystoreType::Jks,
+            KeystoreTypeArg::Pkcs12 => KeystoreType::Pkcs12,
+        },
+        signing_versions: SigningVersions {
+            v1: args.v1,
+            v2: args.v2,
+            v3: args.v3,
+            v4: args.v4,
+        },
+    };
+    sign_apk_with_progress(&options, |step| {
+        if args.json {
+            println!(
+                "{}",
+                progress_event_json(signing_step_name(step), signing_step_message(step))
+            );
+            let _ = std::io::stdout().flush();
         }
-        Err(err) => {
-            eprintln!("{err}");
-            std::process::exit(1);
-        }
+        Ok(())
+    })?;
+    if args.json {
+        println!("{}", done_event_json());
+    } else {
+        println!("{}", "✓ 签名完成".green().bold());
+    }
+    Ok(())
+}
+
+fn signing_step_name(step: SigningProgressStep) -> &'static str {
+    match step {
+        SigningProgressStep::Prepare => "prepare",
+        SigningProgressStep::Align => "align",
+        SigningProgressStep::Sign => "sign",
     }
 }
 
-pub(crate) fn run_check_apk(path: PathBuf) -> String {
+fn signing_step_message(step: SigningProgressStep) -> &'static str {
+    match step {
+        SigningProgressStep::Prepare => "准备签名环境",
+        SigningProgressStep::Align => "对齐 APK",
+        SigningProgressStep::Sign => "写入 APK 签名",
+    }
+}
+
+pub(crate) fn run_check_apk(path: PathBuf) -> Result<String> {
     match check_apk(&path, None) {
         Ok(result) => {
             let cert_fingerprint = if result.is_signed {
@@ -86,15 +125,19 @@ pub(crate) fn run_check_apk(path: PathBuf) -> String {
             } else {
                 None
             };
-            apk_check_json(result.already_protected, result.is_signed, cert_fingerprint)
+            Ok(apk_check_json(
+                result.already_protected,
+                result.is_signed,
+                cert_fingerprint,
+            ))
         }
-        Err(err) => apk_check_error_json(err.to_string()),
+        Err(err) => Err(err),
     }
 }
 
-pub(crate) fn run_check_keystore(ks: PathBuf, alias: String, ks_pass: String) -> String {
+pub(crate) fn run_check_keystore(ks: PathBuf, alias: String, ks_pass: String) -> Result<String> {
     match extract_keystore_cert_fingerprint(&ks, &alias, &ks_pass, None) {
-        Ok(fp) => keystore_check_json(fp),
-        Err(err) => keystore_check_error_json(err.to_string()),
+        Ok(fp) => Ok(keystore_check_json(fp)),
+        Err(err) => Err(err),
     }
 }

@@ -3475,6 +3475,8 @@ dependencies = [
  "serde",
  "serde_json",
  "shield-core",
+ "tempfile",
+ "toml 0.8.2",
  "zip",
 ]
 
