@@ -1,6 +1,6 @@
 [package]
 name = "shield-cli"
-version = "1.3.0"
+version = "1.4.0-alpha.1"
 edition = "2021"
 authors = ["MocikaDev"]
 license = "MIT OR Apache-2.0"

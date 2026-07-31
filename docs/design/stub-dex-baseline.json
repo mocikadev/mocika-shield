@@ -1,14 +1,14 @@
 {
   "source": "shield-stub/build/outputs/resources/resources.zip!stub-classes.dex",
-  "sha256": "7b6221716b581370a7cdc0e8bd9965e55a3ebd10d6c5497ea6b652f297c0ebb9",
-  "bytes": 17032,
-  "declared_bytes": 17032,
-  "classes": 7,
-  "methods": 175,
-  "fields": 16,
-  "strings": 309,
-  "types": 84,
-  "prototypes": 96,
+  "sha256": "67101d7e8329060f13228957a7b6b131aac06c70ce377293d02f6dfdf18c9d52",
+  "bytes": 29376,
+  "declared_bytes": 29376,
+  "classes": 19,
+  "methods": 287,
+  "fields": 51,
+  "strings": 475,
+  "types": 143,
+  "prototypes": 156,
   "class_descriptors": [
     "Ldev/mocika/shield/loader/Ld;",
     "Lmsk/a;",
@@ -16,10 +16,26 @@
     "Lmsk/c;",
     "Lmsk/d;",
     "Lmsk/e;",
-    "Lmsk/f;"
+    "Lmsk/f;",
+    "Lmsk/g;",
+    "Lmsk/h;",
+    "Lmsk/i;",
+    "Lmsk/j;",
+    "Lmsk/k;",
+    "Lmsk/l;",
+    "Lmsk/m;",
+    "Lmsk/n;",
+    "Lmsk/o;",
+    "Lmsk/p;",
+    "Lmsk/q;",
+    "Lmsk/r;"
   ],
   "diagnostic_strings": [
+    "!/lib/",
+    "AES/GCM/NoPadding",
+    "M03:",
+    "bytes:",
     "~~D8{\"backend\":\"dex\",\"compilation-mode\":\"debug\",\"has-checksums\":false,\"min-api\":19,\"sha-1\":\"a7ad18a70460b799d0482e497c109a75bf7f91de\",\"version\":\"8.10.9-dev\"}",
-    "~~R8{\"backend\":\"cf\",\"compilation-mode\":\"release\",\"has-checksums\":false,\"pg-map-id\":\"81b25220608985306bea20ff4348abf13e75d0f53915d4e11b8f6ec4c4154a29\",\"r8-mode\":\"full\",\"version\":\"8.13.19\"}"
+    "~~R8{\"backend\":\"cf\",\"compilation-mode\":\"release\",\"has-checksums\":false,\"pg-map-id\":\"2bf00a30721bb3aefe47bcb7be98ffec0059abf74107bb3a70ccf9193a3dab9e\",\"r8-mode\":\"full\",\"version\":\"8.13.19\"}"
   ]
 }
