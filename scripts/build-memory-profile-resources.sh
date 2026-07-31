@@ -7,10 +7,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT/shield-stub/build/outputs/resources"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/mocika-memory-profile.XXXXXX")"
-DIRECT_BUFFER="${MOCIKA_DIRECT_BUFFER:-0}"
-PROFILE_NAME="resources-memory-profile.zip"
-if [[ "$DIRECT_BUFFER" == "1" ]]; then
-    PROFILE_NAME="resources-memory-direct-profile.zip"
+LEGACY_BYTE_ARRAY="${MOCIKA_LEGACY_BYTE_ARRAY:-0}"
+PROFILE_NAME="resources-memory-direct-profile.zip"
+if [[ "$LEGACY_BYTE_ARRAY" == "1" ]]; then
+    PROFILE_NAME="resources-memory-legacy-profile.zip"
 fi
 
 for command in cp grep make mktemp readlink strings unzip; do
@@ -41,7 +41,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "构建带阶段诊断的内存候选资源..."
-MOCIKA_RUNTIME_PROFILE=1 MOCIKA_DIRECT_BUFFER="$DIRECT_BUFFER" make -C "$ROOT" build-stub
+MOCIKA_RUNTIME_PROFILE=1 MOCIKA_LEGACY_BYTE_ARRAY="$LEGACY_BYTE_ARRAY" make -C "$ROOT" build-stub
 cp "$OUTPUT_DIR/resources-memory.zip" "$WORK/$PROFILE_NAME"
 
 echo "恢复正常标准资源和内存候选资源..."
@@ -59,7 +59,7 @@ if ! unzip -p "$OUTPUT_DIR/$PROFILE_NAME" stub-classes.dex \
     exit 1
 fi
 
-if [[ "$DIRECT_BUFFER" == "1" ]] \
+if [[ "$LEGACY_BYTE_ARRAY" != "1" ]] \
         && ! unzip -p "$OUTPUT_DIR/$PROFILE_NAME" stub-classes.dex \
             | strings | grep -q 'native_direct'; then
     echo "错误：直接缓冲区原型资源缺少阶段标记" >&2

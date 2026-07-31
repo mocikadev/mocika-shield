@@ -9,7 +9,7 @@ FIXTURE="$ROOT/tests/fixtures/android-smoke-app"
 WORK="${1:?请提供测试产物目录}"
 PASSWORD="mocika-test-123"
 
-for command in cargo java keytool python3 unzip; do
+for command in cargo java keytool python3 unzip zip; do
     command -v "$command" >/dev/null || { echo "缺少命令：$command" >&2; exit 1; }
 done
 
@@ -50,22 +50,26 @@ protect_and_sign() {
 protect_and_sign "$STANDARD_RESOURCES" standard
 protect_and_sign "$MEMORY_RESOURCES" memory
 
-create_budget_denied_variant() {
+create_budget_variant() {
+    local name="$1"
+    local payload_bytes="$2"
+    local only_32_bit="${3:-0}"
     local source="$WORK/output-memory-signed.apk"
-    local decoded="$WORK/budget-denied-decoded"
-    local unsigned="$WORK/output-memory-budget-denied-unsigned.apk"
-    local final="$WORK/output-memory-budget-denied-signed.apk"
+    local decoded="$WORK/$name-decoded"
+    local unsigned="$WORK/output-$name-unsigned.apk"
+    local final="$WORK/output-$name-signed.apk"
     java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$source" -o "$decoded" -f --no-src >/dev/null
-    python3 - "$decoded/AndroidManifest.xml" <<'PY'
+    python3 - "$decoded/AndroidManifest.xml" "$payload_bytes" <<'PY'
 import pathlib
 import re
 import sys
 
 manifest = pathlib.Path(sys.argv[1])
+payload_bytes = sys.argv[2]
 content = manifest.read_text(encoding="utf-8")
 updated, count = re.subn(
     r'(android:name="dev\.mocika\.shield\.PAYLOAD_DEX_BYTES"\s+android:value=")bytes:\d+("\s*/>)',
-    r'\1bytes:402653185\2',
+    rf'\1bytes:{payload_bytes}\2',
     content,
 )
 if count != 1:
@@ -73,10 +77,14 @@ if count != 1:
 manifest.write_text(updated, encoding="utf-8")
 PY
     java -jar "$ROOT/tools/apktool_3.0.1.jar" b "$decoded" -o "$unsigned" -f >/dev/null
+    if [[ "$only_32_bit" == "1" ]]; then
+        zip -d "$unsigned" 'lib/arm64-v8a/*' 'lib/x86_64/*' >/dev/null
+    fi
     java -jar "$ROOT/tools/apksigner.jar" sign \
         --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" --ks-key-alias smoke \
         --out "$final" "$unsigned"
     java -jar "$ROOT/tools/apksigner.jar" verify --verbose "$final" >/dev/null
 }
 
-create_budget_denied_variant
+create_budget_variant memory-budget-denied 402653185
+create_budget_variant memory-budget-32bit 67108865 1
