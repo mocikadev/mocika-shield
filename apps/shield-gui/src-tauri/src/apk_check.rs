@@ -1,4 +1,5 @@
 use crate::cert_store::CertificateRecord;
+use crate::manifest_inspect::{inspect_manifest, ManifestFacts};
 use serde::Serialize;
 use shield_core::{
     extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint, normalize_fingerprint,
@@ -30,6 +31,11 @@ pub(crate) struct ApkPreflightFacts {
     pub native_library_count: u32,
     pub compressed_native_library_count: u32,
     pub native_abis: Vec<String>,
+    pub min_sdk: Option<u32>,
+    pub target_sdk: Option<u32>,
+    pub extract_native_libs: Option<bool>,
+    pub split_name: Option<String>,
+    pub uses_http_legacy: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -131,7 +137,7 @@ pub(crate) fn do_check_apk(
             expected_output_cert_fingerprint: expected_output_cert_fingerprint.as_deref(),
         },
     ) {
-        Ok(report) => map_report(report),
+        Ok(report) => map_report(report, inspect_manifest(Path::new(&path))),
         Err(error) => ApkCheckResult {
             verdict: "blocked",
             checks: Vec::new(),
@@ -142,10 +148,30 @@ pub(crate) fn do_check_apk(
     }
 }
 
-fn map_report(report: PreflightReport) -> ApkCheckResult {
+fn map_report(report: PreflightReport, manifest: Result<ManifestFacts, String>) -> ApkCheckResult {
+    let mut checks = report.checks.into_iter().map(map_check).collect::<Vec<_>>();
+    let manifest_facts = match manifest {
+        Ok(facts) => {
+            append_manifest_checks(&mut checks, &facts);
+            facts
+        }
+        Err(_) => {
+            checks.push(ApkPreflightCheck {
+                code: "manifest_unreadable",
+                severity: "warning",
+                detail: None,
+            });
+            ManifestFacts::default()
+        }
+    };
+    let verdict = checks
+        .iter()
+        .map(|check| check.severity)
+        .max_by_key(severity_rank)
+        .unwrap_or(severity_value(report.verdict));
     ApkCheckResult {
-        verdict: severity_value(report.verdict),
-        checks: report.checks.into_iter().map(map_check).collect(),
+        verdict,
+        checks,
         facts: ApkPreflightFacts {
             apk_size: report.facts.apk_size,
             dex_count: report.facts.dex_count,
@@ -153,9 +179,58 @@ fn map_report(report: PreflightReport) -> ApkCheckResult {
             native_library_count: report.facts.native_library_count,
             compressed_native_library_count: report.facts.compressed_native_library_count,
             native_abis: report.facts.native_abis,
+            min_sdk: manifest_facts.min_sdk,
+            target_sdk: manifest_facts.target_sdk,
+            extract_native_libs: manifest_facts.extract_native_libs,
+            split_name: manifest_facts.split_name,
+            uses_http_legacy: manifest_facts.uses_http_legacy,
         },
         error_code: None,
         error: None,
+    }
+}
+
+fn append_manifest_checks(checks: &mut Vec<ApkPreflightCheck>, facts: &ManifestFacts) {
+    checks.push(ApkPreflightCheck {
+        code: "manifest_sdk",
+        severity: "ready",
+        detail: Some(format!(
+            "{}|{}",
+            facts
+                .min_sdk
+                .map_or_else(|| "-".to_string(), |value| value.to_string()),
+            facts
+                .target_sdk
+                .map_or_else(|| "-".to_string(), |value| value.to_string())
+        )),
+    });
+    checks.push(ApkPreflightCheck {
+        code: "split_apk",
+        severity: if facts.split_name.is_some() {
+            "blocked"
+        } else {
+            "ready"
+        },
+        detail: facts.split_name.clone(),
+    });
+    checks.push(ApkPreflightCheck {
+        code: "native_manifest",
+        severity: "ready",
+        detail: Some(
+            match facts.extract_native_libs {
+                Some(true) => "true",
+                Some(false) => "false",
+                None => "unspecified",
+            }
+            .to_string(),
+        ),
+    });
+    if facts.uses_http_legacy {
+        checks.push(ApkPreflightCheck {
+            code: "http_legacy",
+            severity: "ready",
+            detail: None,
+        });
     }
 }
 
@@ -172,5 +247,13 @@ fn severity_value(severity: PreflightSeverity) -> &'static str {
         PreflightSeverity::Ready => "ready",
         PreflightSeverity::Warning => "warning",
         PreflightSeverity::Blocked => "blocked",
+    }
+}
+
+fn severity_rank(severity: &&str) -> u8 {
+    match *severity {
+        "blocked" => 2,
+        "warning" => 1,
+        _ => 0,
     }
 }

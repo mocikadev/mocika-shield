@@ -74,6 +74,11 @@ function checkTitle(locale: Locale, check: ApkPreflightCheck) {
     dex_profile: "preflightDex",
     runtime_abi: "preflightAbi",
     native_packaging: "preflightNative",
+    manifest_sdk: "preflightSdk",
+    split_apk: "preflightInstallShape",
+    native_manifest: "preflightNativeManifest",
+    http_legacy: "preflightCompatibility",
+    manifest_unreadable: "preflightManifest",
   };
   return t(locale, keys[check.code] ?? "unknown");
 }
@@ -97,6 +102,14 @@ function checkDetail(locale: Locale, check: ApkPreflightCheck) {
       const [count, compressed] = (check.detail ?? "0|0").split("|");
       return `${count} SO · ${compressed} ${t(locale, "preflightCompressedNative")}`;
     }
+    case "manifest_sdk": {
+      const [minSdk, targetSdk] = (check.detail ?? "-|- ").split("|");
+      return `${t(locale, "preflightMinSdk")} ${minSdk} · ${t(locale, "preflightTargetSdk")} ${targetSdk}`;
+    }
+    case "split_apk": return check.severity === "blocked" ? `${t(locale, "preflightSplitDetected")} ${check.detail ?? ""}` : t(locale, "preflightBaseApk");
+    case "native_manifest": return check.detail === "false" ? t(locale, "preflightExtractNativeLibsFalse") : check.detail === "true" ? t(locale, "preflightExtractNativeLibsTrue") : t(locale, "preflightExtractNativeLibsDefault");
+    case "http_legacy": return t(locale, "preflightHttpLegacy");
+    case "manifest_unreadable": return t(locale, "preflightManifestUnreadable");
     default: return check.detail ?? t(locale, "unknown");
   }
 }

@@ -33,10 +33,10 @@
 
 ### 首轮预检项
 
-- `minSdkVersion`、`targetSdkVersion` 与 APK/split 形态。
+- 已完成：`minSdkVersion`、`targetSdkVersion`、`extractNativeLibs` 三态、`org.apache.http.legacy` 信号，以及通过 Manifest `split` 属性识别单独选择的 split APK。
 - DEX 数量、总体积、单 DEX 大小和是否已经包含 Mocika Shield 载荷。
 - APK 签名状态、签名方案和可读取的证书摘要；不输出证书密码。
-- Native ABI 集合、`extractNativeLibs` 三态、SO 压缩方式、16 KB ZIP/ELF 基础条件。
+- Native ABI 集合、SO 压缩方式、16 KB ZIP/ELF 基础条件。
 - Android 4.4 工控兼容模式的 ABI 与 Native 库限制。
 - ARouter、`org.apache.http.legacy` 等已有兼容处理所需的可识别信号。
 - 疑似其他加固壳、动态加载框架或异常 APK 结构；只给出风险说明，不声称能够准确识别所有厂商壳。
