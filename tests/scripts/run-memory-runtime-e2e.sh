@@ -35,6 +35,7 @@ fi
 STANDARD_APK="$WORK/output-standard-signed.apk"
 MEMORY_APK="$WORK/output-memory-signed.apk"
 BUDGET_DENIED_APK="$WORK/output-memory-budget-denied-signed.apk"
+BUDGET_32BIT_APK="$WORK/output-memory-budget-32bit-signed.apk"
 "$ROOT/tests/scripts/prepare-memory-runtime-e2e-apks.sh" "$WORK"
 
 BASE_MARKERS=(
@@ -256,6 +257,27 @@ verify_budget_reassessment() {
     echo "预算文件模式与非粘性重新评估验证通过"
 }
 
+verify_32bit_budget_limit() {
+    local supported_abis
+    supported_abis="$("${ADB[@]}" shell getprop ro.product.cpu.abilist | tr -d '\r')"
+    if [[ ",$supported_abis," != *,armeabi-v7a,* ]]; then
+        echo "设备不支持 armeabi-v7a，跳过真实 32 位进程预算验证"
+        return
+    fi
+    install_clean "$BUDGET_32BIT_APK"
+    verify_full_launch "三十二位进程载荷超限候选"
+    assert_file_mode
+    state_contains "$PACKAGE_NAME" file_ready
+    state_contains "$PACKAGE_NAME:remote" file_ready
+    local package_dump
+    package_dump="$("${ADB[@]}" shell dumpsys package "$PACKAGE_NAME")"
+    grep -Fq 'primaryCpuAbi=armeabi-v7a' <<< "$package_dump" || {
+        echo "错误：测试 APK 未以 armeabi-v7a 作为主 ABI" >&2
+        exit 1
+    }
+    echo "三十二位进程 64 MiB 载荷上限验证通过"
+}
+
 verify_recovery_and_process_isolation() {
     install_clean "$MEMORY_APK"
     verify_full_launch "崩溃回退基线"
@@ -319,6 +341,7 @@ verify_state_authentication_failures() {
 
 verify_basic_boundary
 if (( SDK_VERSION >= 31 )); then
+    verify_32bit_budget_limit
     verify_budget_reassessment
     verify_bidirectional_migration
     verify_recovery_and_process_isolation

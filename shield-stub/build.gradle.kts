@@ -4,7 +4,7 @@ plugins {
 
 val runtimeProfileEnabled = providers.environmentVariable("MOCIKA_RUNTIME_PROFILE")
     .orNull == "1"
-val directBufferEnabled = providers.environmentVariable("MOCIKA_DIRECT_BUFFER")
+val legacyByteArrayEnabled = providers.environmentVariable("MOCIKA_LEGACY_BYTE_ARRAY")
     .orNull == "1"
 
 android {
@@ -25,7 +25,7 @@ android {
 
         buildConfigField("boolean", "DEBUG_LOGS", "true")
         buildConfigField("boolean", "RUNTIME_PROFILE", runtimeProfileEnabled.toString())
-        buildConfigField("boolean", "DIRECT_BUFFER", directBufferEnabled.toString())
+        buildConfigField("boolean", "LEGACY_BYTE_ARRAY", legacyByteArrayEnabled.toString())
     }
 
     buildTypes {

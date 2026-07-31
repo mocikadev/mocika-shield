@@ -24,10 +24,7 @@ final class MemoryPayloadLoader {
         if (Build.VERSION.SDK_INT < 29) throw new IllegalStateException("M04");
         ByteBuffer[] buffers;
         long totalBytes = 0;
-        if (BuildConfig.DIRECT_BUFFER) {
-            buffers = Ld.decryptDexBuffers(context, profiler);
-            for (ByteBuffer buffer : buffers) totalBytes += buffer.remaining();
-        } else {
+        if (BuildConfig.LEGACY_BYTE_ARRAY) {
             byte[][] dexes = Ld.decryptDexBytes(context, profiler);
             buffers = new ByteBuffer[dexes.length];
             for (int index = 0; index < dexes.length; index++) {
@@ -38,6 +35,9 @@ final class MemoryPayloadLoader {
                 totalBytes += dexes[index].length;
             }
             if (profiler != null) profiler.stage("direct_copy", dexes.length, totalBytes);
+        } else {
+            buffers = Ld.decryptDexBuffers(context, profiler);
+            for (ByteBuffer buffer : buffers) totalBytes += buffer.remaining();
         }
         ClassLoader loader = new InMemoryDexClassLoader(
                 buffers, nativeSearchPath(context), parent);
