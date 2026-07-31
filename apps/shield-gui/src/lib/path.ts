@@ -40,6 +40,26 @@ export function signedOutputPath(input: string) {
   return joinPath(dirname(input), `${fileStem(input)}_signed.apk`);
 }
 
+export function protectedOutputFilename(input: string, signed: boolean) {
+  if (!input) return "";
+  return `${fileStem(input)}_protected${signed ? "_signed" : ""}.apk`;
+}
+
+export function normalizeApkFilename(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.toLowerCase().endsWith(".apk") ? trimmed : `${trimmed}.apk`;
+}
+
+export function validateOutputFilename(value: string) {
+  const normalized = normalizeApkFilename(value);
+  if (!normalized) return "empty" as const;
+  if (/[\\/:*?"<>|]/.test(normalized) || normalized === "." || normalized === "..") {
+    return "invalid" as const;
+  }
+  return null;
+}
+
 export function isApk(path: string) {
   return path.toLowerCase().endsWith(".apk");
 }

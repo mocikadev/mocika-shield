@@ -19,6 +19,16 @@ export type AppConfig = {
   locale: "zh" | "en" | string;
   theme_mode: ThemeMode | string;
   telemetry_enabled: boolean;
+  protect_defaults?: ProtectDefaults;
+};
+
+export type ProtectDefaults = {
+  runtime_mode: "standard" | "android_api19";
+  environment_policy: "compatible" | "strict";
+  sign_after_protect: boolean | null;
+  certificate_id: string | null;
+  output_directory_mode: "source" | "fixed";
+  fixed_output_directory: string;
 };
 
 export type CertificateRecord = {
@@ -177,10 +187,12 @@ export const api = {
       },
     }),
   cancelProtect: () => invoke<void>("cancel_protect"),
+  checkFileExists: (path: string) => invoke<boolean>("check_file_exists", { path }),
   showInFolder: (path: string) => invoke<void>("show_in_folder", { path }),
   deleteFile: (path: string) => invoke<void>("delete_file", { path }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
   saveAppConfig: (config: AppConfig) => invoke<void>("save_app_config", { config }),
+  saveProtectDefaults: (defaults: ProtectDefaults) => invoke<void>("save_protect_defaults", { defaults }),
   listCertificates: () => invoke<CertificateRecord[]>("list_certificates"),
   saveCertificate: (input: CertificateUpsertInput) =>
     invoke<CertificateRecord>("save_certificate", { input }),
@@ -231,6 +243,12 @@ export async function openFileDialog(
   if (Array.isArray(result)) {
     return result[0] ?? null;
   }
+  return result ?? null;
+}
+
+export async function openDirectoryDialog(defaultPath?: string) {
+  const result = await open({ directory: true, multiple: false, defaultPath });
+  if (Array.isArray(result)) return result[0] ?? null;
   return result ?? null;
 }
 

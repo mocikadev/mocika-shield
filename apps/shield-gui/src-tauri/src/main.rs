@@ -16,7 +16,7 @@ mod updates;
 use apk_check::{do_check_apk, do_compare_cert_fingerprints, ApkCheckResult, CertCompareResult};
 use app_config::{
     load_app_config, normalize_locale, normalize_theme_mode, save_app_config_file,
-    AppConfigPayload, AppConfigState,
+    AppConfigPayload, AppConfigState, ProtectDefaults,
 };
 use app_paths::find_apksigner_path;
 use build_info::{
@@ -225,6 +225,19 @@ fn save_app_config(
         current.locale = normalize_locale(&config.locale);
         current.theme_mode = normalize_theme_mode(&config.theme_mode);
         current.telemetry.enabled = config.telemetry_enabled;
+        if let Some(defaults) = config.protect_defaults {
+            current.protect_defaults = defaults;
+        }
+    })
+}
+
+#[tauri::command]
+fn save_protect_defaults(
+    state: tauri::State<'_, AppConfigState>,
+    defaults: ProtectDefaults,
+) -> Result<(), String> {
+    state.mutate(move |current| {
+        current.protect_defaults = defaults;
     })
 }
 
@@ -460,6 +473,7 @@ fn main() {
             check_apk,
             get_app_config,
             save_app_config,
+            save_protect_defaults,
             sign_apk,
             list_certificates,
             save_certificate,

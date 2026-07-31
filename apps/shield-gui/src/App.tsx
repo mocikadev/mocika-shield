@@ -20,6 +20,7 @@ import { useAppliedThemeMode } from "@/hooks/use-applied-theme-mode";
 import { useCertificatesState } from "@/hooks/use-certificates";
 import { useRuntimeInfo } from "@/hooks/use-runtime-info";
 import { t } from "@/lib/i18n";
+import { notifyError } from "@/lib/notify";
 import { api, onTauriEvent, type BuildInfo, type TaskKind, type TaskSnapshot } from "@/lib/tauri";
 import { AboutPage } from "@/pages/about-page";
 import { CertificatesPage } from "@/pages/certificates-page";
@@ -31,7 +32,17 @@ type Page = "protect" | "sign" | "certificates" | "settings" | "about";
 
 export function App() {
   const [page, setPage] = useState<Page>("protect");
-  const { locale, setLocale, themeMode, setThemeMode, telemetryEnabled, setTelemetryEnabled } = useAppConfigState();
+  const {
+    locale,
+    setLocale,
+    themeMode,
+    setThemeMode,
+    configLoaded,
+    telemetryEnabled,
+    setTelemetryEnabled,
+    protectDefaults,
+    setProtectDefaults,
+  } = useAppConfigState();
   const certificatesState = useCertificatesState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
   const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
@@ -126,6 +137,12 @@ export function App() {
                 certificatesLoaded={certificatesState.loaded}
                 buildInfo={buildInfo}
                 runtimeInfoLoaded={runtimeInfoLoaded}
+                configLoaded={configLoaded}
+                protectDefaults={protectDefaults}
+                onProtectDefaultsChange={(defaults) => {
+                  setProtectDefaults(defaults);
+                  void api.saveProtectDefaults(defaults).catch(() => notifyError(t(locale, "protectSettingsSaveFailed")));
+                }}
                 onOpenCertificates={() => setPage("certificates")}
               />
             </div>

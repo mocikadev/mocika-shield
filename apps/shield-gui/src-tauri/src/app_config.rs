@@ -52,6 +52,31 @@ pub(crate) struct AppConfig {
     pub dismissed_version: Option<String>,
     pub update_cache: UpdateCache,
     pub telemetry: TelemetryConfig,
+    pub protect_defaults: ProtectDefaults,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub(crate) struct ProtectDefaults {
+    pub runtime_mode: String,
+    pub environment_policy: String,
+    pub sign_after_protect: Option<bool>,
+    pub certificate_id: Option<String>,
+    pub output_directory_mode: String,
+    pub fixed_output_directory: String,
+}
+
+impl Default for ProtectDefaults {
+    fn default() -> Self {
+        Self {
+            runtime_mode: "standard".to_string(),
+            environment_policy: "compatible".to_string(),
+            sign_after_protect: None,
+            certificate_id: None,
+            output_directory_mode: "source".to_string(),
+            fixed_output_directory: String::new(),
+        }
+    }
 }
 
 impl Default for AppConfig {
@@ -62,6 +87,7 @@ impl Default for AppConfig {
             dismissed_version: None,
             update_cache: UpdateCache::default(),
             telemetry: TelemetryConfig::default(),
+            protect_defaults: ProtectDefaults::default(),
         }
     }
 }
@@ -71,6 +97,8 @@ pub(crate) struct AppConfigPayload {
     pub locale: String,
     pub theme_mode: String,
     pub telemetry_enabled: bool,
+    #[serde(default)]
+    pub protect_defaults: Option<ProtectDefaults>,
 }
 
 impl From<&AppConfig> for AppConfigPayload {
@@ -79,6 +107,7 @@ impl From<&AppConfig> for AppConfigPayload {
             locale: normalize_locale(&config.locale),
             theme_mode: normalize_theme_mode(&config.theme_mode),
             telemetry_enabled: config.telemetry.enabled,
+            protect_defaults: Some(normalize_protect_defaults(&config.protect_defaults)),
         }
     }
 }
@@ -115,6 +144,7 @@ impl AppConfigState {
             mutator(&mut cfg);
             cfg.locale = normalize_locale(&cfg.locale);
             cfg.theme_mode = normalize_theme_mode(&cfg.theme_mode);
+            cfg.protect_defaults = normalize_protect_defaults(&cfg.protect_defaults);
             cfg.dismissed_version = cfg
                 .dismissed_version
                 .take()
@@ -146,6 +176,34 @@ pub(crate) fn normalize_theme_mode(value: &str) -> String {
     }
 }
 
+pub(crate) fn normalize_protect_defaults(value: &ProtectDefaults) -> ProtectDefaults {
+    ProtectDefaults {
+        runtime_mode: match value.runtime_mode.as_str() {
+            "android_api19" => "android_api19",
+            _ => "standard",
+        }
+        .to_string(),
+        environment_policy: match value.environment_policy.as_str() {
+            "strict" => "strict",
+            _ => "compatible",
+        }
+        .to_string(),
+        sign_after_protect: value.sign_after_protect,
+        certificate_id: value
+            .certificate_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string),
+        output_directory_mode: match value.output_directory_mode.as_str() {
+            "fixed" => "fixed",
+            _ => "source",
+        }
+        .to_string(),
+        fixed_output_directory: value.fixed_output_directory.trim().to_string(),
+    }
+}
+
 pub(crate) fn normalize_keystore_type(value: Option<&str>) -> Option<String> {
     match value.map(|s| s.trim()).filter(|s| !s.is_empty()) {
         Some(raw) if raw.eq_ignore_ascii_case("pkcs12") || raw.eq_ignore_ascii_case("p12") => {
@@ -173,6 +231,7 @@ pub(crate) fn load_app_config(app: &tauri::AppHandle) -> Result<LoadedAppConfig,
             toml::from_str(&raw).map_err(|e| format!("解析配置文件失败: {e}"))?;
         config.locale = normalize_locale(&config.locale);
         config.theme_mode = normalize_theme_mode(&config.theme_mode);
+        config.protect_defaults = normalize_protect_defaults(&config.protect_defaults);
         config.dismissed_version = config
             .dismissed_version
             .take()
@@ -192,4 +251,45 @@ pub(crate) fn save_app_config_file(path: &Path, config: &AppConfig) -> Result<()
     }
     let body = toml::to_string_pretty(config).map_err(|e| format!("序列化配置失败: {e}"))?;
     fs::write(path, body).map_err(|e| format!("写入配置文件失败: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 旧配置缺少加固默认项时使用兼容默认值() {
+        let config: AppConfig = toml::from_str(
+            r#"
+locale = "zh"
+theme_mode = "system"
+"#,
+        )
+        .expect("旧配置应可解析");
+
+        assert_eq!(config.protect_defaults.runtime_mode, "standard");
+        assert_eq!(config.protect_defaults.environment_policy, "compatible");
+        assert_eq!(config.protect_defaults.sign_after_protect, None);
+        assert_eq!(config.protect_defaults.certificate_id, None);
+        assert_eq!(config.protect_defaults.output_directory_mode, "source");
+    }
+
+    #[test]
+    fn 非法加固默认项会被规范化() {
+        let normalized = normalize_protect_defaults(&ProtectDefaults {
+            runtime_mode: "unknown".to_string(),
+            environment_policy: "unknown".to_string(),
+            sign_after_protect: Some(true),
+            certificate_id: Some("  cert-1  ".to_string()),
+            output_directory_mode: "unknown".to_string(),
+            fixed_output_directory: "  /tmp/output  ".to_string(),
+        });
+
+        assert_eq!(normalized.runtime_mode, "standard");
+        assert_eq!(normalized.environment_policy, "compatible");
+        assert_eq!(normalized.sign_after_protect, Some(true));
+        assert_eq!(normalized.certificate_id.as_deref(), Some("cert-1"));
+        assert_eq!(normalized.output_directory_mode, "source");
+        assert_eq!(normalized.fixed_output_directory, "/tmp/output");
+    }
 }
