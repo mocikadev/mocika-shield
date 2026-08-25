@@ -111,9 +111,12 @@ export function SettingsPage({
           </SettingsFieldRow>
         </SettingsGroup>
         <SettingsGroup title="匿名使用统计">
-          <SettingsFieldRow label="允许发送匿名使用统计">
+          <SettingsFieldRow label="允许发送匿名使用统计（仅桌面工具）">
             <input type="checkbox" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
           </SettingsFieldRow>
+          <p className="-mt-5 text-sm leading-6 text-muted-foreground">
+            仅发送匿名的每日启动、加固、签名及固定失败阶段计数；不会上传 APK、路径、包名、证书、密码或错误日志。
+          </p>
         </SettingsGroup>
         {status === "saved" && (
           <StatusMessage kind="success">

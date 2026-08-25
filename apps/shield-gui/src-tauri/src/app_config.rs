@@ -25,12 +25,18 @@ pub(crate) struct TelemetryConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub(crate) struct DailyTelemetry {
+    /// 与 `daily` 的复合键冗余保存，避免迁移或上传时从键名反向解析。
+    pub usage_date: String,
+    /// 仅来自桌面端编译版本，不接受前端或 APK 输入。
+    pub app_version: String,
     pub app_start_count: u32,
     pub protect_start_count: u32,
     pub protect_success_count: u32,
     pub protect_failed_count: u32,
     pub sign_success_count: u32,
     pub sign_failed_count: u32,
+    /// 固定失败阶段的聚合计数，不保存原始错误文本。
+    pub failure_counts: std::collections::BTreeMap<String, u32>,
     pub uploaded: bool,
 }
 

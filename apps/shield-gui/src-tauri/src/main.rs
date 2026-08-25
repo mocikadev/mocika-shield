@@ -126,7 +126,7 @@ async fn protect_apk(
             .unwrap_or_else(|| request.output.clone()),
         "CheckTools",
     )?;
-    telemetry::record_event(&telemetry_state, "protect_start_count");
+    telemetry::record_event(&telemetry_state, telemetry::TelemetryEvent::ProtectStarted);
     let result = execute_protect_apk(
         window.clone(),
         ProtectExecution {
@@ -143,14 +143,12 @@ async fn protect_apk(
         task_manager.inner().clone(),
     )
     .await;
-    let signing_started = task_manager
+    let current_step = task_manager
         .snapshot(&request.task_id)?
-        .is_some_and(|task| {
-            matches!(
-                task.current_step.as_str(),
-                "PrepareSign" | "AlignApk" | "SignApk" | "Cleanup"
-            )
-        });
+        .map(|task| task.current_step);
+    let signing_started = current_step
+        .as_deref()
+        .is_some_and(|step| matches!(step, "PrepareSign" | "AlignApk" | "SignApk" | "Cleanup"));
     let status = match &result {
         Ok(()) => TaskStatus::Succeeded,
         Err(message) if message == "已取消" => TaskStatus::Cancelled,
@@ -162,23 +160,26 @@ async fn protect_apk(
         status,
         result.as_ref().err().cloned(),
     )?;
-    telemetry::record_event(
-        &telemetry_state,
-        if result.is_ok() {
-            "protect_success_count"
-        } else {
-            "protect_failed_count"
-        },
-    );
-    if signing_started {
-        telemetry::record_event(
+    match &result {
+        Ok(()) => {
+            telemetry::record_event(
+                &telemetry_state,
+                telemetry::TelemetryEvent::ProtectSucceeded,
+            );
+            if signing_started {
+                telemetry::record_event(&telemetry_state, telemetry::TelemetryEvent::SignSucceeded);
+            }
+        }
+        Err(message) if message == "已取消" => {
+            telemetry::record_failure(&telemetry_state, telemetry::FailureStage::TaskCancelled);
+        }
+        Err(_) => telemetry::record_failure(
             &telemetry_state,
-            if result.is_ok() {
-                "sign_success_count"
-            } else {
-                "sign_failed_count"
-            },
-        );
+            telemetry::protect_failure_stage(
+                current_step.as_deref().unwrap_or_default(),
+                signing_started,
+            ),
+        ),
     }
     telemetry::schedule_sync(app);
     result
@@ -305,6 +306,9 @@ async fn sign_apk(
     })
     .await
     .unwrap_or_else(|err| Err(format!("后台任务执行失败: {err}")));
+    let current_step = task_manager
+        .snapshot(&request.task_id)?
+        .map(|task| task.current_step);
     task_manager.finish(
         &window,
         &request.task_id,
@@ -315,14 +319,18 @@ async fn sign_apk(
         },
         result.as_ref().err().cloned(),
     )?;
-    telemetry::record_event(
-        &telemetry_state,
-        if result.is_ok() {
-            "sign_success_count"
-        } else {
-            "sign_failed_count"
-        },
-    );
+    match &result {
+        Ok(()) => {
+            telemetry::record_event(&telemetry_state, telemetry::TelemetryEvent::SignSucceeded)
+        }
+        Err(message) if message == "已取消" => {
+            telemetry::record_failure(&telemetry_state, telemetry::FailureStage::TaskCancelled)
+        }
+        Err(_) => telemetry::record_failure(
+            &telemetry_state,
+            telemetry::sign_failure_stage(current_step.as_deref().unwrap_or_default()),
+        ),
+    }
     telemetry::schedule_sync(telemetry_app);
     result
 }
