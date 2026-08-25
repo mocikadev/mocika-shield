@@ -1,6 +1,7 @@
 use crate::app_config::{AppConfigState, DailyTelemetry};
 use chrono_like::today_utc;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::Manager;
@@ -13,46 +14,228 @@ pub(crate) struct TelemetryRuntime {
     sync_scheduled: AtomicBool,
 }
 
+/// 桌面端内部事件；不允许调用方以字符串拼写持久化字段。
+#[derive(Clone, Copy)]
+pub(crate) enum TelemetryEvent {
+    ProtectStarted,
+    ProtectSucceeded,
+    SignSucceeded,
+}
+
+/// 仅记录固定分类，不持久化或上传原始错误、路径和 APK 信息。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FailureStage {
+    ProtectPrepare,
+    ProtectUnpack,
+    ProtectManifest,
+    ProtectDexRuntime,
+    ProtectAlign,
+    ProtectSign,
+    SignPrepare,
+    SignAlign,
+    SignExecute,
+    TaskCancelled,
+    TaskUnknown,
+}
+
+impl FailureStage {
+    fn code(self) -> &'static str {
+        match self {
+            Self::ProtectPrepare => "protect_prepare",
+            Self::ProtectUnpack => "protect_unpack",
+            Self::ProtectManifest => "protect_manifest",
+            Self::ProtectDexRuntime => "protect_dex_runtime",
+            Self::ProtectAlign => "protect_align",
+            Self::ProtectSign => "protect_sign",
+            Self::SignPrepare => "sign_prepare",
+            Self::SignAlign => "sign_align",
+            Self::SignExecute => "sign_execute",
+            Self::TaskCancelled => "task_cancelled",
+            Self::TaskUnknown => "task_unknown",
+        }
+    }
+
+    fn increments_protect_failure(self) -> bool {
+        matches!(
+            self,
+            Self::ProtectPrepare
+                | Self::ProtectUnpack
+                | Self::ProtectManifest
+                | Self::ProtectDexRuntime
+                | Self::ProtectAlign
+        )
+    }
+
+    fn increments_sign_failure(self) -> bool {
+        matches!(
+            self,
+            Self::ProtectSign | Self::SignPrepare | Self::SignAlign | Self::SignExecute
+        )
+    }
+
+    fn operation_and_stage(self) -> (&'static str, &'static str) {
+        match self {
+            Self::ProtectPrepare => ("protect", "prepare"),
+            Self::ProtectUnpack => ("protect", "unpack"),
+            Self::ProtectManifest => ("protect", "manifest"),
+            Self::ProtectDexRuntime => ("protect", "dex_runtime"),
+            Self::ProtectAlign => ("protect", "align"),
+            Self::ProtectSign => ("protect", "sign"),
+            Self::SignPrepare => ("sign", "prepare"),
+            Self::SignAlign => ("sign", "align"),
+            Self::SignExecute => ("sign", "execute"),
+            Self::TaskCancelled => ("task", "cancelled"),
+            Self::TaskUnknown => ("task", "unknown"),
+        }
+    }
+}
+
+pub(crate) fn protect_failure_stage(step: &str, signing_started: bool) -> FailureStage {
+    if signing_started {
+        return match step {
+            "PrepareSign" => FailureStage::ProtectSign,
+            "AlignApk" => FailureStage::ProtectSign,
+            "SignApk" | "Cleanup" => FailureStage::ProtectSign,
+            _ => FailureStage::TaskUnknown,
+        };
+    }
+    match step {
+        "CheckTools" => FailureStage::ProtectPrepare,
+        "Unpack" => FailureStage::ProtectUnpack,
+        "ModifyManifest" | "Repack" => FailureStage::ProtectManifest,
+        "ProcessDex" | "InjectRuntime" => FailureStage::ProtectDexRuntime,
+        "AlignApk" => FailureStage::ProtectAlign,
+        _ => FailureStage::TaskUnknown,
+    }
+}
+
+pub(crate) fn sign_failure_stage(step: &str) -> FailureStage {
+    match step {
+        "PrepareSign" => FailureStage::SignPrepare,
+        "AlignApk" => FailureStage::SignAlign,
+        "SignApk" => FailureStage::SignExecute,
+        _ => FailureStage::TaskUnknown,
+    }
+}
+
 pub(crate) fn record_app_start(state: &AppConfigState) {
     let today = today_utc();
     let _ = state.mutate(|config| {
-        let entry = config
-            .telemetry
-            .daily
-            .entry(today.clone())
-            .or_insert_with(DailyTelemetry::default);
+        normalize_daily_entries(&mut config.telemetry.daily);
+        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
         entry.app_start_count = entry.app_start_count.saturating_add(1);
         let cutoff = today_utc_days_ago(30);
         config
             .telemetry
             .daily
-            .retain(|date, item| date >= &cutoff && !item.uploaded);
+            .retain(|_, item| item.usage_date >= cutoff && !item.uploaded);
     });
 }
 
-pub(crate) fn record_event(state: &AppConfigState, field: &str) {
+pub(crate) fn record_event(state: &AppConfigState, event: TelemetryEvent) {
     let today = today_utc();
     let _ = state.mutate(|config| {
-        let entry = config.telemetry.daily.entry(today).or_default();
-        match field {
-            "protect_start_count" => {
+        normalize_daily_entries(&mut config.telemetry.daily);
+        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
+        match event {
+            TelemetryEvent::ProtectStarted => {
                 entry.protect_start_count = entry.protect_start_count.saturating_add(1)
             }
-            "protect_success_count" => {
+            TelemetryEvent::ProtectSucceeded => {
                 entry.protect_success_count = entry.protect_success_count.saturating_add(1)
             }
-            "protect_failed_count" => {
-                entry.protect_failed_count = entry.protect_failed_count.saturating_add(1)
-            }
-            "sign_success_count" => {
+            TelemetryEvent::SignSucceeded => {
                 entry.sign_success_count = entry.sign_success_count.saturating_add(1)
             }
-            "sign_failed_count" => {
-                entry.sign_failed_count = entry.sign_failed_count.saturating_add(1)
-            }
-            _ => {}
         }
     });
+}
+
+pub(crate) fn record_failure(state: &AppConfigState, stage: FailureStage) {
+    let today = today_utc();
+    let _ = state.mutate(|config| {
+        normalize_daily_entries(&mut config.telemetry.daily);
+        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
+        let count = entry
+            .failure_counts
+            .entry(stage.code().to_string())
+            .or_default();
+        *count = count.saturating_add(1);
+        if stage.increments_protect_failure() {
+            entry.protect_failed_count = entry.protect_failed_count.saturating_add(1);
+        }
+        if stage.increments_sign_failure() {
+            entry.sign_failed_count = entry.sign_failed_count.saturating_add(1);
+        }
+    });
+}
+
+fn app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+pub(crate) fn daily_key(usage_date: &str, app_version: &str) -> String {
+    format!("{usage_date}|{app_version}")
+}
+
+fn daily_entry<'a>(
+    daily: &'a mut BTreeMap<String, DailyTelemetry>,
+    usage_date: &str,
+    version: &str,
+) -> &'a mut DailyTelemetry {
+    let key = daily_key(usage_date, version);
+    let entry = daily.entry(key).or_default();
+    entry.usage_date = usage_date.to_string();
+    entry.app_version = version.to_string();
+    entry
+}
+
+fn normalize_daily_entries(daily: &mut BTreeMap<String, DailyTelemetry>) {
+    let entries = std::mem::take(daily);
+    for (legacy_key, mut item) in entries {
+        let (usage_date, stored_version) = legacy_key
+            .split_once('|')
+            .map(|(date, version)| (date.to_string(), version.to_string()))
+            .unwrap_or_else(|| (legacy_key, app_version().to_string()));
+        if item.usage_date.is_empty() {
+            item.usage_date = usage_date;
+        }
+        if item.app_version.is_empty() {
+            item.app_version = stored_version;
+        }
+        let key = daily_key(&item.usage_date, &item.app_version);
+        if let Some(existing) = daily.get_mut(&key) {
+            merge_daily_telemetry(existing, item);
+        } else {
+            daily.insert(key, item);
+        }
+    }
+}
+
+fn merge_daily_telemetry(target: &mut DailyTelemetry, source: DailyTelemetry) {
+    target.app_start_count = target
+        .app_start_count
+        .saturating_add(source.app_start_count);
+    target.protect_start_count = target
+        .protect_start_count
+        .saturating_add(source.protect_start_count);
+    target.protect_success_count = target
+        .protect_success_count
+        .saturating_add(source.protect_success_count);
+    target.protect_failed_count = target
+        .protect_failed_count
+        .saturating_add(source.protect_failed_count);
+    target.sign_success_count = target
+        .sign_success_count
+        .saturating_add(source.sign_success_count);
+    target.sign_failed_count = target
+        .sign_failed_count
+        .saturating_add(source.sign_failed_count);
+    for (stage, count) in source.failure_counts {
+        let total = target.failure_counts.entry(stage).or_default();
+        *total = total.saturating_add(count);
+    }
+    target.uploaded &= source.uploaded;
 }
 
 #[derive(Serialize)]
@@ -68,6 +251,14 @@ struct DailyPayload {
     protect_failed_count: u32,
     sign_success_count: u32,
     sign_failed_count: u32,
+    failure_counts: Vec<FailureCountPayload>,
+}
+
+#[derive(Serialize)]
+struct FailureCountPayload {
+    operation: String,
+    stage: String,
+    count: u32,
 }
 
 pub(crate) async fn sync_pending(state: &AppConfigState) {
@@ -80,8 +271,8 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
         .telemetry
         .daily
         .iter()
-        .filter(|(date, item)| date.as_str() <= today.as_str() && !item.uploaded)
-        .map(|(date, item)| (date.clone(), item.clone()))
+        .filter(|(_, item)| item.usage_date.as_str() <= today.as_str() && !item.uploaded)
+        .map(|(key, item)| (key.clone(), item.clone()))
         .collect();
     if pending.is_empty() {
         return;
@@ -93,11 +284,11 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
         Ok(v) => v,
         Err(_) => return,
     };
-    for (date, item) in pending {
+    for (key, item) in pending {
         let payload = DailyPayload {
             anonymous_id: snapshot.telemetry.anonymous_id.clone(),
-            usage_date: date.clone(),
-            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            usage_date: item.usage_date.clone(),
+            app_version: item.app_version.clone(),
             platform: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
             app_start_count: item.app_start_count,
@@ -106,13 +297,38 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
             protect_failed_count: item.protect_failed_count,
             sign_success_count: item.sign_success_count,
             sign_failed_count: item.sign_failed_count,
+            failure_counts: item
+                .failure_counts
+                .iter()
+                .map(|(code, count)| FailureCountPayload {
+                    operation: failure_code_parts(code).0.to_string(),
+                    stage: failure_code_parts(code).1.to_string(),
+                    count: *count,
+                })
+                .collect(),
         };
         let Ok(response) = client.post(TELEMETRY_URL).json(&payload).send().await else {
             continue;
         };
         if response.status().is_success() {
-            mark_uploaded(state, &date, &today);
+            mark_uploaded(state, &key, &today);
         }
+    }
+}
+
+fn failure_code_parts(code: &str) -> (&str, &str) {
+    match code {
+        "protect_prepare" => FailureStage::ProtectPrepare.operation_and_stage(),
+        "protect_unpack" => FailureStage::ProtectUnpack.operation_and_stage(),
+        "protect_manifest" => FailureStage::ProtectManifest.operation_and_stage(),
+        "protect_dex_runtime" => FailureStage::ProtectDexRuntime.operation_and_stage(),
+        "protect_align" => FailureStage::ProtectAlign.operation_and_stage(),
+        "protect_sign" => FailureStage::ProtectSign.operation_and_stage(),
+        "sign_prepare" => FailureStage::SignPrepare.operation_and_stage(),
+        "sign_align" => FailureStage::SignAlign.operation_and_stage(),
+        "sign_execute" => FailureStage::SignExecute.operation_and_stage(),
+        "task_cancelled" => FailureStage::TaskCancelled.operation_and_stage(),
+        _ => FailureStage::TaskUnknown.operation_and_stage(),
     }
 }
 
@@ -180,7 +396,10 @@ mod chrono_like {
 
 #[cfg(test)]
 mod tests {
-    use super::{mark_uploaded, record_event, today_utc};
+    use super::{
+        daily_key, mark_uploaded, normalize_daily_entries, protect_failure_stage, record_event,
+        record_failure, sign_failure_stage, today_utc, FailureStage, TelemetryEvent,
+    };
     use crate::app_config::{AppConfig, AppConfigState, DailyTelemetry};
 
     #[test]
@@ -188,7 +407,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
 
-        record_event(&state, "sign_failed_count");
+        record_failure(&state, FailureStage::SignExecute);
 
         let total: u32 = state
             .read()
@@ -206,12 +425,82 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
 
-        record_event(&state, "protect_success_count");
-        record_event(&state, "protect_success_count");
+        record_event(&state, TelemetryEvent::ProtectSucceeded);
+        record_event(&state, TelemetryEvent::ProtectSucceeded);
 
         let config = state.read().unwrap();
         let today = today_utc();
-        assert_eq!(config.telemetry.daily[&today].protect_success_count, 2);
+        assert_eq!(
+            config.telemetry.daily[&daily_key(&today, env!("CARGO_PKG_VERSION"))]
+                .protect_success_count,
+            2
+        );
+    }
+
+    #[test]
+    fn 同一日期的不同版本分别保存() {
+        assert_ne!(
+            daily_key("2026-08-25", "1.3.0"),
+            daily_key("2026-08-25", "1.4.0-alpha.2")
+        );
+    }
+
+    #[test]
+    fn 失败只记录固定阶段且不保存原始错误() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+
+        record_failure(&state, FailureStage::ProtectManifest);
+
+        let config = state.read().unwrap();
+        let entry = config.telemetry.daily.values().next().unwrap();
+        assert_eq!(entry.failure_counts.get("protect_manifest"), Some(&1));
+        assert_eq!(entry.protect_failed_count, 1);
+    }
+
+    #[test]
+    fn 取消不计入失败率且核心步骤映射稳定() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+
+        record_failure(&state, FailureStage::TaskCancelled);
+
+        let entry = state
+            .read()
+            .unwrap()
+            .telemetry
+            .daily
+            .into_values()
+            .next()
+            .unwrap();
+        assert_eq!(entry.failure_counts.get("task_cancelled"), Some(&1));
+        assert_eq!(entry.protect_failed_count, 0);
+        assert_eq!(entry.sign_failed_count, 0);
+        assert_eq!(
+            protect_failure_stage("ModifyManifest", false),
+            FailureStage::ProtectManifest
+        );
+        assert_eq!(sign_failure_stage("SignApk"), FailureStage::SignExecute);
+        assert_eq!(sign_failure_stage("NotKnown"), FailureStage::TaskUnknown);
+    }
+
+    #[test]
+    fn 遗留按日期记录会迁移到当前版本键() {
+        let mut daily = std::collections::BTreeMap::new();
+        daily.insert(
+            "2026-08-24".to_string(),
+            DailyTelemetry {
+                protect_success_count: 2,
+                ..DailyTelemetry::default()
+            },
+        );
+
+        normalize_daily_entries(&mut daily);
+
+        let key = daily_key("2026-08-24", env!("CARGO_PKG_VERSION"));
+        assert_eq!(daily[&key].usage_date, "2026-08-24");
+        assert_eq!(daily[&key].app_version, env!("CARGO_PKG_VERSION"));
+        assert_eq!(daily[&key].protect_success_count, 2);
     }
 
     #[test]

@@ -159,6 +159,42 @@ class ProjectStatsTests(unittest.TestCase):
         self.assertEqual(usage["latest_complete_date"], yesterday.isoformat())
         self.assertEqual([row["date"] for row in usage["trend"]], [yesterday.isoformat()])
 
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_usage_stats_保留新版版本与失败细分(self, urlopen):
+        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        response = io.BytesIO(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "data": [{"usage_date": yesterday, "active_devices": 2}],
+                    "versions": [
+                        {
+                            "usage_date": yesterday,
+                            "app_version": "1.4.0-alpha.2",
+                            "protect_successes": 1,
+                        }
+                    ],
+                    "failure_breakdown": [
+                        {
+                            "usage_date": yesterday,
+                            "app_version": "1.4.0-alpha.2",
+                            "operation": "protect",
+                            "stage": "manifest",
+                            "count": 1,
+                        }
+                    ],
+                }
+            ).encode()
+        )
+        urlopen.return_value.__enter__.return_value = response
+
+        usage = collect_usage_stats("https://stats.example.test/trend")
+
+        self.assertTrue(usage["version_breakdown_available"])
+        self.assertTrue(usage["failure_breakdown_available"])
+        self.assertEqual(usage["version_trend"][0]["app_version"], "1.4.0-alpha.2")
+        self.assertEqual(usage["failure_breakdown"][0]["stage"], "manifest")
+
 
 if __name__ == "__main__":
     unittest.main()

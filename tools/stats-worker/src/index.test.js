@@ -2,6 +2,38 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildSummary, classifyPlatform, isDownloadAsset } from "./github-summary.js";
+import { formatTrendResponse, normalizeFailureCounts } from "./index.js";
+
+test("失败阶段只接受固定白名单并合并重复项", () => {
+  assert.deepEqual(
+    normalizeFailureCounts([
+      { operation: "protect", stage: "manifest", count: 1 },
+      { operation: "protect", stage: "manifest", count: 2 },
+      { operation: "task", stage: "cancelled", count: 1 },
+    ]),
+    [
+      { operation: "protect", stage: "manifest", count: 3 },
+      { operation: "task", stage: "cancelled", count: 1 },
+    ],
+  );
+  assert.throws(
+    () => normalizeFailureCounts([{ operation: "protect", stage: "raw_error", count: 1 }]),
+    /失败阶段无效/,
+  );
+});
+
+test("趋势响应保持旧数据数组并提供版本与失败细分", () => {
+  assert.deepEqual(
+    formatTrendResponse(14, [{ usage_date: "2026-08-25", active_devices: 1 }], [], []),
+    {
+      schema_version: 2,
+      window_days: 14,
+      data: [{ usage_date: "2026-08-25", active_devices: 1 }],
+      versions: [],
+      failure_breakdown: [],
+    },
+  );
+});
 
 test("校验和文件不计入下载量", () => {
   assert.equal(isDownloadAsset("MocikaShield_windows_x64_setup.exe"), true);

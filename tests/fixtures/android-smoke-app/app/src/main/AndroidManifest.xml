@@ -4,6 +4,7 @@
         android:appComponentFactory="dev.mocika.shield.smoke.SmokeComponentFactory"
         android:name=".SmokeApplication"
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:extractNativeLibs="false"
         android:label="@string/app_name">
         <activity

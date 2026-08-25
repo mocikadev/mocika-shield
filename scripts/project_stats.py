@@ -45,7 +45,8 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
-            rows = json.load(response).get("data", [])
+            payload = json.load(response)
+        rows = payload.get("data", [])
         if not isinstance(rows, list):
             raise ValueError("data 字段不是数组")
         trend: list[dict[str, Any]] = []
@@ -65,6 +66,10 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     today = datetime.now(timezone.utc).date().isoformat()
     complete_trend = [row for row in trend if row["date"] < today][-14:]
     latest = complete_trend[-1] if complete_trend else {}
+    version_trend = normalize_usage_breakdown(payload.get("versions"), "版本统计")
+    failure_breakdown = normalize_usage_breakdown(payload.get("failure_breakdown"), "失败阶段统计")
+    complete_versions = [row for row in (version_trend or []) if row["date"] < today][-90:]
+    complete_failures = [row for row in (failure_breakdown or []) if row["date"] < today][-90:]
     return {
         "available": True,
         "active_devices": latest.get("active_devices"),
@@ -73,7 +78,29 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
         "protect_successes": sum(int(row.get("protect_successes") or 0) for row in complete_trend),
         "protect_failures": sum(int(row.get("protect_failures") or 0) for row in complete_trend),
         "trend": complete_trend,
+        "version_breakdown_available": version_trend is not None,
+        "version_trend": complete_versions if version_trend is not None else [],
+        "failure_breakdown_available": failure_breakdown is not None,
+        "failure_breakdown": complete_failures if failure_breakdown is not None else [],
     }
+
+
+def normalize_usage_breakdown(value: Any, label: str) -> Optional[list[dict[str, Any]]]:
+    """新版维度缺失时明确不可用，不能用零值替代历史空白。"""
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError(f"{label}字段不是数组")
+    rows: list[dict[str, Any]] = []
+    for row in value:
+        if not isinstance(row, dict):
+            raise ValueError(f"{label}数组元素不是对象")
+        date = row.get("date") or row.get("usage_date") or row.get("day")
+        if not date:
+            raise ValueError(f"{label}缺少日期字段")
+        rows.append({**row, "date": str(date)})
+    rows.sort(key=lambda row: row["date"])
+    return rows
 
 
 def classify_platform(name: str) -> str:
