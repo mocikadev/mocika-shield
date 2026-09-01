@@ -98,6 +98,8 @@ java -jar apktool.jar d <input.apk> -o <tmp/apk> -f --no-src
 - `--no-src`：不反编译 Smali，只解压资源和 Manifest
 - `-f`：强制覆盖目标目录
 
+解包完成后会在修改 Manifest 前做一次受限的资源格式规范化：只扫描 `res/` 内扩展名为 `.png` 的文件；若文件头确认是 JPEG，则无损改名为同名 `.jpg`，使后续 aapt2 按真实格式编译。正常 PNG 和其他资源不会改动。对于 `.9.png` 九宫格资源或同名 `.jpg` 已存在的情况，流程会明确失败，绝不覆盖文件、转码图片或猜测资源语义。
+
 #### 步骤 ② Manifest 修改
 
 使用 `xmltree 0.10` 进行结构化修改（非正则字符串操作）：
