@@ -2143,7 +2143,7 @@ dependencies = [
 
 [[package]]
 name = "mocika-shield"
-version = "1.4.0-alpha.1"
+version = "1.4.0-alpha.2"
 dependencies = [
  "chacha20poly1305",
  "dunce",
@@ -2168,7 +2168,7 @@ dependencies = [
 
 [[package]]
 name = "mocikashield"
-version = "1.4.0-alpha.1"
+version = "1.4.0-alpha.2"
 dependencies = [
  "chacha20poly1305",
  "hkdf",
@@ -3465,7 +3465,7 @@ dependencies = [
 
 [[package]]
 name = "shield-cli"
-version = "1.4.0-alpha.1"
+version = "1.4.0-alpha.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -3482,7 +3482,7 @@ dependencies = [
 
 [[package]]
 name = "shield-core"
-version = "1.4.0-alpha.1"
+version = "1.4.0-alpha.2"
 dependencies = [
  "anyhow",
  "chacha20poly1305",
