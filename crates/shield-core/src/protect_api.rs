@@ -18,6 +18,7 @@ use crate::protect::{
         read_native_lib_packaging_policy, NativeLibPackagingPolicy,
     },
     native_alias::verify_in_apk,
+    resource_format::normalize_mislabeled_jpeg_resources,
     runtime::{inject_runtime, read_runtime_selection},
 };
 use crate::utils::is_json_mode;
@@ -173,6 +174,13 @@ pub fn protect_apk(
 
     let native_lib_policy =
         read_native_lib_packaging_policy(&apk_dir).map_err(ShieldError::from)?;
+    let normalized_resources =
+        normalize_mislabeled_jpeg_resources(&apk_dir).map_err(ShieldError::from)?;
+    if normalized_resources > 0 {
+        print_success(&format!(
+            "已修正 {normalized_resources} 个 JPEG 内容伪装 PNG 的资源文件"
+        ));
+    }
 
     emit_progress(
         &on_progress,
