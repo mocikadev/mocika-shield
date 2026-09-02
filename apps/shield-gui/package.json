@@ -1,6 +1,6 @@
 {
   "name": "mocika-shield-gui",
-  "version": "1.4.0-alpha.2",
+  "version": "1.4.0-beta.1",
   "license": "MIT OR Apache-2.0",
   "private": true,
   "type": "module",
