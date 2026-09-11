@@ -6,6 +6,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Files;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
@@ -81,6 +82,74 @@ public class DexCacheTest {
         assertTrue(done.createNewFile());
         assertTrue(done.setReadOnly());
         return new Fixture(directory, new DexCache.Identity(SCHEMA, 1, root));
+    }
+
+    @Test
+    public void 系统优化目录不影响重复缓存命中() throws Exception {
+        Fixture fixture = createValidCache();
+        assertTrue(DexCache.validate(fixture.directory, fixture.identity));
+        File oat = new File(fixture.directory, "oat/arm64");
+        assertTrue(oat.mkdirs());
+        File optimized = new File(oat, "c1.odex");
+        write(optimized, new byte[]{1, 2, 3});
+        assertTrue(DexCache.validate(fixture.directory, fixture.identity));
+        assertTrue(DexCache.validate(fixture.directory, fixture.identity));
+        assertTrue(optimized.isFile());
+        File dex = new File(fixture.directory, "c1.dex");
+        assertTrue(dex.setWritable(true));
+        write(dex, new byte[]{9});
+        assertTrue(dex.setReadOnly());
+        assertFalse(DexCache.validate(fixture.directory, fixture.identity));
+    }
+
+    @Test
+    public void 优化目录不能是普通文件() throws Exception {
+        Fixture fixture = createValidCache();
+        assertTrue(new File(fixture.directory, "oat").createNewFile());
+        assertFalse(DexCache.validate(fixture.directory, fixture.identity));
+    }
+
+    @Test
+    public void 优化目录不能掩盖缺失DEX() throws Exception {
+        Fixture fixture = createValidCache();
+        assertTrue(new File(fixture.directory, "c1.dex").delete());
+        assertTrue(new File(fixture.directory, "oat").mkdir());
+        assertFalse(DexCache.validate(fixture.directory, fixture.identity));
+    }
+
+    @Test
+    public void 清理优化目录内部链接不删除外部文件() throws Exception {
+        Fixture fixture = createValidCache();
+        File outside = temporaryFolder.newFolder("outside");
+        File kept = new File(outside, "保留文件");
+        write(kept, new byte[]{1});
+        File oat = new File(fixture.directory, "oat");
+        assertTrue(oat.mkdir());
+        Files.createSymbolicLink(new File(oat, "arm64").toPath(), outside.toPath());
+        DexCache.removeInvalidCache(fixture.directory);
+        assertTrue(kept.isFile());
+        assertFalse(fixture.directory.exists());
+    }
+
+    @Test
+    public void 优化目录存在时仍拒绝额外DEX() throws Exception {
+        Fixture fixture = createValidCache();
+        assertTrue(new File(fixture.directory, "oat").mkdir());
+        assertTrue(new File(fixture.directory, "c2.dex").createNewFile());
+        assertFalse(DexCache.validate(fixture.directory, fixture.identity));
+    }
+
+    @Test
+    public void 优化目录符号链接被拒绝且清理不删除外部文件() throws Exception {
+        Fixture fixture = createValidCache();
+        File outside = temporaryFolder.newFolder("outside");
+        File kept = new File(outside, "保留文件");
+        write(kept, new byte[]{1});
+        Files.createSymbolicLink(new File(fixture.directory, "oat").toPath(), outside.toPath());
+        assertFalse(DexCache.validate(fixture.directory, fixture.identity));
+        DexCache.removeInvalidCache(fixture.directory);
+        assertTrue(kept.isFile());
+        assertFalse(fixture.directory.exists());
     }
 
     private static void write(File file, byte[] bytes) throws Exception {
