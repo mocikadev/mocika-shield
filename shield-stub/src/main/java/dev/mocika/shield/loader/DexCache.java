@@ -83,7 +83,18 @@ final class DexCache {
     static boolean validate(File cacheDir, Identity identity) throws Exception {
         if (!cacheDir.isDirectory() || !isDirectChild(cacheDir.getParentFile(), cacheDir)) return false;
         File[] children = cacheDir.listFiles();
-        if (children == null || children.length != identity.count + 1) return false;
+        if (children == null) return false;
+        int payloadEntries = 0;
+        for (File child : children) {
+            if (!isDirectChild(cacheDir, child)) return false;
+            // ART 可在 DEX 旁生成 oat/；它不属于加密载荷清单，也不参与根摘要。
+            if ("oat".equals(child.getName())) {
+                if (!child.isDirectory()) return false;
+            } else {
+                payloadEntries++;
+            }
+        }
+        if (payloadEntries != identity.count + 1) return false;
         File done = new File(cacheDir, DONE);
         return done.isFile() && validateDexFiles(cacheDir, identity);
     }
@@ -166,9 +177,14 @@ final class DexCache {
 
     private static boolean deleteRecursive(File file) {
         boolean success = true;
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) for (File child : children) success &= deleteRecursive(child);
+        try {
+            // 只删除链接本身，不能沿缓存中的链接递归到其他目录。
+            if (file.isDirectory() && isDirectChild(file.getParentFile(), file)) {
+                File[] children = file.listFiles();
+                if (children != null) for (File child : children) success &= deleteRecursive(child);
+            }
+        } catch (Exception error) {
+            return false;
         }
         return file.delete() && success;
     }
