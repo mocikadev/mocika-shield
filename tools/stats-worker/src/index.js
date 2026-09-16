@@ -1,4 +1,6 @@
 import { getCurrentSummary } from "./github-summary.js";
+import { normalizeFailureReasonCounts } from "./failure-reasons.js";
+import { cleanupErrorReports, saveErrorReport } from "./error-reports.js";
 
 const ALLOWED_EVENTS = new Set([
   "app_start_count",
@@ -66,13 +68,15 @@ export function normalizeFailureCounts(value) {
   });
 }
 
-export function formatTrendResponse(days, data, versions, failureBreakdown) {
+export function formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown = [], failureClassifierCoverage = []) {
   return {
     schema_version: 2,
     window_days: days,
     data,
     versions,
     failure_breakdown: failureBreakdown,
+    failure_reason_breakdown: failureReasonBreakdown,
+    failure_classifier_coverage: failureClassifierCoverage,
   };
 }
 
@@ -98,8 +102,16 @@ async function saveDailyUsage(request, env) {
     [...ALLOWED_EVENTS].map((key) => [key, count(body[key])]),
   );
   let failureCounts;
+  let failureReasonCounts;
   try {
+    if (body.failure_classifier_version !== undefined && body.failure_classifier_version !== 1) {
+      throw new Error("失败分类版本无效");
+    }
     failureCounts = normalizeFailureCounts(body.failure_counts);
+    failureReasonCounts = normalizeFailureReasonCounts(body.failure_reason_counts);
+    if (failureReasonCounts !== undefined && body.failure_classifier_version !== 1) {
+      throw new Error("失败原因缺少分类版本");
+    }
   } catch (error) {
     return json({ error: error.message }, 400);
   }
@@ -108,8 +120,8 @@ async function saveDailyUsage(request, env) {
     INSERT INTO daily_usage_v2 (
       anonymous_id, usage_date, app_version, platform, arch,
       app_start_count, protect_start_count, protect_success_count,
-      protect_failed_count, sign_success_count, sign_failed_count, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      protect_failed_count, sign_success_count, sign_failed_count, failure_classifier_version, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(anonymous_id, usage_date, app_version) DO UPDATE SET
       platform = excluded.platform,
       arch = excluded.arch,
@@ -118,7 +130,8 @@ async function saveDailyUsage(request, env) {
       protect_success_count = excluded.protect_success_count,
       protect_failed_count = excluded.protect_failed_count,
       sign_success_count = excluded.sign_success_count,
-      sign_failed_count = excluded.sign_failed_count
+      sign_failed_count = excluded.sign_failed_count,
+      failure_classifier_version = COALESCE(excluded.failure_classifier_version, daily_usage_v2.failure_classifier_version)
   `).bind(
     body.anonymous_id,
     body.usage_date,
@@ -131,6 +144,7 @@ async function saveDailyUsage(request, env) {
     values.protect_failed_count,
     values.sign_success_count,
     values.sign_failed_count,
+    body.failure_classifier_version === 1 ? 1 : null,
     createdAt,
   )];
   statements.push(env.DB.prepare(`
@@ -149,6 +163,18 @@ async function saveDailyUsage(request, env) {
       item.operation,
       item.stage,
       item.count,
+    ));
+  }
+  for (const item of failureReasonCounts || []) {
+    statements.push(env.DB.prepare(`
+      INSERT INTO daily_usage_failure_reason (
+        anonymous_id, usage_date, app_version, flow, operation, stage, code, classifier_version, count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(anonymous_id, usage_date, app_version, flow, operation, stage, code, classifier_version)
+      DO UPDATE SET count = MAX(daily_usage_failure_reason.count, excluded.count)
+    `).bind(
+      body.anonymous_id, body.usage_date, body.app_version, item.flow, item.operation,
+      item.stage, item.code, item.classifier_version, item.count,
     ));
   }
   await env.DB.batch(statements);
@@ -233,16 +259,42 @@ async function queryFailureBreakdown(env, days) {
   return result.results || [];
 }
 
+async function queryFailureReasonBreakdown(env, days) {
+  const result = await env.DB.prepare(`
+    SELECT usage_date, app_version, flow, operation, stage, code, classifier_version, SUM(count) AS count
+    FROM daily_usage_failure_reason
+    WHERE usage_date >= date('now', ?)
+    GROUP BY usage_date, app_version, flow, operation, stage, code, classifier_version
+    ORDER BY usage_date ASC, app_version ASC, flow ASC, operation ASC, stage ASC, code ASC
+  `).bind(`-${days - 1} days`).all();
+  return result.results || [];
+}
+
+async function queryFailureClassifierCoverage(env, days) {
+  const result = await env.DB.prepare(`
+    SELECT usage_date, app_version, failure_classifier_version,
+      COUNT(*) AS reporting_devices,
+      SUM(protect_failed_count + sign_failed_count) AS failure_count
+    FROM daily_usage_v2
+    WHERE usage_date >= date('now', ?)
+    GROUP BY usage_date, app_version, failure_classifier_version
+    ORDER BY usage_date ASC, app_version ASC, failure_classifier_version ASC
+  `).bind(`-${days - 1} days`).all();
+  return result.results || [];
+}
+
 async function getStats(request, env) {
   const url = new URL(request.url);
   const days = Math.min(Math.max(Number(url.searchParams.get("days") || 14), 1), 90);
-  const [data, versions, failureBreakdown] = await Promise.all([
+  const [data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage] = await Promise.all([
     queryStats(env, days),
     queryVersionStats(env, days),
     queryFailureBreakdown(env, days),
+    queryFailureReasonBreakdown(env, days),
+    queryFailureClassifierCoverage(env, days),
   ]);
   return json(
-    formatTrendResponse(days, data, versions, failureBreakdown),
+    formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage),
     200,
     `public, max-age=60, s-maxage=${PUBLIC_CACHE_SECONDS}`,
   );
@@ -268,6 +320,7 @@ export default {
     try {
       const path = new URL(request.url).pathname;
       if (request.method === "POST" && path === "/events/daily") return saveDailyUsage(request, env);
+      if (request.method === "POST" && path === "/reports/errors") return saveErrorReport(request, env);
       if (request.method === "GET" && path === "/stats/trend") {
         return cached(request, ctx, () => getStats(request, env));
       }
@@ -279,5 +332,8 @@ export default {
       console.error(error);
       return json({ error: "统计服务暂时不可用" }, 503);
     }
+  },
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(cleanupErrorReports(env));
   },
 };

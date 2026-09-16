@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::path::Path;
 
+use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::keytool::keytool_command;
 use crate::utils::{find_apksigner, find_java, find_keytool, no_window_command};
 
@@ -172,7 +173,8 @@ pub fn extract_keystore_cert_fingerprint(
     ks_pass: &str,
     ks_type: Option<&str>,
 ) -> Result<String> {
-    let keytool = find_keytool()?;
+    let keytool =
+        find_keytool().map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?;
 
     let mut args = vec![
         "-list",
@@ -196,7 +198,8 @@ pub fn extract_keystore_cert_fingerprint(
 
     if output.status.success() {
         let stdout = std::str::from_utf8(&output.stdout)
-            .context("keytool 输出不是有效 UTF-8，无法安全读取证书指纹")?;
+            .context("keytool 输出不是有效 UTF-8，无法安全读取证书指纹")
+            .map_err(|err| Diagnostic::new(FailureCode::ToolOutputEncodingInvalid).attach(err))?;
         if let Some(fp) = parse_sha256_from_keytool(stdout) {
             return Ok(fp);
         }
@@ -210,7 +213,16 @@ pub fn extract_keystore_cert_fingerprint(
     } else {
         stderr.trim()
     };
-    anyhow::bail!("无法读取 keystore 证书指纹：{detail}")
+    Err(Diagnostic::from_tool_output(
+        ToolName::Keytool,
+        output.status.code(),
+        if output.stderr.is_empty() {
+            &output.stdout
+        } else {
+            &output.stderr
+        },
+    )
+    .attach(anyhow::anyhow!("无法读取 keystore 证书指纹：{detail}")))
 }
 
 pub fn normalize_fingerprint(fp: &str) -> String {

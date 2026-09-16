@@ -1,6 +1,8 @@
 use crate::app_config::{AppConfigState, DailyTelemetry};
+use crate::failure_diagnostic::{FailureContext, FailureReasonCount};
 use chrono_like::today_utc;
 use serde::Serialize;
+use shield_core::diagnostic::{Diagnostic, CLASSIFIER_VERSION};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -170,6 +172,40 @@ pub(crate) fn record_failure(state: &AppConfigState, stage: FailureStage) {
     });
 }
 
+pub(crate) fn record_reason(
+    state: &AppConfigState,
+    context: FailureContext,
+    diagnostic: Diagnostic,
+) {
+    let _ = state.mutate(|config| {
+        if !config.telemetry.enabled {
+            return;
+        }
+        let entry = daily_entry(&mut config.telemetry.daily, &today_utc(), app_version());
+        merge_reason(
+            &mut entry.failure_reason_counts,
+            FailureReasonCount {
+                context,
+                code: diagnostic.code,
+                classifier_version: CLASSIFIER_VERSION,
+                count: 1,
+            },
+        );
+    });
+}
+
+fn merge_reason(counts: &mut Vec<FailureReasonCount>, source: FailureReasonCount) {
+    if let Some(existing) = counts.iter_mut().find(|item| {
+        item.context == source.context
+            && item.code == source.code
+            && item.classifier_version == source.classifier_version
+    }) {
+        existing.count = existing.count.saturating_add(source.count).min(10_000);
+    } else if counts.len() < 128 {
+        counts.push(source);
+    }
+}
+
 fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -187,6 +223,7 @@ fn daily_entry<'a>(
     let entry = daily.entry(key).or_default();
     entry.usage_date = usage_date.to_string();
     entry.app_version = version.to_string();
+    entry.failure_classifier_version = Some(CLASSIFIER_VERSION);
     entry
 }
 
@@ -235,6 +272,12 @@ fn merge_daily_telemetry(target: &mut DailyTelemetry, source: DailyTelemetry) {
         let total = target.failure_counts.entry(stage).or_default();
         *total = total.saturating_add(count);
     }
+    for reason in source.failure_reason_counts {
+        merge_reason(&mut target.failure_reason_counts, reason);
+    }
+    target.failure_classifier_version = target
+        .failure_classifier_version
+        .or(source.failure_classifier_version);
     target.uploaded &= source.uploaded;
 }
 
@@ -252,6 +295,10 @@ struct DailyPayload {
     sign_success_count: u32,
     sign_failed_count: u32,
     failure_counts: Vec<FailureCountPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_classifier_version: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_reason_counts: Option<Vec<FailureReasonCount>>,
 }
 
 #[derive(Serialize)]
@@ -285,28 +332,7 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
         Err(_) => return,
     };
     for (key, item) in pending {
-        let payload = DailyPayload {
-            anonymous_id: snapshot.telemetry.anonymous_id.clone(),
-            usage_date: item.usage_date.clone(),
-            app_version: item.app_version.clone(),
-            platform: std::env::consts::OS.to_string(),
-            arch: std::env::consts::ARCH.to_string(),
-            app_start_count: item.app_start_count,
-            protect_start_count: item.protect_start_count,
-            protect_success_count: item.protect_success_count,
-            protect_failed_count: item.protect_failed_count,
-            sign_success_count: item.sign_success_count,
-            sign_failed_count: item.sign_failed_count,
-            failure_counts: item
-                .failure_counts
-                .iter()
-                .map(|(code, count)| FailureCountPayload {
-                    operation: failure_code_parts(code).0.to_string(),
-                    stage: failure_code_parts(code).1.to_string(),
-                    count: *count,
-                })
-                .collect(),
-        };
+        let payload = daily_payload(snapshot.telemetry.anonymous_id.clone(), item);
         let Ok(response) = client.post(TELEMETRY_URL).json(&payload).send().await else {
             continue;
         };
@@ -314,6 +340,40 @@ pub(crate) async fn sync_pending(state: &AppConfigState) {
             mark_uploaded(state, &key, &today);
         }
     }
+}
+
+fn daily_payload(anonymous_id: String, item: DailyTelemetry) -> DailyPayload {
+    DailyPayload {
+        anonymous_id,
+        usage_date: item.usage_date.clone(),
+        app_version: item.app_version.clone(),
+        platform: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        app_start_count: item.app_start_count,
+        protect_start_count: item.protect_start_count,
+        protect_success_count: item.protect_success_count,
+        protect_failed_count: item.protect_failed_count,
+        sign_success_count: item.sign_success_count,
+        sign_failed_count: item.sign_failed_count,
+        failure_classifier_version: item.failure_classifier_version,
+        failure_reason_counts: item
+            .failure_classifier_version
+            .map(|_| item.failure_reason_counts.clone()),
+        failure_counts: item
+            .failure_counts
+            .iter()
+            .map(|(code, count)| FailureCountPayload {
+                operation: failure_code_parts(code).0.to_string(),
+                stage: failure_code_parts(code).1.to_string(),
+                count: *count,
+            })
+            .collect(),
+    }
+}
+
+#[cfg(test)]
+fn payload_for_test(item: DailyTelemetry) -> DailyPayload {
+    daily_payload("00000000-0000-0000-0000-000000000000".into(), item)
 }
 
 fn failure_code_parts(code: &str) -> (&str, &str) {
@@ -396,6 +456,75 @@ mod chrono_like {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn 旧记录省略原因字段而新记录携带真实分类版本() {
+        let old = super::payload_for_test(DailyTelemetry {
+            app_version: "1.4.0-beta.4".into(),
+            ..DailyTelemetry::default()
+        });
+        let old_json = serde_json::to_value(old).unwrap();
+        assert!(old_json.get("failure_classifier_version").is_none());
+        assert!(old_json.get("failure_reason_counts").is_none());
+
+        let mut current = DailyTelemetry::default();
+        current.failure_classifier_version = Some(1);
+        current
+            .failure_reason_counts
+            .push(crate::failure_diagnostic::FailureReasonCount {
+                context: crate::failure_diagnostic::FailureContext::sign("SignApk"),
+                code: shield_core::diagnostic::FailureCode::SigningFailed,
+                classifier_version: 1,
+                count: 1,
+            });
+        let current_json = serde_json::to_value(super::payload_for_test(current)).unwrap();
+        assert_eq!(current_json["failure_classifier_version"], 1);
+        assert_eq!(
+            current_json["failure_reason_counts"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn 原因分类兼容旧配置且受开关控制() {
+        use crate::failure_diagnostic::FailureContext;
+        use shield_core::diagnostic::{Diagnostic, FailureCode};
+        let old: DailyTelemetry = toml::from_str("app_version = '1.4.0-beta.4'").unwrap();
+        assert!(old.failure_reason_counts.is_empty());
+        assert!(old.failure_classifier_version.is_none());
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+        let context = FailureContext::sign("SignApk");
+        let diagnostic = Diagnostic::new(FailureCode::SigningFailed);
+        super::record_reason(&state, context, diagnostic);
+        let first = state.read().unwrap();
+        let day = first.telemetry.daily.values().next().unwrap();
+        assert_eq!(day.failure_reason_counts[0].count, 1);
+        assert_eq!(day.failure_classifier_version, Some(1));
+        let encoded = toml::to_string(day).unwrap();
+        let decoded: DailyTelemetry = toml::from_str(&encoded).unwrap();
+        assert_eq!(decoded.failure_reason_counts, day.failure_reason_counts);
+        state
+            .mutate(|config| config.telemetry.enabled = false)
+            .unwrap();
+        super::record_reason(&state, context, diagnostic);
+        assert_eq!(
+            state
+                .read()
+                .unwrap()
+                .telemetry
+                .daily
+                .values()
+                .next()
+                .unwrap()
+                .failure_reason_counts[0]
+                .count,
+            1
+        );
+    }
+
     use super::{
         daily_key, mark_uploaded, normalize_daily_entries, protect_failure_stage, record_event,
         record_failure, sign_failure_stage, today_utc, FailureStage, TelemetryEvent,

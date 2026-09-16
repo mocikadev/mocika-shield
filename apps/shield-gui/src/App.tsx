@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FolderKey, Info, LoaderCircle, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { Toaster } from "sonner";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
+import { ErrorReportDialog } from "@/components/app/error-report-dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -194,6 +195,7 @@ export function App() {
           onClose={() => setMajorDialogOpen(false)}
           onViewRelease={openRelease}
         />
+        <ErrorReportDialog telemetryEnabled={telemetryEnabled} />
         <Toaster
           position="top-right"
           richColors

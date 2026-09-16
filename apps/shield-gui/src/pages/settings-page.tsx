@@ -111,12 +111,16 @@ export function SettingsPage({
           </SettingsFieldRow>
         </SettingsGroup>
         <SettingsGroup title="匿名使用统计">
-          <SettingsFieldRow label="允许发送匿名使用统计（仅桌面工具）">
-            <input type="checkbox" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
-          </SettingsFieldRow>
-          <p className="-mt-5 text-sm leading-6 text-muted-foreground">
-            仅发送匿名的每日启动、加固、签名及固定失败阶段计数；不会上传 APK、路径、包名、证书、密码或错误日志。
-          </p>
+          <div className="space-y-3 px-6 py-5">
+            <label className="flex items-center justify-between gap-4 text-[14px] font-semibold text-foreground">
+              <span className="min-w-0">允许匿名使用统计</span>
+              <input type="checkbox" className="h-4 w-4 shrink-0" aria-describedby="telemetry-description" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
+            </label>
+            <div id="telemetry-description" className="space-y-2 text-sm leading-6 text-muted-foreground">
+              <p>仅统计桌面工具的启动、加固、签名次数及失败阶段、类别，不上传 APK、路径、包名、证书、密码或原始日志。</p>
+              <p>错误报告需每次单独确认，不受此开关控制。</p>
+            </div>
+          </div>
         </SettingsGroup>
         {status === "saved" && (
           <StatusMessage kind="success">
