@@ -1,0 +1,22 @@
+{
+  "report_id": "7acbe71f-6a86-43bc-8dcd-1c710f196dad",
+  "schema_version": 1,
+  "classifier_version": 1,
+  "sanitizer_version": 1,
+  "app_version": "1.4.0-beta.5",
+  "build_revision": null,
+  "build_kind": "unknown",
+  "occurred_at": 1789516800,
+  "flow": "sign",
+  "operation": "sign",
+  "stage": "execute",
+  "code": "SIGNING_FAILED",
+  "platform": "macos",
+  "arch": "aarch64",
+  "java_major": null,
+  "java_vendor": null,
+  "tool_name": null,
+  "tool_version": null,
+  "exit_code": null,
+  "evidence": []
+}

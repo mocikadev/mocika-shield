@@ -19,6 +19,26 @@ from scripts.project_stats import (
 
 
 class ProjectStatsTests(unittest.TestCase):
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_新原因聚合保留版本但丢弃报告正文(self, urlopen):
+        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        payload = {"data": [], "failure_reason_breakdown": [{
+            "usage_date": yesterday, "app_version": "1.4.0-beta.5", "flow": "sign",
+            "operation": "sign", "stage": "execute", "code": "SIGNING_FAILED",
+            "classifier_version": 1, "count": 2, "payload_json": "不允许保存的报告正文",
+        }], "failure_classifier_coverage": [{"usage_date": yesterday,
+            "app_version": "1.4.0-beta.5", "failure_classifier_version": 1,
+            "reporting_devices": 2, "failure_count": 2}]}
+        urlopen.return_value.__enter__.return_value = io.BytesIO(json.dumps(payload).encode())
+        usage = collect_usage_stats("https://stats.example.test/trend")
+        self.assertTrue(usage["failure_reason_breakdown_available"])
+        self.assertEqual(usage["failure_reason_breakdown"][0]["count"], 2)
+        self.assertEqual(usage["failure_classifier_coverage"][0]["app_version"], "1.4.0-beta.5")
+        self.assertNotIn("报告正文", json.dumps(usage, ensure_ascii=False))
+        urlopen.return_value.__enter__.return_value = io.BytesIO(b'{"data": []}')
+        old = collect_usage_stats("https://stats.example.test/trend")
+        self.assertFalse(old["failure_reason_breakdown_available"])
+
     def test_classify_platform(self):
         self.assertEqual(classify_platform("MocikaShield_windows_x64_setup.exe"), "Windows")
         self.assertEqual(classify_platform("MocikaShield_macos_universal.dmg"), "macOS")

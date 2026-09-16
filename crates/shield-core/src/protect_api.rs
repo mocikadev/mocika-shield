@@ -10,6 +10,7 @@ use std::sync::{
 use crate::apk_inspect::{
     check_apk, extract_apk_cert_fingerprint, normalize_fingerprint, ApkCheckOutcome,
 };
+use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::error::ShieldError;
 use crate::protect::{
     abi_filter::{remove_excluded, validate_exclusions},
@@ -25,8 +26,9 @@ use crate::protect::{
 use crate::utils::is_json_mode;
 use crate::utils::{
     create_temp_dir, find_apksigner, find_apktool, find_java, find_runtime_resources, human_size,
-    print_step, print_success, run_command,
+    no_window_command, print_step, print_success,
 };
+use std::process::Stdio;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum EnvironmentPolicy {
@@ -97,7 +99,7 @@ pub fn protect_apk(
                 p.display()
             )))
         }
-        None => find_apktool().map_err(ShieldError::from)?,
+        None => find_apktool().map_err(missing_tool)?,
     };
     let custom_runtime_resources = opts.resources_path.is_some();
     let runtime_resources = match &opts.resources_path {
@@ -108,7 +110,7 @@ pub fn protect_apk(
                 p.display()
             )))
         }
-        None => find_runtime_resources().map_err(ShieldError::from)?,
+        None => find_runtime_resources().map_err(missing_tool)?,
     };
     let apksigner = match &opts.apksigner_path {
         Some(p) if p.exists() => p.clone(),
@@ -118,7 +120,7 @@ pub fn protect_apk(
                 p.display()
             )))
         }
-        None => find_apksigner().map_err(ShieldError::from)?,
+        None => find_apksigner().map_err(missing_tool)?,
     };
     let runtime_selection = read_runtime_selection(
         &runtime_resources,
@@ -136,19 +138,19 @@ pub fn protect_apk(
         println!("{}", "========================================".cyan());
     }
 
-    let java = find_java().map_err(ShieldError::from)?;
+    let java = find_java().map_err(missing_tool)?;
 
     emit_progress(&on_progress, &cancel, ProgressStep::CheckTools, "检查工具")?;
     print_step("检查工具");
     print_success("所有工具就绪");
 
     let apk_check = check_apk(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
-    validate_apk_eligibility(&apk_check).map_err(ShieldError::from)?;
-    validate_exclusions(&apk_check.native_abis, &opts.excluded_abis).map_err(ShieldError::from)?;
+    validate_apk_eligibility(&apk_check).map_err(preflight)?;
+    validate_exclusions(&apk_check.native_abis, &opts.excluded_abis).map_err(preflight)?;
     let signature =
         extract_apk_cert_fingerprint(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
     validate_output_certificate(&signature, opts.expected_output_cert_fingerprint.as_deref())
-        .map_err(ShieldError::from)?;
+        .map_err(preflight)?;
     print_success(&format!(
         "原始 APK 当前签名证书 SHA-256: {}...",
         &signature[..16]
@@ -159,7 +161,7 @@ pub fn protect_apk(
 
     emit_progress(&on_progress, &cancel, ProgressStep::Unpack, "解包APK")?;
     print_step("解包APK");
-    run_command(
+    run_apktool_command(
         &java,
         &[
             "-jar",
@@ -171,7 +173,7 @@ pub fn protect_apk(
             "-f",
             "--no-src",
         ],
-        None,
+        FailureCode::ToolProcessFailed,
     )
     .map_err(ShieldError::from)?;
     print_success("解包完成");
@@ -238,12 +240,12 @@ pub fn protect_apk(
         &opts.input,
         &opts.excluded_abis,
     )
-    .map_err(ShieldError::from)?;
+    .map_err(|err| diagnosed(err, FailureCode::RuntimeInjectionFailed))?;
     print_success("Runtime库注入完成");
 
     emit_progress(&on_progress, &cancel, ProgressStep::Repack, "重打包APK")?;
     print_step("重打包APK");
-    run_command(
+    run_apktool_command(
         &java,
         &[
             "-jar",
@@ -254,9 +256,9 @@ pub fn protect_apk(
             opts.output.to_str().unwrap(),
             "-f",
         ],
-        None,
+        FailureCode::ApkRepackFailed,
     )
-    .map_err(ShieldError::from)?;
+    .map_err(|err| diagnosed(err, FailureCode::ApkRepackFailed))?;
 
     let input_size = fs::metadata(&opts.input)
         .map_err(anyhow::Error::from)
@@ -277,11 +279,72 @@ pub fn protect_apk(
     emit_progress(&on_progress, &cancel, ProgressStep::AlignApk, "对齐APK数据")?;
     print_step("对齐APK数据");
     align_apk_with_native_packaging(&opts.output, native_library_packaging(native_lib_policy))
-        .map_err(ShieldError::from)?;
+        .map_err(|err| diagnosed(err, FailureCode::AlignmentFailed))?;
     verify_in_apk(&opts.output, &injected_runtime).map_err(ShieldError::from)?;
     print_success("APK数据对齐完成");
 
     Ok(())
+}
+
+fn run_apktool_command(
+    java: &std::path::Path,
+    args: &[&str],
+    fallback: FailureCode,
+) -> anyhow::Result<String> {
+    let output = no_window_command(java)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| {
+            Diagnostic::from_io(&error).attach(anyhow::anyhow!("执行命令失败: {:?}: {error}", java))
+        })?;
+    if !output.status.success() {
+        return Err(apktool_command_error(
+            java,
+            fallback,
+            output.status.code(),
+            &output.stdout,
+            &output.stderr,
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn apktool_command_error(
+    java: &std::path::Path,
+    fallback: FailureCode,
+    exit_code: Option<i32>,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> anyhow::Error {
+    let evidence = if stderr.is_empty() { stdout } else { stderr };
+    let mut diagnostic = Diagnostic::from_tool_output(ToolName::Apktool, exit_code, evidence);
+    if diagnostic.code == FailureCode::ToolProcessFailed {
+        diagnostic.code = fallback;
+    }
+    diagnostic.attach(anyhow::anyhow!(
+        "命令执行失败: {:?}\n错误: {}",
+        java,
+        String::from_utf8_lossy(stderr)
+    ))
+}
+
+fn missing_tool(error: anyhow::Error) -> ShieldError {
+    diagnosed(error, FailureCode::ToolNotFound)
+}
+
+fn diagnosed(error: anyhow::Error, fallback: FailureCode) -> ShieldError {
+    ShieldError::from(
+        Diagnostic::from_error(&error)
+            .or_code(fallback)
+            .attach(error),
+    )
+}
+
+fn preflight(error: anyhow::Error) -> ShieldError {
+    let diagnostic = Diagnostic::from_error(&error);
+    ShieldError::from(diagnostic.attach_preflight(error))
 }
 
 fn native_library_packaging(policy: NativeLibPackagingPolicy) -> NativeLibraryPackaging {
@@ -346,6 +409,66 @@ fn check_cancel(cancel: &Arc<AtomicBool>) -> std::result::Result<(), ShieldError
 #[cfg(test)]
 mod tests {
     use super::{native_library_packaging, validate_apk_eligibility, validate_output_certificate};
+    use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
+
+    #[test]
+    fn apktool_失败在字节转换前保留工具诊断() {
+        let unsupported = super::apktool_command_error(
+            std::path::Path::new("java"),
+            FailureCode::ApkRepackFailed,
+            Some(1),
+            b"",
+            b"java.lang.UnsupportedClassVersionError",
+        );
+        assert_eq!(
+            Diagnostic::from_error(&unsupported).code,
+            FailureCode::JavaUnsupported
+        );
+        assert_eq!(
+            Diagnostic::from_error(&unsupported).tool,
+            Some(ToolName::Apktool)
+        );
+        assert_eq!(Diagnostic::from_error(&unsupported).exit_code, Some(1));
+        assert!(unsupported
+            .to_string()
+            .contains("UnsupportedClassVersionError"));
+
+        let invalid = super::apktool_command_error(
+            std::path::Path::new("java"),
+            FailureCode::ApkRepackFailed,
+            Some(1),
+            b"",
+            b"\xff\xfe",
+        );
+        assert_eq!(
+            Diagnostic::from_error(&invalid).code,
+            FailureCode::ToolOutputEncodingInvalid
+        );
+        assert!(invalid.to_string().contains("命令执行失败"));
+
+        let unpack = super::apktool_command_error(
+            std::path::Path::new("java"),
+            FailureCode::ToolProcessFailed,
+            Some(2),
+            b"",
+            b"ordinary apktool failure",
+        );
+        let repack = super::apktool_command_error(
+            std::path::Path::new("java"),
+            FailureCode::ApkRepackFailed,
+            Some(3),
+            b"",
+            b"ordinary apktool failure",
+        );
+        assert_eq!(
+            Diagnostic::from_error(&unpack).code,
+            FailureCode::ToolProcessFailed
+        );
+        assert_eq!(
+            Diagnostic::from_error(&repack).code,
+            FailureCode::ApkRepackFailed
+        );
+    }
     use crate::apk_inspect::ApkCheckOutcome;
     use crate::protect::manifest::NativeLibPackagingPolicy;
     use crate::zipalign::NativeLibraryPackaging;

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tempfile::TempDir;
 
+use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::utils::{find_java, no_window_command};
 use crate::zipalign::align_apk;
 
@@ -79,10 +80,11 @@ pub fn sign_apk_with_progress(
     let apksigner = match &opts.apksigner_path {
         Some(p) if p.exists() => p.clone(),
         Some(p) => anyhow::bail!("配置的 apksigner.jar 路径不存在: {}", p.display()),
-        None => find_apksigner()?,
+        None => find_apksigner()
+            .map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?,
     };
 
-    let java = find_java()?;
+    let java = find_java().map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?;
 
     let ks_path_str = opts
         .keystore_path
@@ -101,7 +103,13 @@ pub fn sign_apk_with_progress(
     on_progress(SigningProgressStep::Align).map_err(anyhow::Error::msg)?;
     std::fs::copy(&opts.apk_path, &aligned_input)
         .with_context(|| format!("复制待签名 APK 到临时目录失败: {}", opts.apk_path.display()))?;
-    align_apk(&aligned_input).context("内置 APK 对齐失败")?;
+    align_apk(&aligned_input)
+        .context("内置 APK 对齐失败")
+        .map_err(|err| {
+            Diagnostic::from_error(&err)
+                .or_code(FailureCode::AlignmentFailed)
+                .attach(err)
+        })?;
 
     let final_output = opts
         .output_path
@@ -161,10 +169,19 @@ pub fn sign_apk_with_progress(
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         let code = output.status.code().unwrap_or(-1);
-        anyhow::bail!(
+        return Err(Diagnostic::from_tool_output(
+            ToolName::Apksigner,
+            output.status.code(),
+            if output.stderr.is_empty() {
+                &output.stdout
+            } else {
+                &output.stderr
+            },
+        )
+        .attach(anyhow::anyhow!(
             "签名失败（apksigner 退出码 {code}）：{}",
             classify_apksigner_error(&stderr, &stdout)
-        );
+        )));
     }
 
     if sign_output != final_output {

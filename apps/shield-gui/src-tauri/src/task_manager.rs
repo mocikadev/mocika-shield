@@ -42,6 +42,10 @@ pub(crate) struct TaskSnapshot {
     pub(crate) finished_at_ms: Option<u64>,
     pub(crate) logs: Vec<TaskLog>,
     pub(crate) error: Option<String>,
+    #[serde(skip)]
+    pub(crate) protect_succeeded: bool,
+    #[serde(skip)]
+    pub(crate) signing_started: bool,
 }
 
 #[derive(Clone, Default)]
@@ -58,6 +62,9 @@ impl TaskManager {
         first_step: &str,
     ) -> Result<(), String> {
         let mut tasks = self.0.lock().map_err(|_| "任务状态锁已损坏".to_string())?;
+        if tasks.contains_key(&task_id) {
+            return Err("任务编号已使用，请重新发起任务".into());
+        }
         if tasks
             .values()
             .any(|task| task.kind == kind && task.status == TaskStatus::Running)
@@ -84,6 +91,8 @@ impl TaskManager {
                 message: "任务已开始".to_string(),
             }],
             error: None,
+            protect_succeeded: false,
+            signing_started: false,
         };
         tasks.insert(task_id, snapshot.clone());
         drop(tasks);
@@ -101,6 +110,9 @@ impl TaskManager {
         let task = tasks
             .get_mut(task_id)
             .ok_or_else(|| "未找到任务状态".to_string())?;
+        if task.status != TaskStatus::Running {
+            return Ok(());
+        }
         task.current_step = step.to_string();
         task.logs.push(TaskLog {
             timestamp_ms: now_ms(),
@@ -116,19 +128,31 @@ impl TaskManager {
         emit_snapshot(window, &snapshot)
     }
 
+    pub(crate) fn protected(&self, task_id: &str, signing_started: bool) -> Result<(), String> {
+        let mut tasks = self.0.lock().map_err(|_| "任务状态锁已损坏".to_string())?;
+        let task = tasks
+            .get_mut(task_id)
+            .ok_or_else(|| "未找到任务状态".to_string())?;
+        task.protect_succeeded = true;
+        task.signing_started = signing_started;
+        Ok(())
+    }
+
     pub(crate) fn finish(
         &self,
         window: &Window,
         task_id: &str,
         status: TaskStatus,
         error: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let mut tasks = self.0.lock().map_err(|_| "任务状态锁已损坏".to_string())?;
         let task = tasks
             .get_mut(task_id)
             .ok_or_else(|| "未找到任务状态".to_string())?;
         let now = now_ms();
-        task.status = status;
+        if !transition_terminal(&mut task.status, status) {
+            return Ok(false);
+        }
         task.finished_at_ms = Some(now);
         task.error = error.clone();
         task.logs.push(TaskLog {
@@ -147,7 +171,9 @@ impl TaskManager {
         });
         let snapshot = task.clone();
         drop(tasks);
-        emit_snapshot(window, &snapshot)
+        // 状态已终结；界面事件失败不应跳过业务计数或再次执行任务。
+        let _ = emit_snapshot(window, &snapshot);
+        Ok(true)
     }
 
     pub(crate) fn latest(&self, kind: TaskKind) -> Result<Option<TaskSnapshot>, String> {
@@ -163,6 +189,14 @@ impl TaskManager {
         let tasks = self.0.lock().map_err(|_| "任务状态锁已损坏".to_string())?;
         Ok(tasks.get(task_id).cloned())
     }
+}
+
+fn transition_terminal(current: &mut TaskStatus, next: TaskStatus) -> bool {
+    if *current != TaskStatus::Running || next == TaskStatus::Running {
+        return false;
+    }
+    *current = next;
+    true
 }
 
 fn emit_snapshot(window: &Window, snapshot: &TaskSnapshot) -> Result<(), String> {
@@ -181,6 +215,17 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{TaskKind, TaskStatus};
+    #[test]
+    fn 任务终态只接受一次() {
+        let mut status = TaskStatus::Running;
+        assert!(super::transition_terminal(&mut status, TaskStatus::Failed));
+        assert!(!super::transition_terminal(&mut status, TaskStatus::Failed));
+        assert!(!super::transition_terminal(
+            &mut status,
+            TaskStatus::Succeeded
+        ));
+        assert_eq!(status, TaskStatus::Failed);
+    }
 
     #[test]
     fn task_kind_和状态保持稳定序列化值() {

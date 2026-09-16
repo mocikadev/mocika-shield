@@ -1,3 +1,4 @@
+use crate::diagnostic::{Diagnostic, FailureCode};
 use anyhow::{bail, Result};
 use std::{fs, path::Path};
 
@@ -10,7 +11,7 @@ pub(crate) fn validate_exclusions(original: &[String], excluded: &[String]) -> R
         .len()
         != excluded.len()
     {
-        bail!("ABI 排除清单存在重复项");
+        return Err(preflight_abi_error("ABI 排除清单存在重复项"));
     }
     for abi in excluded {
         if abi.is_empty()
@@ -20,7 +21,9 @@ pub(crate) fn validate_exclusions(original: &[String], excluded: &[String]) -> R
             || STANDARD_ABIS.contains(&abi.as_str())
             || !original.contains(abi)
         {
-            bail!("不能排除此 ABI：{abi}；仅允许排除 APK 中实际存在且不受支持的架构");
+            return Err(preflight_abi_error(&format!(
+                "不能排除此 ABI：{abi}；仅允许排除 APK 中实际存在且不受支持的架构"
+            )));
         }
     }
     if !original.is_empty()
@@ -28,23 +31,34 @@ pub(crate) fn validate_exclusions(original: &[String], excluded: &[String]) -> R
             .iter()
             .any(|abi| STANDARD_ABIS.contains(&abi.as_str()))
     {
-        bail!("APK 没有受支持的 Native 架构，不能通过排除架构继续加固");
+        return Err(
+            Diagnostic::new(FailureCode::UnsupportedAbi).attach_preflight(anyhow::anyhow!(
+                "APK 没有受支持的 Native 架构，不能通过排除架构继续加固"
+            )),
+        );
     }
     let unsupported: Vec<_> = original
         .iter()
         .filter(|abi| !STANDARD_ABIS.contains(&abi.as_str()) && !excluded.contains(abi))
         .collect();
     if !unsupported.is_empty() {
-        bail!(
-            "APK 包含不受支持的 ABI：{}；请在原工程排除，或显式确认 --exclude-abis 后重试",
-            unsupported
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>()
-                .join("、")
+        return Err(
+            Diagnostic::new(FailureCode::UnsupportedAbi).attach_preflight(anyhow::anyhow!(
+                "APK 包含不受支持的 ABI：{}；请在原工程排除，或显式确认 --exclude-abis 后重试",
+                unsupported
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join("、")
+            )),
         );
     }
     Ok(())
+}
+
+fn preflight_abi_error(message: &str) -> anyhow::Error {
+    Diagnostic::new(FailureCode::UnsupportedAbi)
+        .attach_preflight(anyhow::anyhow!(message.to_string()))
 }
 
 pub(crate) fn remove_excluded(apk_dir: &Path, excluded: &[String]) -> Result<()> {
@@ -103,6 +117,33 @@ mod tests {
         }
         assert!(validate_exclusions(&[], &[]).is_ok());
         assert!(validate_exclusions(&names(STANDARD_ABIS), &[]).is_ok());
+    }
+
+    #[test]
+    fn 未排除的不支持架构带有稳定诊断() {
+        let error = validate_exclusions(&names(&["arm64-v8a", "mips"]), &[]).unwrap_err();
+        assert_eq!(
+            crate::diagnostic::Diagnostic::from_error(&error).code,
+            crate::diagnostic::FailureCode::UnsupportedAbi
+        );
+    }
+
+    #[test]
+    fn abi_排除清单所有拒绝分支均保留预检错误链() {
+        for error in [
+            validate_exclusions(&names(&["arm64-v8a", "mips"]), &names(&["mips", "mips"]))
+                .unwrap_err(),
+            validate_exclusions(&names(&["arm64-v8a", "mips"]), &names(&["arm64-v8a"]))
+                .unwrap_err(),
+            validate_exclusions(&names(&["mips"]), &names(&["mips"])).unwrap_err(),
+            validate_exclusions(&names(&["arm64-v8a", "mips"]), &[]).unwrap_err(),
+        ] {
+            assert!(crate::diagnostic::is_preflight_error(&error));
+            assert_eq!(
+                crate::diagnostic::Diagnostic::from_error(&error).code,
+                crate::diagnostic::FailureCode::UnsupportedAbi
+            );
+        }
     }
 
     #[test]

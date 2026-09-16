@@ -70,6 +70,13 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     failure_breakdown = normalize_usage_breakdown(payload.get("failure_breakdown"), "失败阶段统计")
     complete_versions = [row for row in (version_trend or []) if row["date"] < today][-90:]
     complete_failures = [row for row in (failure_breakdown or []) if row["date"] < today][-90:]
+    # 只读取公开聚合白名单；绝不抓取报告接口或保留混入响应的报告正文。
+    reason_rows = normalize_public_failure_rows(payload.get("failure_reason_breakdown"), {
+        "usage_date", "app_version", "flow", "operation", "stage", "code", "classifier_version", "count",
+    }, today)
+    coverage_rows = normalize_public_failure_rows(payload.get("failure_classifier_coverage"), {
+        "usage_date", "app_version", "failure_classifier_version", "reporting_devices", "failure_count",
+    }, today)
     return {
         "available": True,
         "active_devices": latest.get("active_devices"),
@@ -82,7 +89,20 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
         "version_trend": complete_versions if version_trend is not None else [],
         "failure_breakdown_available": failure_breakdown is not None,
         "failure_breakdown": complete_failures if failure_breakdown is not None else [],
+        "failure_reason_breakdown_available": reason_rows is not None,
+        "failure_reason_breakdown": reason_rows or [],
+        "failure_classifier_coverage": coverage_rows or [],
     }
+
+
+def normalize_public_failure_rows(value: Any, fields: set[str], today: str) -> Optional[list[dict[str, Any]]]:
+    rows = normalize_usage_breakdown(value, "失败类别统计")
+    if rows is None:
+        return None
+    return [
+        {key: row[key] for key in fields | {"date"} if key in row}
+        for row in rows if row["date"] < today
+    ]
 
 
 def normalize_usage_breakdown(value: Any, label: str) -> Optional[list[dict[str, Any]]]:

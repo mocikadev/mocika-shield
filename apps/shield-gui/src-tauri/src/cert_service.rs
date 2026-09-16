@@ -3,30 +3,46 @@ use crate::cert_store::{
     CertificateRecord, CertificateStoreState, CertificateUpsertInput, CertificateValidationInput,
     CertificateValidationResult, CreateManagedCertificateInput,
 };
+use crate::failure_diagnostic::ExecutionFailure;
 use crate::signing::query_keystore_aliases;
+use shield_core::diagnostic::{Diagnostic, FailureCode, ToolName};
 use shield_core::{keytool::keytool_command, utils::find_keytool};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub(crate) struct CertificateOutcome<T> {
+    pub(crate) value: T,
+    pub(crate) diagnostic: Option<Diagnostic>,
+}
+
+impl<T> CertificateOutcome<T> {
+    fn plain(value: T) -> Self {
+        Self {
+            value,
+            diagnostic: None,
+        }
+    }
+}
+
 pub(crate) fn validate_certificate_input(
     input: CertificateValidationInput,
-) -> Result<CertificateValidationResult, String> {
+) -> Result<CertificateOutcome<CertificateValidationResult>, ExecutionFailure> {
     let path = input.keystore_path.trim();
     if path.is_empty() {
-        return Ok(CertificateValidationResult {
+        return Ok(CertificateOutcome::plain(CertificateValidationResult {
             valid: false,
             aliases: Vec::new(),
             resolved_alias: None,
             message: Some("请选择 Keystore 文件".to_string()),
-        });
+        }));
     }
     if input.keystore_password.trim().is_empty() {
-        return Ok(CertificateValidationResult {
+        return Ok(CertificateOutcome::plain(CertificateValidationResult {
             valid: false,
             aliases: Vec::new(),
             resolved_alias: None,
             message: Some("请输入 Keystore 密码".to_string()),
-        });
+        }));
     }
 
     let aliases = query_keystore_aliases(
@@ -34,21 +50,30 @@ pub(crate) fn validate_certificate_input(
         input.keystore_password.clone(),
         input.ks_type.clone(),
     )?;
-    let Some(actual_alias) = resolve_alias(&aliases, &input.key_alias) else {
-        let message = if input.key_alias.trim().is_empty() {
-            "请输入 Key Alias，或只保留一个 alias 后再自动识别"
-        } else {
-            "未在 keystore 中找到指定 alias"
-        };
-        return Ok(CertificateValidationResult {
-            valid: false,
-            aliases,
-            resolved_alias: None,
-            message: Some(message.to_string()),
-        });
-    };
+    Ok(validation_from_aliases(aliases, &input.key_alias))
+}
 
-    Ok(CertificateValidationResult {
+fn validation_from_aliases(
+    aliases: Vec<String>,
+    requested_alias: &str,
+) -> CertificateOutcome<CertificateValidationResult> {
+    let Some(actual_alias) = resolve_alias(&aliases, requested_alias) else {
+        let missing_requested = !requested_alias.trim().is_empty();
+        return CertificateOutcome {
+            value: CertificateValidationResult {
+                valid: false,
+                aliases,
+                resolved_alias: None,
+                message: Some(if missing_requested {
+                    "未在 keystore 中找到指定 alias".to_string()
+                } else {
+                    "请输入 Key Alias，或只保留一个 alias 后再自动识别".to_string()
+                }),
+            },
+            diagnostic: missing_requested.then(|| Diagnostic::new(FailureCode::KeyAliasNotFound)),
+        };
+    };
+    CertificateOutcome::plain(CertificateValidationResult {
         valid: true,
         aliases,
         resolved_alias: Some(actual_alias),
@@ -71,9 +96,11 @@ fn resolve_alias(aliases: &[String], requested_alias: &str) -> Option<String> {
 pub(crate) fn save_certificate_profile(
     store: &CertificateStoreState,
     input: CertificateUpsertInput,
-) -> Result<CertificateRecord, String> {
+) -> Result<CertificateRecord, ExecutionFailure> {
     if input.id.is_some() {
-        return store.update_certificate_preferences(&input);
+        return store
+            .update_certificate_preferences(&input)
+            .map_err(Into::into);
     }
 
     let validation = validate_certificate_input(CertificateValidationInput {
@@ -82,29 +109,37 @@ pub(crate) fn save_certificate_profile(
         key_alias: input.key_alias.clone(),
         ks_type: input.ks_type.clone(),
     })?;
-    if !validation.valid {
-        return Err(validation
+    if !validation.value.valid {
+        let message = validation
+            .value
             .message
-            .unwrap_or_else(|| "证书校验失败，无法保存".to_string()));
+            .unwrap_or_else(|| "证书校验失败，无法保存".to_string());
+        return Err(match validation.diagnostic {
+            Some(diagnostic) => ExecutionFailure::diagnosed(message, diagnostic),
+            None => ExecutionFailure::preflight(message, Diagnostic::new(FailureCode::Unknown)),
+        });
     }
     let resolved_alias = validation
+        .value
         .resolved_alias
         .clone()
         .ok_or_else(|| "校验通过但未解析到 alias".to_string())?;
     let final_path = resolve_keystore_path_for_save(store, &input)?;
     let now = current_timestamp();
-    store.save_certificate(
-        &input,
-        &final_path,
-        &resolved_alias,
-        Some(("success", None, now)),
-    )
+    store
+        .save_certificate(
+            &input,
+            &final_path,
+            &resolved_alias,
+            Some(("success", None, now)),
+        )
+        .map_err(Into::into)
 }
 
 pub(crate) fn verify_saved_certificate(
     store: &CertificateStoreState,
     id: &str,
-) -> Result<CertificateRecord, String> {
+) -> Result<CertificateOutcome<CertificateRecord>, ExecutionFailure> {
     let record = store
         .get_certificate(id)?
         .ok_or_else(|| "未找到要校验的证书".to_string())?;
@@ -115,49 +150,66 @@ pub(crate) fn verify_saved_certificate(
         ks_type: Some(record.ks_type.clone()),
     });
     match validation {
-        Ok(result) if result.valid => {
-            let alias = result.resolved_alias.as_deref();
-            store.update_verify_status(id, "success", None, alias)
+        Ok(result) if result.value.valid => {
+            let alias = result.value.resolved_alias.as_deref();
+            store
+                .update_verify_status(id, "success", None, alias)
+                .map(CertificateOutcome::plain)
+                .map_err(Into::into)
         }
-        Ok(result) => store.update_verify_status(id, "failed", result.message.as_deref(), None),
-        Err(err) => store.update_verify_status(id, "failed", Some(&err), None),
+        Ok(result) => store
+            .update_verify_status(id, "failed", result.value.message.as_deref(), None)
+            .map(|value| CertificateOutcome {
+                value,
+                diagnostic: result.diagnostic,
+            })
+            .map_err(Into::into),
+        Err(err) => {
+            let value = store.update_verify_status(id, "failed", Some(&err.message), None)?;
+            Ok(CertificateOutcome {
+                value,
+                diagnostic: Some(err.diagnostic),
+            })
+        }
     }
 }
 
 pub(crate) fn create_managed_certificate(
     store: &CertificateStoreState,
     input: CreateManagedCertificateInput,
-) -> Result<CertificateRecord, String> {
+) -> Result<CertificateRecord, ExecutionFailure> {
     if input.name.trim().is_empty() {
-        return Err("请输入证书名称".to_string());
+        return Err(preflight_input("请输入证书名称"));
     }
     if input.key_alias.trim().is_empty() {
-        return Err("请输入 Key Alias".to_string());
+        return Err(preflight_input("请输入 Key Alias"));
     }
     if input.keystore_password.trim().is_empty() {
-        return Err("请输入 Keystore 密码".to_string());
+        return Err(preflight_input("请输入 Keystore 密码"));
     }
     if input.keystore_password.trim().chars().count() < 6 {
-        return Err("Keystore 密码至少需要 6 个字符".to_string());
+        return Err(preflight_input("Keystore 密码至少需要 6 个字符"));
     }
     if !input.key_password.trim().is_empty() && input.key_password.trim().chars().count() < 6 {
-        return Err("Key 密码至少需要 6 个字符".to_string());
+        return Err(preflight_input("Key 密码至少需要 6 个字符"));
     }
     if input.dname.trim().is_empty() {
-        return Err("请输入证书主题信息".to_string());
+        return Err(preflight_input("请输入证书主题信息"));
     }
     if input.validity_days == 0 {
-        return Err("有效期必须大于 0 天".to_string());
+        return Err(preflight_input("有效期必须大于 0 天"));
     }
     if input.key_size != 2048 && input.key_size != 4096 {
-        return Err("密钥位数建议使用 2048 或 4096".to_string());
+        return Err(preflight_input("密钥位数建议使用 2048 或 4096"));
     }
 
     let file_name = build_managed_file_name(&input.file_name, input.ks_type.as_deref());
     let keystore_path = allocate_unique_path(store.keystore_dir(), &file_name);
     let ks_type =
         normalize_keystore_type(input.ks_type.as_deref()).unwrap_or_else(|| "JKS".to_string());
-    let keytool = find_keytool().map_err(|err| err.to_string())?;
+    let keytool = find_keytool().map_err(|err| {
+        ExecutionFailure::diagnosed(err.to_string(), Diagnostic::new(FailureCode::ToolNotFound))
+    })?;
     let effective_key_password = if input.key_password.trim().is_empty() {
         input.keystore_password.clone()
     } else {
@@ -187,11 +239,27 @@ pub(crate) fn create_managed_certificate(
             &input.key_size.to_string(),
         ])
         .output()
-        .map_err(|e| format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"))?;
+        .map_err(|e| {
+            ExecutionFailure::diagnosed(
+                format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"),
+                Diagnostic::from_io(&e),
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(classify_create_keystore_error(&stderr));
+        return Err(ExecutionFailure::diagnosed(
+            classify_create_keystore_error(&stderr),
+            Diagnostic::from_tool_output(
+                ToolName::Keytool,
+                output.status.code(),
+                if output.stderr.is_empty() {
+                    &output.stdout
+                } else {
+                    &output.stderr
+                },
+            ),
+        ));
     }
 
     let upsert = CertificateUpsertInput {
@@ -215,6 +283,10 @@ pub(crate) fn create_managed_certificate(
     };
 
     save_certificate_profile(store, upsert)
+}
+
+fn preflight_input(message: &str) -> ExecutionFailure {
+    ExecutionFailure::preflight(message.to_string(), Diagnostic::new(FailureCode::Unknown))
 }
 
 fn resolve_keystore_path_for_save(
@@ -373,10 +445,22 @@ fn classify_create_keystore_error(stderr: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_create_keystore_error, resolve_alias};
+    use super::{classify_create_keystore_error, resolve_alias, validation_from_aliases};
+    use shield_core::diagnostic::FailureCode;
 
     fn aliases(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn 不存在的_alias_保留验证载荷并单独返回诊断() {
+        let outcome = validation_from_aliases(aliases(&["release", "debug"]), "missing");
+        assert!(!outcome.value.valid);
+        assert_eq!(outcome.value.aliases, aliases(&["release", "debug"]));
+        assert_eq!(
+            outcome.diagnostic.map(|item| item.code),
+            Some(FailureCode::KeyAliasNotFound)
+        );
     }
 
     #[test]

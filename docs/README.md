@@ -27,6 +27,8 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 本地排障 | [ops/troubleshooting.md](ops/troubleshooting.md) |
 | 查看维护统计方案 | [ops/project-statistics.md](ops/project-statistics.md) |
 | 查看匿名使用统计方案 | [ops/telemetry.md](ops/telemetry.md) |
+| 查看匿名失败分类与确认发送报告方案 | [design/failure-diagnostics.md](design/failure-diagnostics.md) |
+| 部署失败诊断、按版本查询及回滚 | [ops/failure-diagnostics.md](ops/failure-diagnostics.md) |
 | 理解加固实现 | [design/internals.md](design/internals.md)、[design/architecture.md](design/architecture.md) |
 | 了解 Native 库打包、`extractNativeLibs` 与 16 KB 兼容设计 | [design/native-library-packaging.md](design/native-library-packaging.md) |
 | 了解旧 SDK 附带不支持 ABI 时的确认与排除策略 | [design/unsupported-abi.md](design/unsupported-abi.md) |

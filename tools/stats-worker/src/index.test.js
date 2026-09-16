@@ -31,6 +31,8 @@ test("趋势响应保持旧数据数组并提供版本与失败细分", () => {
       data: [{ usage_date: "2026-08-25", active_devices: 1 }],
       versions: [],
       failure_breakdown: [],
+      failure_reason_breakdown: [],
+      failure_classifier_coverage: [],
     },
   );
 });

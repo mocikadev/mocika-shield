@@ -37,6 +37,8 @@ pub(crate) struct DailyTelemetry {
     pub sign_failed_count: u32,
     /// 固定失败阶段的聚合计数，不保存原始错误文本。
     pub failure_counts: std::collections::BTreeMap<String, u32>,
+    pub failure_classifier_version: Option<u32>,
+    pub failure_reason_counts: Vec<crate::failure_diagnostic::FailureReasonCount>,
     pub uploaded: bool,
 }
 

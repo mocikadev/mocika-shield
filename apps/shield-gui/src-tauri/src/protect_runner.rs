@@ -3,8 +3,10 @@ use crate::app_paths::{
     strip_unc_prefix,
 };
 use crate::cert_store::CertificateRecord;
+use crate::failure_diagnostic::ExecutionFailure;
 use crate::signing::execute_sign_apk;
 use crate::task_manager::TaskManager;
+use shield_core::diagnostic::{Diagnostic, FailureCode};
 use shield_core::{
     extract_keystore_cert_fingerprint, protect_apk as shield_protect_apk, EnvironmentPolicy,
     ProgressEvent, ProtectOptions, ShieldError,
@@ -68,7 +70,7 @@ pub(crate) async fn execute_protect_apk(
     request: ProtectExecution,
     cancel_handle: tauri::State<'_, CancelHandle>,
     task_manager: TaskManager,
-) -> Result<(), String> {
+) -> Result<(), ExecutionFailure> {
     cancel_handle.inner().0.store(false, Ordering::SeqCst);
 
     let app = window.app_handle().clone();
@@ -89,9 +91,12 @@ pub(crate) async fn execute_protect_apk(
             .map_err(|err| format!("检查 Android 4.4 兼容条件失败：{err}"))?;
             let unsupported = unsupported_api19_abis(&checked.native_abis);
             if !unsupported.is_empty() {
-                return Err(format!(
-                    "Android 4.4 兼容模式暂不支持 APK 中的原生架构：{}",
-                    unsupported.join("、")
+                return Err(ExecutionFailure::preflight(
+                    format!(
+                        "Android 4.4 兼容模式暂不支持 APK 中的原生架构：{}",
+                        unsupported.join("、")
+                    ),
+                    Diagnostic::new(FailureCode::UnsupportedAbi),
                 ));
             }
             find_named_resources_path(&app, "resources-api19.zip")
@@ -118,7 +123,9 @@ pub(crate) async fn execute_protect_apk(
                 )
             })
             .transpose()
-            .map_err(ShieldError::from)?;
+            .map_err(|err| {
+                ExecutionFailure::diagnosed(err.to_string(), Diagnostic::from_error(&err))
+            })?;
         let opts = ProtectOptions {
             excluded_abis: request.excluded_abis,
             input: strip_unc_prefix(PathBuf::from(request.input)),
@@ -156,13 +163,19 @@ pub(crate) async fn execute_protect_apk(
                 }
             },
             cancel_for_protect,
+        )
+        .map_err(ExecutionFailure::from_shield)?;
+
+        task_manager.protected(
+            &progress_task_id,
+            request.signing_certificate.is_some() && request.signed_output.is_some(),
         )?;
 
         if let (Some(certificate), Some(final_output)) =
             (request.signing_certificate, request.signed_output)
         {
             if cancel.load(Ordering::Relaxed) {
-                return Err(ShieldError::Cancelled);
+                return Err(ExecutionFailure::from_shield(ShieldError::Cancelled));
             }
             let unsigned_output = opts.output.to_string_lossy().to_string();
             execute_sign_apk(
@@ -174,18 +187,15 @@ pub(crate) async fn execute_protect_apk(
                 |step, message| {
                     task_manager.progress(&progress_window, &progress_task_id, step, message)
                 },
-            )
-            .map_err(ShieldError::ApkError)?;
+            )?;
             let _ = std::fs::remove_file(format!("{final_output}.idsig"));
             let _ = std::fs::remove_file(unsigned_output);
-            task_manager
-                .progress(
-                    &progress_window,
-                    &progress_task_id,
-                    "Cleanup",
-                    "已清理中间产物",
-                )
-                .map_err(ShieldError::ApkError)?;
+            task_manager.progress(
+                &progress_window,
+                &progress_task_id,
+                "Cleanup",
+                "已清理中间产物",
+            )?;
         }
         Ok(())
     })
@@ -198,14 +208,10 @@ pub(crate) async fn execute_protect_apk(
         .clone();
 
     if let Some(msg) = progress_emit_error {
-        return Err(msg);
+        return Err(msg.into());
     }
 
-    match task_result {
-        Ok(()) => Ok(()),
-        Err(ShieldError::Cancelled) => Err("已取消".to_string()),
-        Err(err) => Err(err.to_string()),
-    }
+    task_result
 }
 
 #[cfg(test)]

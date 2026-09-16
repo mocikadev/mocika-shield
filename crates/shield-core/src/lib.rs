@@ -2,6 +2,7 @@ pub mod apk_inspect;
 mod dex_packer;
 #[cfg(test)]
 mod dex_research;
+pub mod diagnostic;
 pub mod error;
 pub mod keytool;
 mod preflight;

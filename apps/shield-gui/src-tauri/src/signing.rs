@@ -1,6 +1,8 @@
 use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
 use crate::cert_store::CertificateRecord;
+use crate::failure_diagnostic::ExecutionFailure;
+use shield_core::diagnostic::{Diagnostic, FailureCode, ToolName};
 use shield_core::{
     keytool::keytool_command, sign_apk_with_progress as shield_sign_apk, utils::find_keytool,
     KeystoreType, SignOptions, SigningProgressStep, SigningVersions,
@@ -14,7 +16,7 @@ pub(crate) fn execute_sign_apk(
     apksigner_path: Option<String>,
     certificate: CertificateRecord,
     mut on_progress: impl FnMut(&str, &str) -> Result<(), String>,
-) -> Result<(), String> {
+) -> Result<(), ExecutionFailure> {
     let resolved_apksigner = apksigner_path
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
@@ -54,7 +56,7 @@ pub(crate) fn execute_sign_apk(
         };
         on_progress(step, message)
     })
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| ExecutionFailure::diagnosed(e.to_string(), Diagnostic::from_error(&e)))?;
     Ok(())
 }
 
@@ -62,9 +64,11 @@ pub(crate) fn query_keystore_aliases(
     keystore_path: String,
     ks_pass: String,
     ks_type: Option<String>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, ExecutionFailure> {
     let ks_type_str = ks_type.as_deref().unwrap_or("JKS");
-    let keytool = find_keytool().map_err(|err| err.to_string())?;
+    let keytool = find_keytool().map_err(|err| {
+        ExecutionFailure::diagnosed(err.to_string(), Diagnostic::new(FailureCode::ToolNotFound))
+    })?;
     let output = keytool_command(&keytool)
         .args([
             "-list",
@@ -76,17 +80,41 @@ pub(crate) fn query_keystore_aliases(
             &ks_pass,
         ])
         .output()
-        .map_err(|e| format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"))?;
+        .map_err(|e| {
+            ExecutionFailure::diagnosed(
+                format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"),
+                Diagnostic::from_io(&e),
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(classify_keytool_error(&stderr));
+        return Err(ExecutionFailure::diagnosed(
+            classify_keytool_error(&stderr),
+            Diagnostic::from_tool_output(
+                ToolName::Keytool,
+                output.status.code(),
+                if output.stderr.is_empty() {
+                    &output.stdout
+                } else {
+                    &output.stderr
+                },
+            ),
+        ));
     }
 
-    let aliases = parse_keytool_aliases(&output.stdout)?;
+    let aliases = parse_keytool_aliases(&output.stdout).map_err(|message| {
+        ExecutionFailure::diagnosed(
+            message,
+            Diagnostic::new(FailureCode::ToolOutputEncodingInvalid),
+        )
+    })?;
 
     if aliases.is_empty() {
-        Err("未在 keystore 中找到任何 alias".to_string())
+        Err(ExecutionFailure::diagnosed(
+            "未在 keystore 中找到任何 alias".to_string(),
+            Diagnostic::new(FailureCode::KeyAliasNotFound),
+        ))
     } else {
         Ok(aliases)
     }
