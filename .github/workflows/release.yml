@@ -46,6 +46,8 @@ jobs:
 
       - name: 配置 Android 命令行工具
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: 配置 Node.js
         uses: actions/setup-node@v6
@@ -138,6 +140,8 @@ jobs:
 
       - name: 配置 Android 命令行工具
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: 配置 Node.js
         uses: actions/setup-node@v6
@@ -212,6 +216,8 @@ jobs:
 
       - name: 配置 Android 命令行工具
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: 配置 Node.js
         uses: actions/setup-node@v6

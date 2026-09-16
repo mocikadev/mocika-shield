@@ -1,4 +1,5 @@
 import pathlib
+import re
 import unittest
 
 
@@ -6,6 +7,20 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class AndroidApi19BuildContractTests(unittest.TestCase):
+    def test_android_setup_explicitly_selects_available_packages(self) -> None:
+        for workflow in (ROOT / ".github/workflows").glob("*.yml"):
+            content = workflow.read_text(encoding="utf-8")
+            steps = re.split(r"(?m)^      - ", content)
+            for step in steps:
+                if "uses: android-actions/setup-android@" not in step:
+                    continue
+                with self.subTest(workflow=workflow.name, step=step.splitlines()[0]):
+                    self.assertRegex(
+                        step,
+                        r"(?m)^        with:\n          packages: platform-tools$",
+                        "必须显式指定可用包，避免默认安装已不可用的 tools",
+                    )
+
     def test_ci_and_release_install_both_ndk_versions(self) -> None:
         for relative_path in (".github/workflows/ci.yml", ".github/workflows/release.yml"):
             content = (ROOT / relative_path).read_text(encoding="utf-8")
