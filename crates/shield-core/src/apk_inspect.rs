@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::path::Path;
 
+use crate::keytool::keytool_command;
 use crate::utils::{find_apksigner, find_java, find_keytool, no_window_command};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,8 +175,6 @@ pub fn extract_keystore_cert_fingerprint(
     let keytool = find_keytool()?;
 
     let mut args = vec![
-        "-J-Duser.language=en",
-        "-J-Duser.country=US",
         "-list",
         "-v",
         "-keystore",
@@ -190,14 +189,15 @@ pub fn extract_keystore_cert_fingerprint(
         args.push(kind);
     }
 
-    let output = no_window_command(&keytool)
+    let output = keytool_command(&keytool)
         .args(&args)
         .output()
         .context("执行 keytool 失败")?;
 
     if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if let Some(fp) = parse_sha256_from_keytool(&stdout) {
+        let stdout = std::str::from_utf8(&output.stdout)
+            .context("keytool 输出不是有效 UTF-8，无法安全读取证书指纹")?;
+        if let Some(fp) = parse_sha256_from_keytool(stdout) {
             return Ok(fp);
         }
         anyhow::bail!("keytool 已执行成功，但未返回可识别的 SHA-256 指纹")

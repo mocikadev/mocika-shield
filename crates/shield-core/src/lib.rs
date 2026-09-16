@@ -3,6 +3,7 @@ mod dex_packer;
 #[cfg(test)]
 mod dex_research;
 pub mod error;
+pub mod keytool;
 mod preflight;
 mod protect;
 mod protect_api;
