@@ -63,6 +63,7 @@ impl CliConfig {
 
     pub(crate) fn merge_protect(&self, args: ProtectArgs) -> Result<ResolvedProtectArgs> {
         Ok(ResolvedProtectArgs {
+            excluded_abis: args.exclude_abis,
             input: required_path(args.input.or_else(|| self.protect.input.clone()), "--input")?,
             output: required_path(
                 args.output.or_else(|| self.protect.output.clone()),
@@ -129,6 +130,7 @@ impl CliConfig {
 }
 
 pub(crate) struct ResolvedProtectArgs {
+    pub excluded_abis: Vec<String>,
     pub input: PathBuf,
     pub output: PathBuf,
     pub apktool: Option<PathBuf>,
@@ -181,6 +183,26 @@ fn parse_keystore_type(value: Option<&str>) -> Result<Option<KeystoreTypeArg>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn 排除架构参数仅对本次命令有效() {
+        use clap::Parser;
+        let cli = crate::args::Cli::try_parse_from([
+            "shield",
+            "protect",
+            "-i",
+            "input.apk",
+            "-o",
+            "output.apk",
+            "--exclude-abis",
+            "mips,mips64,armeabi",
+        ])
+        .unwrap();
+        let crate::args::Commands::Protect(args) = cli.command else {
+            panic!("应解析为加固命令")
+        };
+        assert_eq!(args.exclude_abis, ["mips", "mips64", "armeabi"]);
+        assert!(crate::args::ProtectArgs::default().exclude_abis.is_empty());
+    }
     use super::*;
 
     #[test]

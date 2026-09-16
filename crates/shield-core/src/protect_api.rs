@@ -12,6 +12,7 @@ use crate::apk_inspect::{
 };
 use crate::error::ShieldError;
 use crate::protect::{
+    abi_filter::{remove_excluded, validate_exclusions},
     dex::process_dex,
     manifest::{
         add_cache_identity, add_memory_payload_metrics, modify_manifest,
@@ -46,6 +47,8 @@ use crate::zipalign::{align_apk_with_native_packaging, NativeLibraryPackaging};
 
 #[derive(Debug, Clone)]
 pub struct ProtectOptions {
+    /// 用户对本次任务明确确认排除的、不受支持的 Native ABI。
+    pub excluded_abis: Vec<String>,
     pub input: PathBuf,
     pub output: PathBuf,
     /// 用户自定义 apktool.jar 路径（优先于自动查找）
@@ -141,6 +144,7 @@ pub fn protect_apk(
 
     let apk_check = check_apk(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
     validate_apk_eligibility(&apk_check).map_err(ShieldError::from)?;
+    validate_exclusions(&apk_check.native_abis, &opts.excluded_abis).map_err(ShieldError::from)?;
     let signature =
         extract_apk_cert_fingerprint(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
     validate_output_certificate(&signature, opts.expected_output_cert_fingerprint.as_deref())
@@ -171,6 +175,12 @@ pub fn protect_apk(
     )
     .map_err(ShieldError::from)?;
     print_success("解包完成");
+    remove_excluded(&apk_dir, &opts.excluded_abis).map_err(ShieldError::from)?;
+    if !opts.excluded_abis.is_empty() {
+        let message = format!("已从输出排除 ABI：{}", opts.excluded_abis.join("、"));
+        emit_progress(&on_progress, &cancel, ProgressStep::Unpack, &message)?;
+        print_success(&message);
+    }
 
     let native_lib_policy =
         read_native_lib_packaging_policy(&apk_dir).map_err(ShieldError::from)?;
@@ -222,8 +232,13 @@ pub fn protect_apk(
         "注入Runtime库",
     )?;
     print_step("注入Runtime库");
-    let injected_runtime =
-        inject_runtime(&apk_dir, &runtime_resources, &opts.input).map_err(ShieldError::from)?;
+    let injected_runtime = inject_runtime(
+        &apk_dir,
+        &runtime_resources,
+        &opts.input,
+        &opts.excluded_abis,
+    )
+    .map_err(ShieldError::from)?;
     print_success("Runtime库注入完成");
 
     emit_progress(&on_progress, &cancel, ProgressStep::Repack, "重打包APK")?;

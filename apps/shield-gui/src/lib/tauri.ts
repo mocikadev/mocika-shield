@@ -195,7 +195,7 @@ export type DragDropPayload = {
 export const api = {
   checkApk: (path: string, runtimeMode: "standard" | "android_api19", certificateId?: string | null) =>
     invoke<ApkCheckResult>("check_apk", { path, runtimeMode, certificateId: certificateId ?? null }),
-  protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", environmentPolicy: "compatible" | "strict", signedOutput?: string | null, certificateId?: string | null) =>
+  protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", environmentPolicy: "compatible" | "strict", signedOutput?: string | null, certificateId?: string | null, excludedAbis: string[] = []) =>
     invoke<void>("protect_apk", {
       request: {
         taskId,
@@ -205,6 +205,7 @@ export const api = {
         apktoolPath: null,
         runtimeMode,
         environmentPolicy,
+        excludedAbis,
         certificateId: certificateId ?? null,
       },
     }),

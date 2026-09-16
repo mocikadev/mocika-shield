@@ -31,6 +31,7 @@ pub(crate) fn run_protect(args: ResolvedProtectArgs) -> Result<()> {
     }
 
     let opts = ProtectOptions {
+        excluded_abis: args.excluded_abis,
         input: args.input,
         output: args.output,
         apktool_path: args.apktool,

@@ -16,8 +16,16 @@ pub(crate) fn inject_runtime(
     apk_dir: &Path,
     runtime_resources: &Path,
     original_apk: &Path,
+    excluded_abis: &[String],
 ) -> Result<InjectedNativeRuntime> {
-    let original_native = inspect_original_apk(original_apk)?;
+    let mut original_native = inspect_original_apk(original_apk)?;
+    super::abi_filter::validate_exclusions(
+        &original_native.abis.iter().cloned().collect::<Vec<_>>(),
+        excluded_abis,
+    )?;
+    original_native
+        .abis
+        .retain(|abi| !excluded_abis.contains(abi));
 
     let file = fs::File::open(runtime_resources)?;
     let mut archive = zip::ZipArchive::new(file)?;
@@ -338,6 +346,20 @@ mod tests {
 
     #[test]
     fn inject_runtime_rewrites_native_paths_and_stub_placeholder() {
+        verify_injection(false, false);
+    }
+
+    #[test]
+    fn 排除旧架构后注入仍完整且原始包不变() {
+        verify_injection(true, false);
+    }
+
+    #[test]
+    fn 排除旧架构不能掩盖受支持壳库缺失() {
+        verify_injection(true, true);
+    }
+
+    fn verify_injection(mixed: bool, missing_runtime: bool) {
         let dir = tempfile::tempdir().unwrap();
         let apk_dir = dir.path().join("apk");
         fs::create_dir_all(&apk_dir).unwrap();
@@ -350,8 +372,31 @@ mod tests {
             zip.start_file("classes.dex", zip::write::SimpleFileOptions::default())
                 .unwrap();
             zip.write_all(b"dex").unwrap();
+            if mixed {
+                for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "mips"] {
+                    zip.start_file(
+                        format!("lib/{abi}/libbusiness.so"),
+                        zip::write::SimpleFileOptions::default(),
+                    )
+                    .unwrap();
+                    zip.write_all(b"business").unwrap();
+                    fs::create_dir_all(apk_dir.join("lib").join(abi)).unwrap();
+                    fs::write(
+                        apk_dir.join("lib").join(abi).join("libbusiness.so"),
+                        b"business",
+                    )
+                    .unwrap();
+                }
+            }
             zip.finish().unwrap();
         }
+        let original_bytes = fs::read(&original_apk).unwrap();
+        let excluded = if mixed {
+            vec!["mips".to_string()]
+        } else {
+            vec![]
+        };
+        super::super::abi_filter::remove_excluded(&apk_dir, &excluded).unwrap();
 
         let resources = dir.path().join("resources.zip");
         {
@@ -378,6 +423,9 @@ mod tests {
             zip.start_file("stub-classes.dex", options).unwrap();
             zip.write_all(&dex).unwrap();
             for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
+                if missing_runtime && abi == "arm64-v8a" {
+                    continue;
+                }
                 zip.start_file(format!("lib/{abi}/libmocikashield.so"), options)
                     .unwrap();
                 zip.write_all(abi.as_bytes()).unwrap();
@@ -385,10 +433,26 @@ mod tests {
             zip.finish().unwrap();
         }
 
-        let injected = inject_runtime(&apk_dir, &resources, &original_apk).unwrap();
+        let result = inject_runtime(&apk_dir, &resources, &original_apk, &excluded);
+        assert_eq!(fs::read(&original_apk).unwrap(), original_bytes);
+        assert!(!apk_dir.join("lib/mips").exists());
+        if missing_runtime {
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("Runtime Native ABI 不完整"));
+            return;
+        }
+        let injected = result.unwrap();
         assert_eq!(injected.injected_abis.len(), 4);
         assert!(!apk_dir.join("metadata.json").exists());
         for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
+            if mixed {
+                assert_eq!(
+                    fs::read(apk_dir.join("lib").join(abi).join("libbusiness.so")).unwrap(),
+                    b"business"
+                );
+            }
             assert!(apk_dir
                 .join("lib")
                 .join(abi)

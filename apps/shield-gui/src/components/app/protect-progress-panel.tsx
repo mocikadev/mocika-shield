@@ -13,7 +13,7 @@ export function ProtectProgressPanel({
   finishedAt,
 }: {
   locale: Locale;
-  state: "idle" | "prechecking" | "running" | "done" | "failed";
+  state: "idle" | "prechecking" | "confirming" | "running" | "done" | "failed";
   currentStep: string;
   steps: string[];
   showProgress: boolean;

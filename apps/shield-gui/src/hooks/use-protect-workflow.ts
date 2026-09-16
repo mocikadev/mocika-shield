@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   dirname,
   isApk,
@@ -7,7 +8,7 @@ import {
   protectedOutputFilename,
   validateOutputFilename,
 } from "@/lib/path";
-import { t, type Locale } from "@/lib/i18n";
+import { t, tf, type Locale } from "@/lib/i18n";
 import { getProtectJavaError } from "@/lib/java";
 import { notifyError, notifySuccess } from "@/lib/notify";
 import {
@@ -22,7 +23,7 @@ import {
   type TaskSnapshot,
 } from "@/lib/tauri";
 
-export type ProtectState = "idle" | "prechecking" | "running" | "done" | "failed";
+export type ProtectState = "idle" | "prechecking" | "confirming" | "running" | "done" | "failed";
 export type RuntimeMode = "standard" | "android_api19";
 export type EnvironmentPolicy = "compatible" | "strict";
 
@@ -57,6 +58,7 @@ export function useProtectWorkflow({
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
   const [taskAutoSign, setTaskAutoSign] = useState<boolean | null>(null);
   const [taskCertificate, setTaskCertificate] = useState<CertificateRecord | null>(null);
+  const [excludedAbis, setExcludedAbis] = useState<string[]>([]);
   const precheckRequest = useRef(0);
   const taskId = useRef<string | null>(null);
   const taskLocked = useRef(false);
@@ -103,6 +105,7 @@ export function useProtectWorkflow({
     setFinishedAt(null);
     setTaskAutoSign(null);
     setTaskCertificate(null);
+    setExcludedAbis([]);
     setRuntimeMode(defaults.runtime_mode);
     setEnvironmentPolicy(defaults.environment_policy);
     setOutputDirectoryMode(defaults.output_directory_mode);
@@ -224,11 +227,20 @@ export function useProtectWorkflow({
   }, [handleSelected]);
 
   const start = useCallback(async () => {
-    if (!input || !output || precheck || preflight?.verdict === "blocked" || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
+    if (taskLocked.current || !preflight || !input || !output || precheck || preflight.verdict === "blocked" || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
       return;
     }
+    taskLocked.current = true;
+    setState("confirming");
+    let started = false;
     try {
-      if (preflight?.verdict === "warning" && !window.confirm(t(locale, "confirmPreflightWarning"))) {
+      const abiRisk = preflight.checks.find((item) => item.code === "runtime_abi" && item.severity === "warning");
+      const exclusions = runtimeMode === "standard" && abiRisk?.detail ? abiRisk.detail.split("、") : [];
+      if (exclusions.length > 0 && !await confirm(tf(locale, "confirmAbiExclusion", {
+        excluded: exclusions.join("、"),
+        retained: preflight.facts.native_abis.filter((abi) => !exclusions.includes(abi)).join("、"),
+      }), { title: t(locale, "preflightAbi"), kind: "warning", okLabel: t(locale, "excludeAbiContinue"), cancelLabel: t(locale, "cancel") })) return;
+      if (preflight.checks.some((item) => item.severity === "warning" && item.code !== "runtime_abi") && !window.confirm(t(locale, "confirmPreflightWarning"))) {
         return;
       }
       if (await api.checkFileExists(output)) {
@@ -244,6 +256,8 @@ export function useProtectWorkflow({
       }
 
       setState("running");
+      started = true;
+      setExcludedAbis(exclusions);
       setError("");
       setCurrentStep("CheckTools");
       setStartedAt(Date.now());
@@ -265,6 +279,7 @@ export function useProtectWorkflow({
         environmentPolicy,
         autoSignReady ? output : null,
         autoSignReady && certificate ? certificate.id : null,
+        exclusions,
       );
       setFinishedAt(Date.now());
       setState("done");
@@ -274,8 +289,13 @@ export function useProtectWorkflow({
       setError(message);
       notifyError(message);
       setState("failed");
+    } finally {
+      if (!started) {
+        taskLocked.current = false;
+        setState("idle");
+      }
     }
-  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, preflight?.verdict, runtimeMode]);
+  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, preflight, runtimeMode]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -287,6 +307,7 @@ export function useProtectWorkflow({
     : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk"];
 
   return {
+    excludedAbis,
     input,
     output,
     outputFilename,
@@ -312,7 +333,7 @@ export function useProtectWorkflow({
     finishedAt,
     autoSignReady,
     activeCertificate,
-    taskLocked: taskAutoSign !== null || state === "failed",
+    taskLocked: taskAutoSign !== null || state === "failed" || state === "confirming",
     steps,
     hasInput: Boolean(input),
     showProgress: Boolean(input) && (state === "running" || state === "done" || state === "failed" || Boolean(currentStep)),

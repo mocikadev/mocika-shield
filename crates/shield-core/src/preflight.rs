@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
-const STANDARD_ABIS: &[&str] = &["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
+use crate::protect::abi_filter::STANDARD_ABIS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightSeverity {
