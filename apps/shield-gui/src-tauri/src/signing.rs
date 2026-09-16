@@ -2,8 +2,7 @@ use crate::app_config::normalize_keystore_type;
 use crate::app_paths::find_apksigner_path;
 use crate::cert_store::CertificateRecord;
 use shield_core::{
-    sign_apk_with_progress as shield_sign_apk,
-    utils::{find_keytool, no_window_command},
+    keytool::keytool_command, sign_apk_with_progress as shield_sign_apk, utils::find_keytool,
     KeystoreType, SignOptions, SigningProgressStep, SigningVersions,
 };
 use std::path::PathBuf;
@@ -66,7 +65,7 @@ pub(crate) fn query_keystore_aliases(
 ) -> Result<Vec<String>, String> {
     let ks_type_str = ks_type.as_deref().unwrap_or("JKS");
     let keytool = find_keytool().map_err(|err| err.to_string())?;
-    let output = no_window_command(&keytool)
+    let output = keytool_command(&keytool)
         .args([
             "-list",
             "-keystore",
@@ -84,8 +83,7 @@ pub(crate) fn query_keystore_aliases(
         return Err(classify_keytool_error(&stderr));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let aliases = parse_keytool_aliases(&stdout);
+    let aliases = parse_keytool_aliases(&output.stdout)?;
 
     if aliases.is_empty() {
         Err("未在 keystore 中找到任何 alias".to_string())
@@ -94,7 +92,11 @@ pub(crate) fn query_keystore_aliases(
     }
 }
 
-fn parse_keytool_aliases(output: &str) -> Vec<String> {
+fn parse_keytool_aliases(output: &[u8]) -> Result<Vec<String>, String> {
+    let output = std::str::from_utf8(output).map_err(|_| {
+        "keytool 输出不是有效 UTF-8，无法安全识别 Key Alias；请检查 Java 环境，不要保存乱码别名"
+            .to_string()
+    })?;
     let mut aliases = Vec::new();
     for line in output.lines() {
         let trimmed = line.trim();
@@ -110,7 +112,7 @@ fn parse_keytool_aliases(output: &str) -> Vec<String> {
             }
         }
     }
-    aliases
+    Ok(aliases)
 }
 
 fn classify_keytool_error(stderr: &str) -> String {
@@ -198,6 +200,24 @@ mod tests {
         let output = "\
 release, 2026年7月9日, PrivateKeyEntry,
 trusted, 2026年7月9日, trustedCertEntry,";
-        assert_eq!(parse_keytool_aliases(output), vec!["release", "trusted"]);
+        assert_eq!(
+            parse_keytool_aliases(output.as_bytes()).unwrap(),
+            vec!["release", "trusted"]
+        );
+    }
+
+    #[test]
+    fn 中文_alias_按_utf8_完整保留() {
+        let output = "中文签名pos, Sep 16, 2026, PrivateKeyEntry,";
+        assert_eq!(
+            parse_keytool_aliases(output.as_bytes()).unwrap(),
+            vec!["中文签名pos"]
+        );
+    }
+
+    #[test]
+    fn 非_utf8_alias_不得替换成乱码后返回() {
+        let output = b"\xd6\xd0\xce\xc4pos, Sep 16, 2026, PrivateKeyEntry,";
+        assert!(parse_keytool_aliases(output).unwrap_err().contains("UTF-8"));
     }
 }

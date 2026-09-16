@@ -40,6 +40,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 了解 Android 4.4 工控兼容方案 | [design/android-4.4-compatibility.md](design/android-4.4-compatibility.md) |
 | 查看 AAB 加固可行性结论与后续规划 | [design/aab-feasibility.md](design/aab-feasibility.md) |
 | 维护 GUI | [design/gui.md](design/gui.md) |
+| 排查中文证书 Alias 与 Java 输出编码 | [中文 Alias 修复计划与回归记录](superpowers/plans/2026-09-16-keytool-chinese-alias.md) |
 | 规划目录重构 | [design/refactor-plan.md](design/refactor-plan.md) |
 | 发布新版本 | [process/release.md](process/release.md) |
 | 管理分支与 PR | [process/release.md](process/release.md#main-分支保护规则) |

@@ -16,6 +16,9 @@ use tauri::Manager;
 use uuid::Uuid;
 
 const DB_FILE: &str = "shield.db";
+#[cfg(test)]
+#[path = "cert_unicode_tests.rs"]
+mod unicode_tests;
 const APP_STATE_DEFAULT_CERTIFICATE_ID: &str = "default_certificate_id";
 const SECRET_PREFIX: &str = "enc:v1:";
 type VerifyState = (String, Option<String>, Option<i64>);

@@ -4,7 +4,7 @@ use crate::cert_store::{
     CertificateValidationResult, CreateManagedCertificateInput,
 };
 use crate::signing::query_keystore_aliases;
-use shield_core::utils::{find_keytool, no_window_command};
+use shield_core::{keytool::keytool_command, utils::find_keytool};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -164,7 +164,7 @@ pub(crate) fn create_managed_certificate(
         input.key_password.clone()
     };
 
-    let output = no_window_command(&keytool)
+    let output = keytool_command(&keytool)
         .args([
             "-genkeypair",
             "-keystore",
