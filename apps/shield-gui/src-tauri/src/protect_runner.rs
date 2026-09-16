@@ -52,6 +52,7 @@ fn unsupported_api19_abis(native_abis: &[String]) -> Vec<String> {
 }
 
 pub(crate) struct ProtectExecution {
+    pub(crate) excluded_abis: Vec<String>,
     pub(crate) task_id: String,
     pub(crate) input: String,
     pub(crate) output: String,
@@ -119,6 +120,7 @@ pub(crate) async fn execute_protect_apk(
             .transpose()
             .map_err(ShieldError::from)?;
         let opts = ProtectOptions {
+            excluded_abis: request.excluded_abis,
             input: strip_unc_prefix(PathBuf::from(request.input)),
             output: strip_unc_prefix(PathBuf::from(request.output)),
             apktool_path: resolved_apktool,

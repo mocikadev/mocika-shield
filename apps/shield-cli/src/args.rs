@@ -60,6 +60,9 @@ impl Commands {
 
 #[derive(Args, Default)]
 pub(crate) struct ProtectArgs {
+    /// 明确排除不需要且不受支持的 ABI（逗号分隔），仅对本次任务有效。
+    #[arg(long, value_delimiter = ',')]
+    pub exclude_abis: Vec<String>,
     #[arg(short, long, value_name = "APK")]
     pub input: Option<PathBuf>,
     #[arg(short, long, value_name = "APK")]

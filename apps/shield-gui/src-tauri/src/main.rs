@@ -51,6 +51,8 @@ use updates::{check_update_impl, UpdateCheckResult};
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProtectRequest {
+    #[serde(default)]
+    excluded_abis: Vec<String>,
     task_id: String,
     input: String,
     output: String,
@@ -130,6 +132,7 @@ async fn protect_apk(
     let result = execute_protect_apk(
         window.clone(),
         ProtectExecution {
+            excluded_abis: request.excluded_abis,
             task_id: request.task_id.clone(),
             input: request.input,
             output: request.output,

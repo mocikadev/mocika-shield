@@ -30,6 +30,16 @@ PASSWORD="mocika-test-123"
 
 "$ROOT/tests/scripts/build-smoke-multidex.sh" "$BASE_UNSIGNED" "$UNSIGNED" 19
 
+# 可选构造旧 SDK 附带多余 ABI 的样本；占位库不由业务加载。
+if [[ "${ABI_FILTER_TEST:-0}" == "1" ]]; then
+  command -v zip >/dev/null
+  for abi in arm64-v8a armeabi-v7a x86 x86_64 mips mips64 armeabi; do
+    mkdir -p "$WORK/lib/$abi"
+    printf 'ABI过滤回归占位库' > "$WORK/lib/$abi/libabi_fixture.so"
+  done
+  (cd "$WORK" && zip -qr "$UNSIGNED" lib)
+fi
+
 keytool -genkeypair -noprompt -storetype PKCS12 \
   -keystore "$KEYSTORE" -storepass "$PASSWORD" -keypass "$PASSWORD" \
   -alias smoke -keyalg RSA -keysize 2048 -validity 3650 \
@@ -47,7 +57,28 @@ PROTECT_COMMAND=(
 if [[ "${ENVIRONMENT_POLICY:-compatible}" == "strict" ]]; then
   PROTECT_COMMAND+=(--environment-policy strict)
 fi
+if [[ "${ABI_FILTER_TEST:-0}" == "1" ]]; then
+  if "${PROTECT_COMMAND[@]}" > "$WORK/rejected.log" 2>&1; then
+    echo "错误：未确认排除时不应允许混合旧架构加固" >&2
+    exit 1
+  fi
+  grep -q '不受支持的 ABI' "$WORK/rejected.log"
+  PROTECT_COMMAND+=(--exclude-abis mips,mips64,armeabi)
+fi
 "${PROTECT_COMMAND[@]}"
+
+if [[ "${ABI_FILTER_TEST:-0}" == "1" ]]; then
+  for abi in mips mips64 armeabi; do
+    unzip -p "$SIGNED" "lib/$abi/libabi_fixture.so" > /dev/null
+    if unzip -Z1 "$PROTECTED" | grep -q "^lib/$abi/"; then
+      echo "错误：输出仍包含已排除架构 $abi" >&2
+      exit 1
+    fi
+  done
+  for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+    cmp <(unzip -p "$SIGNED" "lib/$abi/libabi_fixture.so") <(unzip -p "$PROTECTED" "lib/$abi/libabi_fixture.so")
+  done
+fi
 
 java -jar "$ROOT/tools/apksigner.jar" sign \
   --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" --ks-key-alias smoke \

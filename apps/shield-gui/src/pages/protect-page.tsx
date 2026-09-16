@@ -102,7 +102,7 @@ export function ProtectPage({
   const filenameMessage = workflow.outputFilenameError === "empty"
     ? t(locale, "outputFilenameRequired")
     : workflow.outputFilenameError === "invalid" ? t(locale, "outputFilenameInvalid") : "";
-  const startDisabled = !runtimeInfoLoaded || Boolean(workflow.precheck) || workflow.state === "prechecking"
+  const startDisabled = !runtimeInfoLoaded || !workflow.preflight || Boolean(workflow.precheck) || workflow.state === "prechecking"
     || workflow.preflight?.verdict === "blocked"
     || Boolean(workflow.outputFilenameError) || (signAfterProtect && !signingCertificate)
     || (workflow.outputDirectoryMode === "fixed" && !workflow.fixedOutputDirectory);
@@ -158,6 +158,7 @@ export function ProtectPage({
                 </div>
               </div>
               <PreflightSummary locale={locale} loading={workflow.state === "prechecking"} report={workflow.preflight} onCopyDiagnostic={copyDiagnostic} copyLabel={diagnosticCopyLabel} />
+              {workflow.excludedAbis.length > 0 && <StatusMessage kind="warning">{tf(locale, "excludedAbiSummary", { abis: workflow.excludedAbis.join("、") })}</StatusMessage>}
               {workflow.warning && <StatusMessage kind="warning">{workflow.warning}</StatusMessage>}
               {workflow.precheck && <StatusMessage kind="error"><b>{t(locale, "precheckFailed")}：</b>{workflow.precheck}</StatusMessage>}
               {workflow.state === "done" && <StatusMessage kind="success" action={<AppButton size="sm" variant="secondary" onClick={() => void api.showInFolder(workflow.output)}><FolderOpen className="h-4 w-4" />{t(locale, "showInFolder")}</AppButton>}>{t(locale, "done")}</StatusMessage>}

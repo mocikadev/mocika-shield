@@ -45,6 +45,18 @@
 - 最终产物为 `{name}_protected_signed.apk`
 - GUI 内部会在输出前自动完成 APK ZIP 对齐，无需手动运行 `zipalign`
 
+### 标准模式下的旧架构库
+
+如果 APK 同时包含受支持架构与旧 SDK 附带的 `armeabi`、`mips`、`mips64` 等不支持架构，开始加固时会列出排除与保留清单。选择“排除这些架构并继续”后，仅从输出 APK 移除对应架构目录，原 APK 不变。此确认不保存，每个新任务重新确认；只有不支持架构的 APK 仍会被阻止。保留架构的业务库需完整，完成后请验证启动及相关 SDK 功能。
+
+CLI 默认拒绝这类混合 APK，需要显式传入本次排除清单，例如：
+
+```bash
+shield protect -i input.apk -o output.apk --exclude-abis armeabi,mips,mips64
+```
+
+清单必须与原 APK 中实际需要排除的架构匹配，不允许排除本工具支持的架构。Android 4.4 工控模式继续执行原有 ABI 限制。
+
 ### 签名材料准备
 
 建议提前准备以下材料：
