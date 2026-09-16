@@ -1,6 +1,6 @@
 # 失败诊断部署与维护
 
-适用目标：`1.4.0-beta.5`。当前为已实现代码的部署手册，不表示线上迁移、报告入口或版本发布已经完成。
+适用目标：`1.4.0-beta.5`。2026-09-16 已经维护者授权完成线上增量迁移、Worker 部署和报告入口启用；客户端版本尚未发布。执行记录见文末。
 
 ## 发布顺序
 
@@ -8,15 +8,15 @@
 2. 维护者确认部署后，使用既有授权工具检查数据库 `PRAGMA table_info(daily_usage_v2)`。已有 `failure_classifier_version` 时不要重复执行迁移。
 3. 对已采用第二代统计表的数据库，仅执行一次 `tools/stats-worker/migrations/0003_failure_diagnostics.sql`。保留已有记录，不删除旧表。空数据库使用完整 `schema.sql`。
 4. 部署兼容服务端，报告开关保持关闭。验证旧 `/events/daily` 与 `/stats/trend`，旧载荷不得清除新原因。
-5. 维护者验证后再发布客户端，最后设置服务端 `ERROR_REPORT_RATE_SECRET`（独立高熵服务端密钥）及 `ERROR_REPORTS_ENABLED=true`。不得将密钥写入源码、客户端、日志或聊天。
+5. 维护者确认后设置服务端 `ERROR_REPORT_RATE_SECRET`（独立高熵服务端密钥）及 `ERROR_REPORTS_ENABLED=true`，先用自有安全样本完成线上验收，再发布客户端。不得将密钥写入源码、客户端、日志或聊天。
 
-已授权后可使用以下命令；本次实现未执行远端命令：
+已授权后可使用以下命令；迁移只执行一次，后续部署保留既有远端变量：
 
 ```bash
 cd tools/stats-worker
 wrangler d1 execute mocika-shield-analytics --remote --command "PRAGMA table_info(daily_usage_v2)"
 wrangler d1 execute mocika-shield-analytics --remote --file migrations/0003_failure_diagnostics.sql
-wrangler deploy
+wrangler deploy --keep-vars
 wrangler secret put ERROR_REPORT_RATE_SECRET
 wrangler secret put ERROR_REPORTS_ENABLED
 ```
@@ -62,3 +62,12 @@ FROM error_reports WHERE report_id = ?;
 - 检查定时事件与实际清理结果，不把测试报告永久留在生产库。
 - 网络失败、缺少密钥、达限或存储异常返回有限错误，不影响本地任务。
 - 任何异常先关闭报告入口，保留数据库和原统计；不得为排障开启原始请求体日志。
+
+## 线上执行记录（2026-09-16）
+
+- 代码提交 `117f2f4`，对应 PR #125。先检查确认旧表无分类字段且三个诊断表不存在，再执行 `0003_failure_diagnostics.sql`，10 条语句成功，历史每日记录 99 条保留。
+- Worker 部署成功，配置每日 UTC 03:17 清理任务；生成独立随机限流密钥并通过标准输入写入服务端，报告开关已启用。未将密钥存入仓库、客户端或文档。
+- 部署后先验证趋势接口返回 200、报告关闭返回 503；启用后验证旧版和新版每日统计均返回 204，原因计数先上报 2 再上报 1、再发送无分类旧载荷，数据库仍保留 2。
+- 报告验证：首次 201、同载荷重复 200、同编号不同内容 409、额外字段 400、超过 8 KiB 返回 413、公开读取 404、同来源同分钟第 11 份返回 429。D1 按版本查询确认 10 份成功报告均归属 `1.4.0-beta.5`。
+- 已按本次生成的随机编号删除 10 份测试报告、2 条每日记录和 1 条原因记录，查询确认专用测试记录剩余为零；未删除真实数据或共享限流桶。限流桶保留至正常过期清理。
+- 尚未完成：首次真实定时清理执行的观察、线上每日 1,000 份全局上限压力测试（本地真实 SQL 已验证）、Windows/Linux 原生及桌面确认发送的人工验收。不得将接口测试等同于全平台客户端验收。
