@@ -145,6 +145,8 @@ pub(crate) async fn execute_protect_apk(
         let protect_window = progress_window.clone();
         let protect_task_id = progress_task_id.clone();
 
+        app.state::<crate::application_sharing::SharingState>()
+            .verify_input(&progress_task_id);
         shield_protect_apk(
             &opts,
             move |event: ProgressEvent| {
@@ -165,6 +167,10 @@ pub(crate) async fn execute_protect_apk(
             cancel_for_protect,
         )
         .map_err(ExecutionFailure::from_shield)?;
+
+        let sharing = app.state::<crate::application_sharing::SharingState>();
+        sharing.protected(&progress_task_id);
+        sharing.verify_input(&progress_task_id);
 
         task_manager.protected(
             &progress_task_id,

@@ -3,6 +3,8 @@
 mod apk_check;
 mod app_config;
 mod app_paths;
+mod application_identity;
+mod application_sharing;
 mod build_info;
 mod cert_service;
 mod cert_store;
@@ -55,6 +57,7 @@ use updates::{check_update_impl, UpdateCheckResult};
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProtectRequest {
+    sharing: Option<application_sharing::SharingChoice>,
     #[serde(default)]
     excluded_abis: Vec<String>,
     task_id: String,
@@ -72,6 +75,7 @@ struct ProtectRequest {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SignRequest {
+    sharing: Option<application_sharing::SharingChoice>,
     task_id: String,
     apk_path: String,
     output_path: Option<String>,
@@ -132,6 +136,14 @@ async fn protect_apk(
             .unwrap_or_else(|| request.output.clone()),
         "CheckTools",
     )?;
+    window.state::<application_sharing::SharingState>().begin(
+        &telemetry_state,
+        &request.task_id,
+        &request.input,
+        request.sharing.as_ref(),
+        auto_sign,
+        false,
+    );
     telemetry::record_event(&telemetry_state, telemetry::TelemetryEvent::ProtectStarted);
     let result = execute_protect_apk(
         window.clone(),
@@ -263,6 +275,14 @@ async fn sign_apk(
         final_output,
         "PrepareSign",
     )?;
+    window.state::<application_sharing::SharingState>().begin(
+        &telemetry_state,
+        &request.task_id,
+        &request.apk_path,
+        request.sharing.as_ref(),
+        false,
+        true,
+    );
     let progress_manager = task_manager.inner().clone();
     let progress_window = window.clone();
     let progress_task_id = request.task_id.clone();
@@ -274,6 +294,10 @@ async fn sign_apk(
             request.apksigner_path,
             certificate,
             |step, message| {
+                if step == "AlignApk" || step == "SignApk" {
+                    app.state::<application_sharing::SharingState>()
+                        .verify_input(&progress_task_id);
+                }
                 progress_manager.progress(&progress_window, &progress_task_id, step, message)
             },
         )
@@ -449,6 +473,7 @@ fn main() {
         .manage(telemetry::TelemetryRuntime::default())
         .manage(TaskManager::default())
         .manage(error_report::ErrorReportState::default())
+        .manage(application_sharing::SharingState::default())
         .setup(|app| {
             let loaded = load_app_config(app.handle())?;
             save_app_config_file(&loaded.path, &loaded.config)?;
@@ -474,6 +499,9 @@ fn main() {
             save_app_config,
             save_protect_defaults,
             sign_apk,
+            application_sharing::commands::inspect_application_sharing,
+            application_sharing::commands::release_application_inspection,
+            application_sharing::commands::save_application_sharing,
             list_certificates,
             save_certificate,
             validate_certificate,

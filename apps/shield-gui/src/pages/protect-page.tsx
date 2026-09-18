@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Clipboard, FolderOpen, RotateCcw, Square } from "lucide-react";
 import { AppButton, DropZone, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { ProtectConfigurationPanel } from "@/components/app/protect-configuration-panel";
+import { ApplicationSharingCheckbox } from "@/components/app/application-sharing-checkbox";
 import { PreflightSummary } from "@/components/app/preflight-summary";
 import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
 import { useClipboard } from "@/hooks/use-clipboard";
@@ -102,7 +103,7 @@ export function ProtectPage({
   const filenameMessage = workflow.outputFilenameError === "empty"
     ? t(locale, "outputFilenameRequired")
     : workflow.outputFilenameError === "invalid" ? t(locale, "outputFilenameInvalid") : "";
-  const startDisabled = !runtimeInfoLoaded || !workflow.preflight || Boolean(workflow.precheck) || workflow.state === "prechecking"
+  const startDisabled = workflow.sharing.pending || !runtimeInfoLoaded || !workflow.preflight || Boolean(workflow.precheck) || workflow.state === "prechecking"
     || workflow.preflight?.verdict === "blocked"
     || Boolean(workflow.outputFilenameError) || (signAfterProtect && !signingCertificate)
     || (workflow.outputDirectoryMode === "fixed" && !workflow.fixedOutputDirectory);
@@ -116,6 +117,7 @@ export function ProtectPage({
   }));
   const diagnosticCopyLabel = copiedLabel === t(locale, "copied") ? copiedLabel : t(locale, "copyDiagnosticSummary");
   const minSdk = workflow.preflight?.facts.min_sdk;
+  const sharingControl = <ApplicationSharingCheckbox locale={locale} operation="protect" checked={workflow.sharing.enabled} disabled={workflow.sharing.disabled || locked} onChange={workflow.sharing.change} />;
   const runtimeModeGuidance = minSdk !== null && minSdk !== undefined
     ? workflow.runtimeMode === "standard" && minSdk <= 20
       ? tf(locale, "runtimeModeNeedsLegacyGuidance", { minSdk })
@@ -165,10 +167,14 @@ export function ProtectPage({
               {workflow.error && <StatusMessage kind="error" action={<AppButton size="sm" variant="secondary" onClick={copyDiagnostic}><Clipboard className="h-4 w-4" />{diagnosticCopyLabel}</AppButton>}><b>{t(locale, "errorDetail")}：</b>{workflow.error}</StatusMessage>}
             </div>
             {workflow.showProgress ? (
+              <div className="space-y-3">
               <ProtectProgressPanel locale={locale} state={workflow.state} currentStep={workflow.currentStep} steps={workflow.steps} showProgress startedAt={workflow.startedAt} finishedAt={workflow.finishedAt} />
+              {sharingControl}
+              </div>
             ) : (
               <ProtectConfigurationPanel
                 locale={locale} disabled={locked} startDisabled={startDisabled}
+                sharingControl={sharingControl}
                 runtimeMode={workflow.runtimeMode} runtimeModeGuidance={runtimeModeGuidance} environmentPolicy={workflow.environmentPolicy}
                 signAfterProtect={signAfterProtect} selectedCertificateId={selectedCertificateId} certificates={certificates}
                 outputDirectoryMode={workflow.outputDirectoryMode} fixedOutputDirectory={workflow.fixedOutputDirectory}

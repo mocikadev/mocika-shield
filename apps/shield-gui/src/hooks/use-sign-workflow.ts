@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useApplicationSharing } from "@/hooks/use-application-sharing";
 import { isApk, signedOutputPath } from "@/lib/path";
 import { t, type Locale } from "@/lib/i18n";
 import { getSignJavaError } from "@/lib/java";
@@ -37,6 +38,7 @@ export function useSignWorkflow({
   const [taskCertificate, setTaskCertificate] = useState<CertificateRecord | null>(null);
   const taskId = useRef<string | null>(null);
   const taskLocked = useRef(false);
+  const sharing = useApplicationSharing(apkPath);
 
   const activeCertificate = taskCertificate ?? certificate;
 
@@ -93,9 +95,11 @@ export function useSignWorkflow({
   }, []);
 
   const sign = useCallback(async () => {
-    if (!apkPath || !certificate) {
+    if (!apkPath || !certificate || taskLocked.current || sharing.isPending()) {
       return;
     }
+    const sharingChoice = sharing.freeze();
+    if (sharingChoice === undefined) return;
     try {
       setTaskCertificate(certificate);
       taskLocked.current = true;
@@ -119,6 +123,7 @@ export function useSignWorkflow({
         outputPath: outputPath || null,
         apksignerPath: null,
         certificateId: certificate.id,
+        sharing: sharingChoice,
       });
       await api.deleteFile(`${outputPath}.idsig`).catch(() => undefined);
       setState("done");
@@ -129,7 +134,7 @@ export function useSignWorkflow({
       notifyError(message);
       setState("failed");
     }
-  }, [apkPath, buildInfo, certificate, locale, outputPath]);
+  }, [apkPath, buildInfo, certificate, locale, outputPath, sharing]);
 
   const reset = useCallback(() => {
     setApkPath("");
@@ -160,6 +165,7 @@ export function useSignWorkflow({
   );
 
   return {
+    sharing,
     apkPath,
     outputPath,
     setOutputPath: updateOutputPath,

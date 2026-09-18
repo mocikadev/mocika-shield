@@ -159,6 +159,8 @@ scripts                  Build and release scripts
 
 All APK and certificate operations run locally. The desktop application enables anonymous aggregate usage statistics by default to help understand launches and successful or failed operations. Users can disable telemetry in Settings. Telemetry does not include APK contents, package names, paths, certificates, passwords, or keystores.
 
+Starting with Beta.6, the protection and signing pages also offer separate per-app usage sharing, selected by default for new package names. Opt-outs are remembered for the same package. Successful operations share app name, package name, version and operation information with the maintainer for 180 days; no APK or device identifier is sent. This choice is independent of anonymous telemetry, and opting out does not delete previously received records.
+
 See the [telemetry documentation](docs/ops/telemetry.md) for the exact data scope.
 
 ## Feedback and Security

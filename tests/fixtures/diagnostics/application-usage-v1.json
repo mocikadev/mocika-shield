@@ -1,0 +1,12 @@
+{
+  "submission_id": "123e4567-e89b-42d3-a456-426614174000",
+  "schema_version": 1,
+  "notice_version": 1,
+  "package_name": "com.example.Shield_App",
+  "app_name": "示例应用",
+  "app_version_code": "9223372036854775807",
+  "tool_version": "1.4.0-beta.6",
+  "operation": "protect",
+  "flow": "protect_with_sign",
+  "success_date": "2026-09-18"
+}

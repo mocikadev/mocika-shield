@@ -61,6 +61,19 @@ pub(crate) struct AppConfig {
     pub update_cache: UpdateCache,
     pub telemetry: TelemetryConfig,
     pub protect_defaults: ProtectDefaults,
+    pub application_sharing: ApplicationSharingConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub(crate) struct ApplicationSharingConfig {
+    pub preferences: std::collections::BTreeMap<String, bool>,
+}
+
+impl ApplicationSharingConfig {
+    pub(crate) fn enabled_for(&self, package_name: &str) -> bool {
+        self.preferences.get(package_name).copied().unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +109,7 @@ impl Default for AppConfig {
             update_cache: UpdateCache::default(),
             telemetry: TelemetryConfig::default(),
             protect_defaults: ProtectDefaults::default(),
+            application_sharing: ApplicationSharingConfig::default(),
         }
     }
 }
@@ -123,6 +137,7 @@ impl From<&AppConfig> for AppConfigPayload {
 pub(crate) struct AppConfigState {
     pub path: PathBuf,
     config: Mutex<AppConfig>,
+    application_sharing_blocked: Mutex<std::collections::BTreeSet<String>>,
 }
 
 impl AppConfigState {
@@ -130,6 +145,7 @@ impl AppConfigState {
         Self {
             path,
             config: Mutex::new(config),
+            application_sharing_blocked: Mutex::new(std::collections::BTreeSet::new()),
         }
     }
 
@@ -144,22 +160,50 @@ impl AppConfigState {
     where
         F: FnOnce(&mut AppConfig),
     {
-        let snapshot = {
-            let mut cfg = self
-                .config
-                .lock()
-                .map_err(|_| "写入配置失败：配置状态锁已损坏".to_string())?;
-            mutator(&mut cfg);
-            cfg.locale = normalize_locale(&cfg.locale);
-            cfg.theme_mode = normalize_theme_mode(&cfg.theme_mode);
-            cfg.protect_defaults = normalize_protect_defaults(&cfg.protect_defaults);
-            cfg.dismissed_version = cfg
-                .dismissed_version
-                .take()
-                .filter(|value| !value.trim().is_empty());
-            cfg.clone()
-        };
-        save_app_config_file(&self.path, &snapshot)
+        let mut cfg = self
+            .config
+            .lock()
+            .map_err(|_| "写入配置失败：配置状态锁已损坏".to_string())?;
+        let original = cfg.clone();
+        mutator(&mut cfg);
+        cfg.locale = normalize_locale(&cfg.locale);
+        cfg.theme_mode = normalize_theme_mode(&cfg.theme_mode);
+        cfg.protect_defaults = normalize_protect_defaults(&cfg.protect_defaults);
+        cfg.dismissed_version = cfg
+            .dismissed_version
+            .take()
+            .filter(|value| !value.trim().is_empty());
+        // 写盘属于同一临界区，避免并发更新用旧快照覆盖较新的包名偏好。
+        if let Err(error) = save_app_config_file(&self.path, &cfg) {
+            *cfg = original;
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn application_sharing_enabled(&self, package_name: &str) -> Result<bool, String> {
+        let config = self.read()?;
+        let blocked = self
+            .application_sharing_blocked
+            .lock()
+            .map_err(|_| "读取应用分享状态失败：状态锁已损坏".to_string())?;
+        Ok(!blocked.contains(package_name) && config.application_sharing.enabled_for(package_name))
+    }
+
+    pub(crate) fn block_application_sharing(&self, package_name: &str) -> Result<(), String> {
+        self.application_sharing_blocked
+            .lock()
+            .map_err(|_| "写入应用分享状态失败：状态锁已损坏".to_string())?
+            .insert(package_name.to_string());
+        Ok(())
+    }
+
+    pub(crate) fn clear_application_sharing_block(&self, package_name: &str) -> Result<(), String> {
+        self.application_sharing_blocked
+            .lock()
+            .map_err(|_| "写入应用分享状态失败：状态锁已损坏".to_string())?
+            .remove(package_name);
+        Ok(())
     }
 }
 
@@ -264,6 +308,94 @@ pub(crate) fn save_app_config_file(path: &Path, config: &AppConfig) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+
+    #[test]
+    fn application_旧配置缺少应用分享分区时保持兼容且新包名默认开启() {
+        let config: AppConfig = toml::from_str(
+            r#"
+locale = "zh"
+theme_mode = "system"
+"#,
+        )
+        .expect("旧配置应可解析");
+
+        assert!(config.application_sharing.preferences.is_empty());
+        assert!(config.application_sharing.enabled_for("com.example.new"));
+    }
+
+    #[test]
+    fn application_全量设置保存不会覆盖已有按包名偏好() {
+        let dir = tempfile::tempdir().expect("应创建临时目录");
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+        state
+            .mutate(|config| {
+                config
+                    .application_sharing
+                    .preferences
+                    .insert("com.example.app".to_string(), false);
+            })
+            .expect("偏好应保存");
+        state
+            .mutate(|config| {
+                config.locale = "en".to_string();
+                config.theme_mode = "dark".to_string();
+            })
+            .expect("设置应保存");
+
+        let persisted: AppConfig = toml::from_str(
+            &fs::read_to_string(dir.path().join("config.toml")).expect("应读取配置"),
+        )
+        .expect("配置应有效");
+        assert!(!persisted.application_sharing.enabled_for("com.example.app"));
+    }
+
+    #[test]
+    fn application_配置损坏时解析失败而不是默认同意() {
+        assert!(toml::from_str::<AppConfig>("[application_sharing\npreferences = {}").is_err());
+    }
+
+    #[test]
+    fn application_并发配置变更写盘后不会丢失包名偏好() {
+        let dir = tempfile::tempdir().expect("应创建临时目录");
+        let state = Arc::new(AppConfigState::new(
+            dir.path().join("config.toml"),
+            AppConfig::default(),
+        ));
+        let barrier = Arc::new(Barrier::new(9));
+        let handles = (0..8)
+            .map(|index| {
+                let state = Arc::clone(&state);
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    state.mutate(|config| {
+                        config
+                            .application_sharing
+                            .preferences
+                            .insert(format!("com.example.app{index}"), false);
+                    })
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+        for handle in handles {
+            handle
+                .join()
+                .expect("配置线程不应崩溃")
+                .expect("配置应保存");
+        }
+        let persisted: AppConfig = toml::from_str(
+            &fs::read_to_string(dir.path().join("config.toml")).expect("应读取配置"),
+        )
+        .expect("配置应有效");
+        assert_eq!(persisted.application_sharing.preferences.len(), 8);
+        assert!(persisted
+            .application_sharing
+            .preferences
+            .values()
+            .all(|enabled| !enabled));
+    }
 
     #[test]
     fn 旧配置缺少加固默认项时使用兼容默认值() {

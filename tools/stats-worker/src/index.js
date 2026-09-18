@@ -1,6 +1,7 @@
 import { getCurrentSummary } from "./github-summary.js";
 import { normalizeFailureReasonCounts } from "./failure-reasons.js";
 import { cleanupErrorReports, saveErrorReport } from "./error-reports.js";
+import { cleanupApplicationUsage, saveApplicationUsage } from "./application-usage.js";
 
 const ALLOWED_EVENTS = new Set([
   "app_start_count",
@@ -321,6 +322,7 @@ export default {
       const path = new URL(request.url).pathname;
       if (request.method === "POST" && path === "/events/daily") return saveDailyUsage(request, env);
       if (request.method === "POST" && path === "/reports/errors") return saveErrorReport(request, env);
+      if (request.method === "POST" && path === "/reports/application-usage") return saveApplicationUsage(request, env);
       if (request.method === "GET" && path === "/stats/trend") {
         return cached(request, ctx, () => getStats(request, env));
       }
@@ -334,6 +336,6 @@ export default {
     }
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(cleanupErrorReports(env));
+    ctx.waitUntil(Promise.allSettled([cleanupErrorReports(env), cleanupApplicationUsage(env)]));
   },
 };

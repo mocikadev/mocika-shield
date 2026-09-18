@@ -16,6 +16,7 @@ export function ProtectConfigurationPanel({
   locale,
   disabled,
   startDisabled,
+  sharingControl,
   runtimeMode,
   runtimeModeGuidance,
   environmentPolicy,
@@ -37,6 +38,7 @@ export function ProtectConfigurationPanel({
   locale: Locale;
   disabled: boolean;
   startDisabled: boolean;
+  sharingControl: React.ReactNode;
   runtimeMode: RuntimeMode;
   runtimeModeGuidance?: string;
   environmentPolicy: EnvironmentPolicy;
@@ -124,7 +126,8 @@ export function ProtectConfigurationPanel({
         <Summary label={t(locale, "environmentPolicy")} value={environmentPolicy === "strict" ? t(locale, "environmentStrict") : t(locale, "environmentCompatible")} hint={environmentPolicy === "strict" ? t(locale, "environmentStrictSummary") : t(locale, "environmentCompatibleSummary")} />
         <Summary label={t(locale, "signAfterProtect")} value={signAfterProtect ? t(locale, "enabled") : t(locale, "disabled")} />
       </dl>
-      <AppButton className="mt-6 w-full" disabled={startDisabled} onClick={onStart}>
+      <div className="mt-4">{sharingControl}</div>
+      <AppButton className="mt-3 w-full" disabled={startDisabled} onClick={onStart}>
         <Play className="h-4 w-4" />{t(locale, "startProtect")}
       </AppButton>
     </aside>
