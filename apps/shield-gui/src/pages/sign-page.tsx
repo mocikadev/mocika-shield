@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clipboard, FolderKey, FolderOpen, KeyRound, Loader2, RotateCcw } from "lucide-react";
 import { AppButton, DropZone, SelectInput, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { ProtectProgressPanel } from "@/components/app/protect-progress-panel";
+import { ApplicationSharingCheckbox } from "@/components/app/application-sharing-checkbox";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useSignWorkflow } from "@/hooks/use-sign-workflow";
 import { basename } from "@/lib/path";
@@ -47,6 +48,7 @@ export function SignPage({
   );
 
   const {
+    sharing,
     apkPath,
     outputPath,
     setOutputPath,
@@ -110,11 +112,12 @@ export function SignPage({
               <h1 className="text-[28px] font-semibold tracking-normal">{t(locale, "signTitle")}</h1>
               <p className="mt-1 truncate text-sm text-muted-foreground">{basename(apkPath)}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <ApplicationSharingCheckbox locale={locale} operation="sign" checked={sharing.enabled} disabled={sharing.disabled || taskLocked} onChange={sharing.change} />
               {state !== "done" && (
                 <AppButton
                   className="min-w-[136px]"
-                  disabled={!apkPath || !runtimeInfoLoaded || !selectedCertificate || state === "signing"}
+                  disabled={sharing.pending || taskLocked || !apkPath || !runtimeInfoLoaded || !selectedCertificate || state === "signing"}
                   onClick={sign}
                 >
                   {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}

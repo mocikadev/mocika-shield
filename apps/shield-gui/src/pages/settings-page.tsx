@@ -117,9 +117,14 @@ export function SettingsPage({
               <input type="checkbox" className="h-4 w-4 shrink-0" aria-describedby="telemetry-description" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
             </label>
             <div id="telemetry-description" className="space-y-2 text-sm leading-6 text-muted-foreground">
-              <p>仅统计桌面工具的启动、加固、签名次数及失败阶段、类别，不上传 APK、路径、包名、证书、密码或原始日志。</p>
+              <p>匿名统计仅统计桌面工具的启动、加固、签名次数及失败阶段、类别，此通道不上传 APK、路径、包名、证书、密码或原始日志。</p>
               <p>错误报告需每次单独确认，不受此开关控制。</p>
             </div>
+          </div>
+        </SettingsGroup>
+        <SettingsGroup title={t(selectedLocale, "applicationSharingTitle")}>
+          <div className="px-6 py-5 text-sm leading-6 text-muted-foreground">
+            <p>{t(selectedLocale, "applicationSharingNotice")}</p>
           </div>
         </SettingsGroup>
         {status === "saved" && (

@@ -192,13 +192,20 @@ export type DragDropPayload = {
   paths?: string[];
 };
 
+export type { SharingChoice, SharingInspection } from "./application-sharing-state";
+import type { SharingChoice, SharingInspection } from "./application-sharing-state";
+
 export const api = {
+  inspectApplicationSharing: (path: string) => invoke<SharingInspection | null>("inspect_application_sharing", { path }),
+  releaseApplicationInspection: (inspectionId: string) => invoke<void>("release_application_inspection", { inspectionId }),
+  saveApplicationSharing: (inspectionId: string, enabled: boolean) => invoke<void>("save_application_sharing", { inspectionId, enabled }),
   checkApk: (path: string, runtimeMode: "standard" | "android_api19", certificateId?: string | null) =>
     invoke<ApkCheckResult>("check_apk", { path, runtimeMode, certificateId: certificateId ?? null }),
-  protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", environmentPolicy: "compatible" | "strict", signedOutput?: string | null, certificateId?: string | null, excludedAbis: string[] = []) =>
+  protectApk: (taskId: string, input: string, output: string, runtimeMode: "standard" | "android_api19", environmentPolicy: "compatible" | "strict", signedOutput?: string | null, certificateId?: string | null, excludedAbis: string[] = [], sharing: SharingChoice | null = null) =>
     invoke<void>("protect_apk", {
       request: {
         taskId,
+        sharing,
         input,
         output,
         signedOutput: signedOutput ?? null,
@@ -235,6 +242,7 @@ export const api = {
 	    outputPath?: string | null;
 	    apksignerPath?: string | null;
 	    certificateId: string;
+	    sharing?: SharingChoice | null;
 	  }) => invoke<void>("sign_apk", { request: args }),
   getLatestTask: (kind: TaskKind) => invoke<TaskSnapshot | null>("get_latest_task", { kind }),
   listKeystoreAliases: (keystorePath: string, ksPass: string, ksType: string) =>

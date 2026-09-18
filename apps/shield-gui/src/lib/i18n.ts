@@ -2,6 +2,10 @@ export type Locale = "zh" | "en";
 
 const dict = {
   zh: {
+    shareProtectUsage: "分享加固使用情况",
+    shareSignUsage: "分享签名使用情况",
+    applicationSharingTitle: "应用使用情况分享",
+    applicationSharingNotice: "新应用默认参与分享，由加固或签名页控制；同一包名在两页共用选择，与匿名统计开关独立。发送应用名称、包名、应用版本码、工具版本、操作类型、流程及成功日期，以及随机提交编号、协议版本和说明版本（共十项）。仅维护者可见，明细保留 180 天。不上传 APK、证书、密码或路径。取消会停止该应用两类后续分享并清除待发送记录；重新开启不补发旧记录，也不会自动删除之前已接收的数据。",
     appSubtitle: "Android APK 加固工具",
     navProtect: "加固",
     navSign: "签名",
@@ -255,6 +259,10 @@ const dict = {
     javaRequiredForAlias: "未检测到可用的 Java {min}+ / keytool。Alias 识别与校验无法继续。",
   },
   en: {
+    shareProtectUsage: "Share protection usage",
+    shareSignUsage: "Share signing usage",
+    applicationSharingTitle: "Application usage sharing",
+    applicationSharingNotice: "New applications participate by default. Control sharing on the protection or signing page; both pages share the same per-package preference, independently of anonymous statistics. Ten fields are sent: application name, package name, version code, tool version, operation, flow, success date, random submission ID, schema version and notice version. Only maintainers can access records, retained for 180 days. APKs, certificates, passwords and paths are not uploaded. Opting out stops both types of future sharing and clears pending records. Opting back in does not resend old records. Previously received records are not automatically deleted.",
     appSubtitle: "Android APK hardening tool",
     navProtect: "Protect",
     navSign: "Sign",

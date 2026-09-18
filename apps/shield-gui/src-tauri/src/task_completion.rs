@@ -29,6 +29,16 @@ pub(crate) fn finish_task(
         status,
         result.as_ref().err().map(|error| error.message.clone()),
     )? {
+        window
+            .state::<crate::application_sharing::SharingState>()
+            .finish(
+                window.app_handle().clone(),
+                config,
+                task_id,
+                task.kind,
+                status,
+                task.protect_succeeded,
+            );
         let protected =
             task.kind == TaskKind::Protect && (task.protect_succeeded || result.is_ok());
         if protected {

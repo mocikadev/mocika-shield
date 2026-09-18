@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useApplicationSharing } from "@/hooks/use-application-sharing";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import {
   dirname,
@@ -41,6 +42,7 @@ export function useProtectWorkflow({
   defaults: ProtectDefaults;
 }) {
   const [input, setInput] = useState("");
+  const sharing = useApplicationSharing(input);
   const [outputFilename, setOutputFilenameState] = useState("");
   const [filenameEdited, setFilenameEdited] = useState(false);
   const [outputDirectoryMode, setOutputDirectoryMode] = useState<"source" | "fixed">(defaults.output_directory_mode);
@@ -227,6 +229,7 @@ export function useProtectWorkflow({
   }, [handleSelected]);
 
   const start = useCallback(async () => {
+    if (sharing.isPending()) return;
     if (taskLocked.current || !preflight || !input || !output || precheck || preflight.verdict === "blocked" || outputFilenameError || (outputDirectoryMode === "fixed" && !fixedOutputDirectory)) {
       return;
     }
@@ -255,6 +258,8 @@ export function useProtectWorkflow({
         return;
       }
 
+      const sharingChoice = sharing.freeze();
+      if (sharingChoice === undefined) return;
       setState("running");
       started = true;
       setExcludedAbis(exclusions);
@@ -280,6 +285,7 @@ export function useProtectWorkflow({
         autoSignReady ? output : null,
         autoSignReady && certificate ? certificate.id : null,
         exclusions,
+        sharingChoice,
       );
       setFinishedAt(Date.now());
       setState("done");
@@ -295,7 +301,7 @@ export function useProtectWorkflow({
         setState("idle");
       }
     }
-  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, preflight, runtimeMode]);
+  }, [autoSignReady, buildInfo, certificate, environmentPolicy, fixedOutputDirectory, input, locale, output, outputDirectory, outputDirectoryMode, outputFilenameError, precheck, preflight, runtimeMode, sharing]);
 
   const cancel = useCallback(async () => {
     await api.cancelProtect().catch(() => undefined);
@@ -307,6 +313,7 @@ export function useProtectWorkflow({
     : ["CheckTools", "Unpack", "ModifyManifest", "ProcessDex", "InjectRuntime", "Repack", "AlignApk"];
 
   return {
+    sharing,
     excludedAbis,
     input,
     output,
