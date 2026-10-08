@@ -13,6 +13,14 @@
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
 
+## 已发布桌面工具的 Java 环境
+
+以上表格是源码构建要求；使用已发布桌面工具只需完整 JDK 8 或以上版本。
+
+Java 优先从 PATH 查找，再查 JAVA_HOME/bin。keytool 优先使用该 Java 的真实安装目录中的工具；遇到系统启动器时查询 `java.home`，同时兼容 Java 8 的 JDK/jre 布局；仍未找到时回退 JAVA_HOME/bin、PATH。
+
+如果只能找到 Java 而找不到 keytool，请确认安装的是完整 JDK 而非仅 JRE，将 `JAVA_HOME` 指向 JDK 根目录（不要包含 `bin`），或将 JDK 的 `bin` 目录加入用户/系统 PATH，然后重新启动桌面工具以继承新环境。无需为本次修复降低或升级操作系统版本。探测方案与验证边界见 [Java 工具探测](../design/java-tool-discovery.md)。
+
 ## Linux 构建依赖
 
 Linux 下构建 Tauri 桌面包时，除 Rust / Node.js / Java / Android SDK 外，还需要系统包：
