@@ -212,7 +212,7 @@ fn system_data_hint() -> &'static str {
 }
 
 fn install_java_hint() -> String {
-    "请安装完整 JDK 8+，并确保 java / keytool 可执行。".to_string()
+    "请安装完整 JDK 8+，将 JAVA_HOME 指向 JDK 根目录，或将其 bin 目录加入 PATH；修改后重新启动本工具。".to_string()
 }
 
 fn missing_java_message() -> String {
@@ -223,32 +223,6 @@ fn missing_java_message() -> String {
         MIN_JAVA_MAJOR_VERSION,
         install_java_hint()
     )
-}
-
-fn find_java_binary(name: &str) -> Option<PathBuf> {
-    which::which(name)
-        .ok()
-        .or_else(|| java_home_bin(name).filter(|path| path.exists()))
-}
-
-fn java_home_bin(name: &str) -> Option<PathBuf> {
-    let java_home = std::env::var_os("JAVA_HOME")?;
-    let mut path = PathBuf::from(java_home);
-    path.push("bin");
-    path.push(executable_name(name));
-    Some(path)
-}
-
-fn executable_name(name: &str) -> String {
-    #[cfg(target_os = "windows")]
-    {
-        format!("{name}.exe")
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        name.to_string()
-    }
 }
 
 fn read_java_version(java_path: &Path) -> Result<(Option<String>, Option<u32>)> {
@@ -307,8 +281,8 @@ pub fn find_keytool() -> Result<PathBuf> {
 }
 
 pub fn probe_java_environment() -> JavaEnvironmentInfo {
-    let java_path = find_java_binary("java");
-    let keytool_path = find_java_binary("keytool");
+    let java_path = crate::java_tools::find_java();
+    let keytool_path = crate::java_tools::find_keytool(java_path.as_deref());
     let (version_text, major_version) = java_path
         .as_ref()
         .and_then(|path| read_java_version(path).ok())
@@ -345,7 +319,7 @@ pub fn ensure_keytool() -> Result<JavaEnvironmentInfo> {
     let info = ensure_java_runtime()?;
     if !info.keytool_ready() {
         anyhow::bail!(
-            "未检测到 keytool，请安装完整 JDK {}+，并确保 java / keytool 在 PATH 中。\n{}",
+            "已检测到 Java，但未找到可执行的 keytool；证书识别与签名需要完整 JDK {}+。\n{}",
             MIN_JAVA_MAJOR_VERSION,
             install_java_hint()
         );

@@ -4,6 +4,7 @@ mod dex_packer;
 mod dex_research;
 pub mod diagnostic;
 pub mod error;
+mod java_tools;
 pub mod keytool;
 mod preflight;
 mod protect;
