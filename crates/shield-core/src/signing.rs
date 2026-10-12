@@ -4,7 +4,7 @@ use std::process::Stdio;
 use tempfile::TempDir;
 
 use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
-use crate::utils::{find_java, no_window_command};
+use crate::utils::{find_java, java_command};
 use crate::zipalign::align_apk;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -158,7 +158,7 @@ pub fn sign_apk_with_progress(
     cmd_args.push(aligned_input_str);
 
     on_progress(SigningProgressStep::Sign).map_err(anyhow::Error::msg)?;
-    let output = no_window_command(&java)
+    let output = java_command(&java)
         .args(&cmd_args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

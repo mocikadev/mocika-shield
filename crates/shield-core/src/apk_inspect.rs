@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::keytool::keytool_command;
-use crate::utils::{find_apksigner, find_java, find_keytool, no_window_command};
+use crate::utils::{find_apksigner, find_java, find_keytool, java_command};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApkCheckOutcome {
@@ -141,7 +141,7 @@ pub fn extract_apk_cert_fingerprint(
         None => find_apksigner().context("提取 APK 签名证书需要 apksigner.jar")?,
     };
     let java = find_java().context("提取 APK 签名证书需要 Java")?;
-    let output = no_window_command(&java)
+    let output = java_command(&java)
         .args([
             "-jar",
             signer.to_str().unwrap_or(""),
@@ -235,7 +235,7 @@ fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bo
         .or_else(|| find_apksigner().ok());
     if let Some(signer) = signer {
         let java = find_java()?;
-        if let Ok(status) = no_window_command(&java)
+        if let Ok(status) = java_command(&java)
             .args([
                 "-jar",
                 signer.to_str().unwrap_or(""),

@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub use crate::java_process::java_command;
+
 static JSON_MODE: AtomicBool = AtomicBool::new(false);
 pub const MIN_JAVA_MAJOR_VERSION: u32 = 8;
 
@@ -226,7 +228,7 @@ fn missing_java_message() -> String {
 }
 
 fn read_java_version(java_path: &Path) -> Result<(Option<String>, Option<u32>)> {
-    let output = no_window_command(java_path)
+    let output = java_command(java_path)
         .arg("-version")
         .output()
         .context("执行 java -version 失败")?;
