@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::utils::{no_window_command, strip_unc_prefix};
+use crate::utils::{java_command, strip_unc_prefix};
 
 pub(crate) fn find_java() -> Option<PathBuf> {
     which::which("java")
@@ -80,16 +80,8 @@ fn resolve_keytool(
 }
 
 fn read_runtime_home(java: &Path) -> Option<PathBuf> {
-    let output = no_window_command(strip_unc_prefix(java))
-        .args([
-            "-Dfile.encoding=UTF-8",
-            "-Dsun.stdout.encoding=UTF-8",
-            "-Dsun.stderr.encoding=UTF-8",
-            "-Dstdout.encoding=UTF-8",
-            "-Dstderr.encoding=UTF-8",
-            "-XshowSettings:properties",
-            "-version",
-        ])
+    let output = java_command(java)
+        .args(["-XshowSettings:properties", "-version"])
         .output()
         .ok()?;
     if !output.status.success() {

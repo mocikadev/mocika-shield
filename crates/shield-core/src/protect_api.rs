@@ -26,7 +26,7 @@ use crate::protect::{
 use crate::utils::is_json_mode;
 use crate::utils::{
     create_temp_dir, find_apksigner, find_apktool, find_java, find_runtime_resources, human_size,
-    no_window_command, print_step, print_success,
+    java_command, print_step, print_success,
 };
 use std::process::Stdio;
 
@@ -291,7 +291,7 @@ fn run_apktool_command(
     args: &[&str],
     fallback: FailureCode,
 ) -> anyhow::Result<String> {
-    let output = no_window_command(java)
+    let output = java_command(java)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

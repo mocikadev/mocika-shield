@@ -1,6 +1,6 @@
 use crate::app_paths::{find_apksigner_path, find_apktool_path};
 use serde::Serialize;
-use shield_core::utils::{no_window_command, probe_java_environment, MIN_JAVA_MAJOR_VERSION};
+use shield_core::utils::{java_command, probe_java_environment, MIN_JAVA_MAJOR_VERSION};
 use std::fs;
 use tauri::Manager;
 
@@ -40,7 +40,7 @@ pub(crate) fn get_build_info(app: tauri::AppHandle) -> BuildInfo {
         .and_then(|jar| {
             let java = java_path.as_ref()?;
             let path_str = jar.to_str()?.to_string();
-            no_window_command(java)
+            java_command(java)
                 .args(["-jar", &path_str, "--version"])
                 .output()
                 .ok()
@@ -66,7 +66,7 @@ pub(crate) fn get_build_info(app: tauri::AppHandle) -> BuildInfo {
         .and_then(|jar| {
             let java = java_path.as_ref()?;
             let path_str = jar.to_str()?.to_string();
-            no_window_command(java)
+            java_command(java)
                 .args(["-jar", &path_str, "--version"])
                 .output()
                 .ok()

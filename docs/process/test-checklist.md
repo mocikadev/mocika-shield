@@ -60,6 +60,8 @@ cargo test -p mocika-shield 中文证书真实 -- --ignored --nocapture
 
 已有乱码 Alias 不自动修复或猜测，须使用原 keystore 重新识别/导入，不重建用户密钥。方案与执行证据见[中文 Alias 修复记录](../superpowers/plans/2026-09-16-keytool-chinese-alias.md)。
 
+Java 工具调用或输出编码变动后，另设置 `SHIELD_TEST_JDK_HOME`，执行 `cargo test -p shield-core --test chinese_java_output -- --ignored --nocapture`，覆盖中文文件参数及真实 apksigner 非 UTF-8 默认输出；完整流程还须检查中文 APK 的签名预检、解包、重打包与签名输出。详情和 Windows 原生验证边界见[中文工具链兼容记录](../design/chinese-toolchain-compatibility.md)。
+
 - 导入已有 `jks` / `p12` 证书成功
 - 导入证书时错误密码会失败，并显示可理解的错误信息
 - 创建新证书成功，默认类型为 PKCS12
