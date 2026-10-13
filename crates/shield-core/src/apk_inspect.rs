@@ -160,7 +160,13 @@ pub fn extract_apk_cert_fingerprint(
         } else {
             stderr.trim()
         };
-        anyhow::bail!("APK 签名验证失败：{detail}")
+        return Err(Diagnostic::from_tool_streams(
+            ToolName::Apksigner,
+            output.status.code(),
+            &output.stdout,
+            &output.stderr,
+        )
+        .attach(anyhow::anyhow!("APK 签名验证失败：{detail}")));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -213,14 +219,11 @@ pub fn extract_keystore_cert_fingerprint(
     } else {
         stderr.trim()
     };
-    Err(Diagnostic::from_tool_output(
+    Err(Diagnostic::from_tool_streams(
         ToolName::Keytool,
         output.status.code(),
-        if output.stderr.is_empty() {
-            &output.stdout
-        } else {
-            &output.stderr
-        },
+        &output.stdout,
+        &output.stderr,
     )
     .attach(anyhow::anyhow!("无法读取 keystore 证书指纹：{detail}")))
 }

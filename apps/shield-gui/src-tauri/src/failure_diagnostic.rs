@@ -5,27 +5,30 @@ use shield_core::diagnostic::{Diagnostic, FailureCode, ToolName, CLASSIFIER_VERS
 #[derive(Clone, Debug)]
 pub(crate) struct ExecutionFailure {
     pub(crate) message: String,
-    pub(crate) diagnostic: Diagnostic,
+    pub(crate) diagnostic: Box<Diagnostic>,
     pub(crate) cancelled: bool,
     /// 空字段等前置输入校验不属于已执行操作失败。
     pub(crate) executed: bool,
+    pub(crate) tool_path: Option<std::path::PathBuf>,
 }
 
 impl ExecutionFailure {
     pub(crate) fn diagnosed(message: String, diagnostic: Diagnostic) -> Self {
         Self {
             message,
-            diagnostic,
+            diagnostic: Box::new(diagnostic),
             cancelled: false,
             executed: true,
+            tool_path: None,
         }
     }
     pub(crate) fn preflight(message: String, diagnostic: Diagnostic) -> Self {
         Self {
             message,
-            diagnostic,
+            diagnostic: Box::new(diagnostic),
             cancelled: false,
             executed: false,
+            tool_path: None,
         }
     }
     pub(crate) fn from_shield(error: shield_core::ShieldError) -> Self {
@@ -40,9 +43,10 @@ impl ExecutionFailure {
             Some(diagnostic) => Self::diagnosed(error.to_string(), diagnostic),
             None => Self {
                 message: "已取消".into(),
-                diagnostic: Diagnostic::new(FailureCode::Unknown),
+                diagnostic: Box::new(Diagnostic::new(FailureCode::Unknown)),
                 cancelled: true,
                 executed: false,
+                tool_path: None,
             },
         }
     }
@@ -51,9 +55,10 @@ impl From<String> for ExecutionFailure {
     fn from(message: String) -> Self {
         Self {
             message,
-            diagnostic: Diagnostic::new(FailureCode::Unknown),
+            diagnostic: Box::new(Diagnostic::new(FailureCode::Unknown)),
             cancelled: false,
             executed: true,
+            tool_path: None,
         }
     }
 }
@@ -165,17 +170,18 @@ pub(crate) struct SafeReport {
     pub(crate) java_major: Option<u32>,
     pub(crate) java_vendor: Option<&'static str>,
     pub(crate) tool_name: Option<ToolName>,
-    pub(crate) tool_version: Option<&'static str>,
+    pub(crate) tool_version: Option<String>,
     pub(crate) exit_code: Option<i32>,
-    pub(crate) evidence: Vec<()>,
+    pub(crate) evidence: Vec<shield_core::diagnostic::ToolEvidence>,
+    pub(crate) details: crate::report_context::ReportDetails,
 }
 impl SafeReport {
     pub(crate) fn new(context: FailureContext, diagnostic: Diagnostic, occurred_at: u64) -> Self {
         Self {
             report_id: uuid::Uuid::new_v4().to_string(),
-            schema_version: 1,
+            schema_version: 2,
             classifier_version: CLASSIFIER_VERSION,
-            sanitizer_version: 1,
+            sanitizer_version: 2,
             app_version: env!("CARGO_PKG_VERSION"),
             build_revision: option_env!("GIT_HASH").filter(|hash| {
                 (7..=40).contains(&hash.len())
@@ -205,7 +211,20 @@ impl SafeReport {
             tool_name: diagnostic.tool,
             tool_version: None,
             exit_code: diagnostic.exit_code,
-            evidence: Vec::new(),
+            evidence: diagnostic.evidence.into_iter().flatten().collect(),
+            details: crate::report_context::ReportDetails {
+                execution_step: if context.operation == Operation::Certificate {
+                    "certificate"
+                } else {
+                    "unknown"
+                },
+                evidence_status: if diagnostic.evidence.iter().any(Option::is_some) {
+                    "recognized"
+                } else {
+                    "unavailable"
+                },
+                ..Default::default()
+            },
         }
     }
 }
@@ -240,17 +259,26 @@ mod tests {
     }
     #[test]
     fn 报告与跨端协议样本一致() {
+        let mut diagnostic = Diagnostic::from_tool_output(
+            ToolName::Apktool,
+            Some(1),
+            b"error: resource private not found\nfailed linking resources",
+        );
+        diagnostic.code = FailureCode::ApkRepackFailed;
         let mut report = SafeReport::new(
-            FailureContext::sign("SignApk"),
-            Diagnostic::new(FailureCode::SigningFailed),
+            FailureContext::protect("Repack", false, false),
+            diagnostic,
             1789516800,
         );
         report.report_id = "7acbe71f-6a86-43bc-8dcd-1c710f196dad".into();
         report.build_revision = None;
         report.platform = "macos";
         report.arch = "aarch64";
+        report.details.execution_step = "repack";
+        report.details.input_path = Some(crate::report_context::PathFeatures::of("中文 应用.apk"));
+        report.details.output_path = report.details.input_path.clone();
         let mut expected: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/diagnostics/error-report-v1.json"
+            "../../../../tests/fixtures/diagnostics/error-report-v2.json"
         ))
         .unwrap();
         expected["app_version"] = serde_json::Value::String(env!("CARGO_PKG_VERSION").into());
@@ -300,7 +328,7 @@ mod tests {
     #[test]
     fn 快照冻结版本且未知错误不透传() {
         let failure = ExecutionFailure::from("秘密密码 /Users/private/app.apk".to_string());
-        let report = SafeReport::new(FailureContext::sign("SignApk"), failure.diagnostic, 1234);
+        let report = SafeReport::new(FailureContext::sign("SignApk"), *failure.diagnostic, 1234);
         let json = serde_json::to_string(&report).unwrap();
         assert!(!json.contains("秘密"));
         assert!(!json.contains("private"));

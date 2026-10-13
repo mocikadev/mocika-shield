@@ -13,6 +13,7 @@ mod failure_diagnostic;
 mod file_ops;
 mod manifest_inspect;
 mod protect_runner;
+mod report_context;
 mod signing;
 mod task_completion;
 mod task_manager;

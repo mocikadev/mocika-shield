@@ -1,4 +1,5 @@
 //! 有限错误分类；不保存原始输出，不依赖 GUI、网络或持久化协议。
+pub use crate::tool_evidence::ToolEvidence;
 use crate::ShieldError;
 use std::fmt;
 
@@ -91,6 +92,7 @@ pub struct Diagnostic {
     pub code: FailureCode,
     pub tool: Option<ToolName>,
     pub exit_code: Option<i32>,
+    pub evidence: [Option<ToolEvidence>; 8],
 }
 
 impl Diagnostic {
@@ -99,6 +101,7 @@ impl Diagnostic {
             code,
             tool: None,
             exit_code: None,
+            evidence: [None; 8],
         }
     }
 
@@ -145,6 +148,7 @@ impl Diagnostic {
             code: FailureCode::ToolProcessFailed,
             tool: Some(tool),
             exit_code,
+            evidence: crate::tool_evidence::extract(tool, bytes),
         };
         let Ok(text) = std::str::from_utf8(bytes) else {
             result.code = FailureCode::ToolOutputEncodingInvalid;
@@ -176,6 +180,31 @@ impl Diagnostic {
         } else {
             FailureCode::ToolProcessFailed
         };
+        result
+    }
+
+    /// 合并两条流的有限证据，避免正常 JVM 提示掩盖 stdout 的实际错误。
+    pub fn from_tool_streams(
+        tool: ToolName,
+        exit_code: Option<i32>,
+        stdout: &[u8],
+        stderr: &[u8],
+    ) -> Self {
+        let mut result = Self::from_tool_output(tool, exit_code, stderr);
+        let other = Self::from_tool_output(tool, exit_code, stdout);
+        if result.code == FailureCode::ToolProcessFailed {
+            result.code = other.code;
+        }
+        let mut evidence: Vec<_> = result.evidence.into_iter().flatten().collect();
+        for item in other.evidence.into_iter().flatten() {
+            if evidence.len() < 8 && !evidence.contains(&item) {
+                evidence.push(item);
+            }
+        }
+        result.evidence = [None; 8];
+        for (slot, item) in result.evidence.iter_mut().zip(evidence) {
+            *slot = Some(item);
+        }
         result
     }
 

@@ -65,7 +65,13 @@ pub(crate) fn finish_task(
                     )
                 };
                 telemetry::record_failure(config, stage);
-                capture_failure(window.app_handle(), config, context, error);
+                capture_report(
+                    window.app_handle(),
+                    config,
+                    context,
+                    error,
+                    Some((&task.input_path, &task.output_path, &task.current_step)),
+                );
             }
         }
         telemetry::schedule_sync(window.app_handle().clone());
@@ -79,17 +85,36 @@ pub(crate) fn capture_failure(
     context: FailureContext,
     error: &ExecutionFailure,
 ) {
+    capture_report(app, config, context, error, None);
+}
+
+fn capture_report(
+    app: &tauri::AppHandle,
+    config: &AppConfigState,
+    context: FailureContext,
+    error: &ExecutionFailure,
+    paths: Option<(&str, &str, &str)>,
+) {
     if !is_executed_failure(error) {
         return;
     }
-    telemetry::record_reason(config, context, error.diagnostic);
-    let report = SafeReport::new(context, error.diagnostic, now_seconds());
-    if let Ok(preview) = app
-        .state::<ErrorReportState>()
-        .capture(report, error.diagnostic.code.should_prompt())
-    {
-        let _ = app.emit("failure-diagnostic", preview);
+    telemetry::record_reason(config, context, *error.diagnostic);
+    let mut report = SafeReport::new(context, *error.diagnostic, now_seconds());
+    if let Some((input, output, step)) = paths {
+        report.details.input_path = Some(crate::report_context::PathFeatures::of(input));
+        report.details.output_path = Some(crate::report_context::PathFeatures::of(output));
+        report.details.execution_step = crate::report_context::execution_step(step);
     }
+    let app = app.clone();
+    let tool_path = error.tool_path.clone();
+    let prompt = error.diagnostic.code.should_prompt();
+    // 原任务先返回；后台探测只持有有限报告与工具路径，不持有错误正文或证书材料。
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::report_context::enrich(&mut report, tool_path.as_deref());
+        if let Ok(preview) = app.state::<ErrorReportState>().capture(report, prompt) {
+            let _ = app.emit("failure-diagnostic", preview);
+        }
+    });
 }
 
 pub(crate) fn certificate_result<T>(

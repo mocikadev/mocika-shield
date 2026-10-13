@@ -1,4 +1,5 @@
 import { FAILURE_CODES, validFailureDimensions } from "./failure-reasons.js";
+import { normalizeDetails } from "./error-report-details.js";
 
 const REPORT_FIELDS = [
   "report_id", "schema_version", "classifier_version", "sanitizer_version", "app_version",
@@ -24,14 +25,15 @@ export function normalizeErrorReport(value, byteLength) {
   if (byteLength !== undefined && byteLength > 8192) throw new Error("报告超过8192字节");
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("报告格式无效");
   const keys = Object.keys(value);
-  if (keys.length !== REPORT_FIELDS.length || keys.some((key) => !REPORT_FIELDS.includes(key))) {
+  const fields = value.schema_version === 2 ? [...REPORT_FIELDS, "details"] : REPORT_FIELDS;
+  if (keys.length !== fields.length || keys.some((key) => !fields.includes(key))) {
     throw new Error("报告字段无效");
   }
   if (typeof value.report_id !== "string"
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.report_id)) {
     throw new Error("report_id无效");
   }
-  if (value.schema_version !== 1 || value.classifier_version !== 1 || value.sanitizer_version !== 1) {
+  if (![1, 2].includes(value.schema_version) || value.classifier_version !== 1 || value.sanitizer_version !== value.schema_version) {
     throw new Error("协议版本无效");
   }
   if (typeof value.app_version !== "string"
@@ -64,9 +66,10 @@ export function normalizeErrorReport(value, byteLength) {
     && (!Number.isInteger(value.exit_code) || value.exit_code < -2147483648 || value.exit_code > 2147483647)) {
     throw new Error("exit_code无效");
   }
-  if (!Array.isArray(value.evidence) || value.evidence.length !== 0) throw new Error("evidence首期必须为空数组");
+  if (value.schema_version === 1 && (!Array.isArray(value.evidence) || value.evidence.length !== 0)) throw new Error("evidence第一版必须为空数组");
 
-  const report = Object.fromEntries(REPORT_FIELDS.map((field) => [field, value[field]]));
+  const report = Object.fromEntries(fields.map((field) => [field, value[field]]));
+  if (value.schema_version === 2) Object.assign(report, normalizeDetails(value));
   const canonicalJson = JSON.stringify(report);
   if (new TextEncoder().encode(canonicalJson).byteLength > 8192) throw new Error("报告超过8192字节");
   return { report, canonicalJson };

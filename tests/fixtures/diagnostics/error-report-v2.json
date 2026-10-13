@@ -1,0 +1,33 @@
+{
+  "report_id": "7acbe71f-6a86-43bc-8dcd-1c710f196dad",
+  "schema_version": 2,
+  "classifier_version": 1,
+  "sanitizer_version": 2,
+  "app_version": "1.4.2-rc.2",
+  "build_revision": null,
+  "build_kind": "unknown",
+  "occurred_at": 1789516800,
+  "flow": "protect",
+  "operation": "protect",
+  "stage": "manifest",
+  "code": "APK_REPACK_FAILED",
+  "platform": "macos",
+  "arch": "aarch64",
+  "java_major": null,
+  "java_vendor": null,
+  "tool_name": "apktool",
+  "tool_version": null,
+  "exit_code": 1,
+  "evidence": [
+    { "kind": "resource_not_found", "summary": "error: resource <资源标识已移除> not found" },
+    { "kind": "resource_link_failed", "summary": "资源链接失败（文件路径与资源标识已移除）" }
+  ],
+  "details": {
+    "execution_step": "repack",
+    "os_version": null,
+    "java_version": null,
+    "input_path": { "non_ascii": true, "spaces": true, "special_characters": false, "long_path": false },
+    "output_path": { "non_ascii": true, "spaces": true, "special_characters": false, "long_path": false },
+    "evidence_status": "recognized"
+  }
+}

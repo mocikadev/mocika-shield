@@ -7,6 +7,27 @@ import test from "node:test";
 import worker from "./index.js";
 import { SqliteD1 } from "./sqlite-d1.test-support.js";
 
+const reportV2 = JSON.parse(readFileSync(new URL("../../../tests/fixtures/diagnostics/error-report-v2.json", import.meta.url), "utf8"));
+
+test("第二版真实SQL入库幂等并保留完整有限详情", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "shield-report-v2-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const db = new SqliteD1(join(dir, "test.db"));
+  db.exec(readFileSync(new URL("../schema.sql", import.meta.url), "utf8"));
+  const env = { DB: db, ERROR_REPORTS_ENABLED: "true", ERROR_REPORT_RATE_SECRET: "test-only-secret" };
+  const post = (body) => worker.fetch(new Request("https://stats.invalid/reports/errors", {
+    method: "POST", headers: { "CF-Connecting-IP": "192.0.2.8" }, body: JSON.stringify(body),
+  }), env, {});
+  assert.equal((await post(reportV2)).status, 201);
+  assert.equal((await post(reportV2)).status, 200);
+  assert.equal((await post({ ...reportV2, details: { ...reportV2.details, os_version: "10.0" } })).status, 409);
+  const saved = db.query("SELECT schema_version,payload_json FROM error_reports")[0];
+  assert.equal(saved.schema_version, 2);
+  assert.deepEqual(JSON.parse(saved.payload_json), reportV2);
+  assert.equal((await post({ ...reportV2, report_id: "123e4567-e89b-42d3-a456-426614174001", raw_log: "PRIVATE" })).status, 400);
+  assert.equal((await post({ ...validReport, report_id: "123e4567-e89b-42d3-a456-426614174002" })).status, 201);
+});
+
 const validReport = {
   report_id: "123e4567-e89b-42d3-a456-426614174000", schema_version: 1,
   classifier_version: 1, sanitizer_version: 1, app_version: "1.4.0-beta.5",

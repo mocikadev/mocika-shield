@@ -168,7 +168,7 @@ pub(crate) fn verify_saved_certificate(
             let value = store.update_verify_status(id, "failed", Some(&err.message), None)?;
             Ok(CertificateOutcome {
                 value,
-                diagnostic: Some(err.diagnostic),
+                diagnostic: Some(*err.diagnostic),
             })
         }
     }
@@ -250,14 +250,11 @@ pub(crate) fn create_managed_certificate(
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ExecutionFailure::diagnosed(
             classify_create_keystore_error(&stderr),
-            Diagnostic::from_tool_output(
+            Diagnostic::from_tool_streams(
                 ToolName::Keytool,
                 output.status.code(),
-                if output.stderr.is_empty() {
-                    &output.stdout
-                } else {
-                    &output.stderr
-                },
+                &output.stdout,
+                &output.stderr,
             ),
         ));
     }

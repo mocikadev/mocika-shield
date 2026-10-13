@@ -166,7 +166,15 @@ pub(crate) async fn execute_protect_apk(
             },
             cancel_for_protect,
         )
-        .map_err(ExecutionFailure::from_shield)?;
+        .map_err(|source| {
+            let mut failure = ExecutionFailure::from_shield(source);
+            failure.tool_path = match failure.diagnostic.tool {
+                Some(shield_core::diagnostic::ToolName::Apktool) => opts.apktool_path.clone(),
+                Some(shield_core::diagnostic::ToolName::Apksigner) => opts.apksigner_path.clone(),
+                _ => None,
+            };
+            failure
+        })?;
 
         let sharing = app.state::<crate::application_sharing::SharingState>();
         sharing.protected(&progress_task_id);

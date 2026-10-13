@@ -56,7 +56,13 @@ pub(crate) fn execute_sign_apk(
         };
         on_progress(step, message)
     })
-    .map_err(|e| ExecutionFailure::diagnosed(e.to_string(), Diagnostic::from_error(&e)))?;
+    .map_err(|e| {
+        let mut failure = ExecutionFailure::diagnosed(e.to_string(), Diagnostic::from_error(&e));
+        if failure.diagnostic.tool == Some(ToolName::Apksigner) {
+            failure.tool_path = opts.apksigner_path.clone();
+        }
+        failure
+    })?;
     Ok(())
 }
 
@@ -91,14 +97,11 @@ pub(crate) fn query_keystore_aliases(
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ExecutionFailure::diagnosed(
             classify_keytool_error(&stderr),
-            Diagnostic::from_tool_output(
+            Diagnostic::from_tool_streams(
                 ToolName::Keytool,
                 output.status.code(),
-                if output.stderr.is_empty() {
-                    &output.stdout
-                } else {
-                    &output.stderr
-                },
+                &output.stdout,
+                &output.stderr,
             ),
         ));
     }

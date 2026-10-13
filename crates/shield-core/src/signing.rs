@@ -169,14 +169,11 @@ pub fn sign_apk_with_progress(
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         let code = output.status.code().unwrap_or(-1);
-        return Err(Diagnostic::from_tool_output(
+        return Err(Diagnostic::from_tool_streams(
             ToolName::Apksigner,
             output.status.code(),
-            if output.stderr.is_empty() {
-                &output.stdout
-            } else {
-                &output.stderr
-            },
+            &output.stdout,
+            &output.stderr,
         )
         .attach(anyhow::anyhow!(
             "签名失败（apksigner 退出码 {code}）：{}",

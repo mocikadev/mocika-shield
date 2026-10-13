@@ -318,15 +318,15 @@ fn apktool_command_error(
     stdout: &[u8],
     stderr: &[u8],
 ) -> anyhow::Error {
-    let evidence = if stderr.is_empty() { stdout } else { stderr };
-    let mut diagnostic = Diagnostic::from_tool_output(ToolName::Apktool, exit_code, evidence);
+    let mut diagnostic =
+        Diagnostic::from_tool_streams(ToolName::Apktool, exit_code, stdout, stderr);
     if diagnostic.code == FailureCode::ToolProcessFailed {
         diagnostic.code = fallback;
     }
     diagnostic.attach(anyhow::anyhow!(
         "命令执行失败: {:?}\n错误: {}",
         java,
-        String::from_utf8_lossy(stderr)
+        String::from_utf8_lossy(if stderr.is_empty() { stdout } else { stderr })
     ))
 }
 
