@@ -11,6 +11,7 @@ mod preflight;
 mod protect;
 mod protect_api;
 pub mod signing;
+mod tool_evidence;
 pub mod utils;
 pub mod zipalign;
 

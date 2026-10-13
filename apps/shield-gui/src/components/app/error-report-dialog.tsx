@@ -55,13 +55,13 @@ export function ErrorReportDialog({ telemetryEnabled }: { telemetryEnabled: bool
     {state.open && <aside role="complementary" aria-labelledby="error-report-title" className="fixed bottom-4 right-5 z-40 max-h-[calc(100vh-32px)] w-[min(680px,calc(100vw-40px))] overflow-y-auto rounded-2xl border bg-background p-6 shadow-xl">
           <h2 id="error-report-title" className="pr-8 text-lg font-semibold">操作失败，是否发送错误报告？</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            报告包含软件版本、系统平台、失败阶段、固定错误类别及可用的工具退出码。不会上传 APK、证书文件、密码或完整日志。发送失败不影响本地操作。
+            报告包含版本与环境、准确失败步骤、路径字符特征及经过白名单筛选的错误摘要。不会上传真实路径、包名、APK、证书文件、密码或完整日志。发送失败不影响本地操作。
           </p>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">发送至项目 Cloudflare 服务，主库保存 30 天；网络服务提供方会接触连接 IP。不发送匿名安装标识。</p>
           {!telemetryEnabled && <p className="mt-2 text-sm">本次主动发送不会开启匿名统计。</p>}
           <details className="my-4 rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">查看全部待发送内容</summary>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">app_version：软件版本；flow / operation / stage：流程、操作和阶段；code：固定错误码；occurred_at：发生时间（UTC 秒）；null 表示未取得可靠信息。没有安全的额外错误细节时 evidence 为空。</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">app_version：软件版本；flow / operation / stage：流程、操作和历史统计阶段；details.execution_step：准确失败步骤；code：固定错误码；occurred_at：发生时间（UTC 秒）；evidence：固定摘要，变量已移除，不是原始日志。details 中的路径字段仅为布尔特征，os_version 为 JVM 报告的系统版本；null 表示未取得可靠信息。证据不足时 evidence_status 为 unavailable。</p>
             <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-all text-xs">{state.preview ? JSON.stringify(JSON.parse(state.preview.payload_json), null, 2) : ""}</pre>
           </details>
           {state.error && <p role="alert" className="mb-3 text-sm text-destructive">{state.error}</p>}

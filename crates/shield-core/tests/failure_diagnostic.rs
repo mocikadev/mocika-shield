@@ -47,3 +47,20 @@ fn 诊断上下文不改变原错误显示() {
         FailureCode::ApkRepackFailed
     );
 }
+
+#[test]
+fn 标准错误提示不掩盖标准输出证据并对重复去重() {
+    let diagnostic = Diagnostic::from_tool_streams(
+        ToolName::Apktool,
+        Some(1),
+        b"error: resource private not found\nfailed linking resources",
+        b"Picked up JAVA_TOOL_OPTIONS: secret\nfailed linking resources",
+    );
+    let evidence: Vec<_> = diagnostic.evidence.into_iter().flatten().collect();
+    assert_eq!(evidence.len(), 2);
+    assert!(evidence
+        .iter()
+        .any(|item| item.kind == "resource_not_found"));
+    assert!(!format!("{diagnostic:?}").contains("private"));
+    assert!(!format!("{diagnostic:?}").contains("secret"));
+}
