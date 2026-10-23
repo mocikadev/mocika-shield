@@ -58,14 +58,30 @@ class AndroidApi19BuildContractTests(unittest.TestCase):
         self.assertIn('if [[ "${OS:-}" == "Windows_NT" ]]', content)
         self.assertIn("Compress-Archive -Path $files", content)
         self.assertIn('$ErrorActionPreference = "Stop"', content)
-        self.assertIn('zip -qr "$LEGACY_RESOURCES"', content)
+        self.assertIn('zip -qr "$CANDIDATE_RESOURCES"', content)
         self.assertIn("-x '*.DS_Store' '__MACOSX/*'", standard_content)
         self.assertIn("find \"$WORK_DIR\" -type f -name '.DS_Store' -delete", content)
         self.assertIn('rm -rf "$WORK_DIR/__MACOSX"', content)
         self.assertNotIn("jar --create", content)
-        self.assertIn('unzip -tq "$LEGACY_RESOURCES"', content)
+        self.assertIn('unzip -tq "$CANDIDATE_RESOURCES"', content)
         self.assertIn('"min_android_api": 19', content)
         self.assertIn("未安装 Android 4.4 兼容构建所需的 NDK", content)
+
+    def test_所有资源入口复用严格绑定且兼容_windows_换行(self) -> None:
+        for script in ("scripts/build-stub.sh", "scripts/build-android-api19-resources.sh"):
+            content = (ROOT / script).read_text(encoding="utf-8")
+            self.assertIn("scripts/stub_bindings.py", content)
+            self.assertIn("audit", content)
+            self.assertIn("binding_value=\"${binding_value%$'\\r'}\"", content)
+            self.assertNotIn("parse_mapping_method", content)
+            self.assertNotIn("getSignatureSha256}", content)
+        windows = (ROOT / "scripts/build-stub.ps1").read_text(encoding="utf-8")
+        self.assertIn('scripts\\stub_bindings.py', windows)
+        self.assertIn('$bindingTool, "audit"', windows)
+        self.assertNotIn("Parse-MappingMethod", windows)
+        probe = (ROOT / "tests/scripts/run-api19-protect-e2e.sh").read_text(encoding="utf-8")
+        self.assertIn("build/outputs/resources/resources-api19.zip", probe)
+        self.assertNotIn("build/experiments/api19/resources-api19.zip", probe)
 
 
 if __name__ == "__main__":

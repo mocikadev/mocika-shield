@@ -9,6 +9,7 @@
 | Android SDK | Platform 35 | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
 | Android NDK | 29.0.14206865 + 25.2.9519653 | 标准模式使用 r29；Android 4.4 兼容模式的 ARMv7 使用 r25c |
 | cargo-ndk | 最新 | `cargo install cargo-ndk` |
+| Python | 3.9+ | 仅源码构建：壳 JNI 映射与资源契约校验 |
 | Android build-tools | 35.0.0 | 用于 JAR→DEX 转换及发布构建 |
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
@@ -84,7 +85,7 @@ scoop bucket add java
 scoop bucket add extras
 
 # 安装基础工具
-scoop install git make 7zip rustup nsis
+scoop install git make 7zip rustup nsis python
 
 # Java（shield-stub 构建需要）
 scoop install temurin17-jdk

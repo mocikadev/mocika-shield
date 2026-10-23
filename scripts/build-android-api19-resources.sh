@@ -10,6 +10,7 @@ MAPPING_FILE="$PROJECT_ROOT/shield-stub/build/outputs/mapping/release/mapping.tx
 STANDARD_RESOURCES="$PROJECT_ROOT/shield-stub/build/outputs/resources/resources.zip"
 API19_OUTPUT="$PROJECT_ROOT/shield-stub/build/experiments/api19"
 LEGACY_RESOURCES="$PROJECT_ROOT/shield-stub/build/outputs/resources/resources-api19.zip"
+CANDIDATE_RESOURCES="$API19_OUTPUT/resources-api19-candidate.zip"
 
 if [[ "${SKIP_STANDARD_STUB_BUILD:-0}" != "1" ]]; then
     "$PROJECT_ROOT/scripts/build-stub.sh"
@@ -43,36 +44,16 @@ for required in "$MAPPING_FILE" "$STANDARD_RESOURCES"; do
     fi
 done
 
-parse_mapping_class() {
-    local original_class="$1"
-    grep "^${original_class} ->" "$MAPPING_FILE" | sed 's/.*-> //' | tr -d ':'
-}
-
-parse_mapping_method() {
-    local original_class="$1"
-    local original_method="$2"
-    awk "/^${original_class} ->/{found=1} found && / ${original_method}\\(/{print \$NF; exit}" \
-        "$MAPPING_FILE"
-}
-
-ORIGINAL_LD="dev.mocika.shield.loader.Ld"
-OBFUSCATED_LD="$(parse_mapping_class "$ORIGINAL_LD")"
-OBFUSCATED_INJECT="$(parse_mapping_method "$ORIGINAL_LD" "p")"
-OBFUSCATED_EXTRACT="$(parse_mapping_method "$ORIGINAL_LD" "q")"
-OBFUSCATED_CHECK_ENV="$(parse_mapping_method "$ORIGINAL_LD" "r")"
-OBFUSCATED_SIGNATURE="$(parse_mapping_method "$ORIGINAL_LD" "getSignatureSha256")"
-
-if [[ -z "$OBFUSCATED_LD" ]]; then
-    echo "错误：无法从 mapping.txt 解析 Ld 类名"
-    exit 1
-fi
-
-STUB_BINLOADER_CLASS="${OBFUSCATED_LD//.//}" \
-STUB_METHOD_INJECT_DEX="${OBFUSCATED_INJECT:-p}" \
-STUB_METHOD_EXTRACT_DECRYPT="${OBFUSCATED_EXTRACT:-q}" \
-STUB_METHOD_CHECK_ENV="${OBFUSCATED_CHECK_ENV:-r}" \
-STUB_METHOD_GET_SIG="${OBFUSCATED_SIGNATURE:-getSignatureSha256}" \
+PYTHON_CMD="${PYTHON:-python3}"
+BINDINGS_FILE="$PROJECT_ROOT/shield-stub/build/outputs/mapping/release/jni-bindings.env"
+"$PYTHON_CMD" "$PROJECT_ROOT/scripts/stub_bindings.py" env "$MAPPING_FILE" > "$BINDINGS_FILE"
+(
+    while IFS='=' read -r binding_key binding_value; do
+        binding_value="${binding_value%$'\r'}"
+        export "$binding_key=$binding_value"
+    done < "$BINDINGS_FILE"
     "$PROJECT_ROOT/scripts/verify-android-api19-native.sh"
+)
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mocika-api19-resources.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -89,10 +70,10 @@ if ! grep -q '"min_android_api": 19' "$WORK_DIR/metadata.json"; then
 fi
 
 mkdir -p "$API19_OUTPUT"
-rm -f "$LEGACY_RESOURCES"
+rm -f "$CANDIDATE_RESOURCES"
 if [[ "${OS:-}" == "Windows_NT" ]]; then
     WINDOWS_WORK_DIR="$(cygpath -w "$WORK_DIR")"
-    WINDOWS_RESOURCES="$(cygpath -w "$LEGACY_RESOURCES")"
+    WINDOWS_RESOURCES="$(cygpath -w "$CANDIDATE_RESOURCES")"
     MOCIKA_WORK_DIR="$WINDOWS_WORK_DIR" \
     MOCIKA_RESOURCES="$WINDOWS_RESOURCES" \
         powershell.exe -NoProfile -NonInteractive -Command '
@@ -107,20 +88,23 @@ if [[ "${OS:-}" == "Windows_NT" ]]; then
 else
     (
         cd "$WORK_DIR"
-        zip -qr "$LEGACY_RESOURCES" stub-classes.dex lib metadata.json
+        zip -qr "$CANDIDATE_RESOURCES" stub-classes.dex lib metadata.json
     )
 fi
 
-if ! unzip -tq "$LEGACY_RESOURCES" >/dev/null; then
+if ! unzip -tq "$CANDIDATE_RESOURCES" >/dev/null; then
     echo "错误：Android 4.4 兼容资源包 ZIP 完整性校验失败"
     exit 1
 fi
 for required_entry in stub-classes.dex lib/armeabi-v7a/libmocikashield.so metadata.json; do
-    if ! unzip -Z1 "$LEGACY_RESOURCES" \
+    if ! unzip -Z1 "$CANDIDATE_RESOURCES" \
         | awk -v required="$required_entry" '$0 == required { found = 1 } END { exit !found }'; then
         echo "错误：Android 4.4 兼容资源包缺少 $required_entry"
         exit 1
     fi
 done
 
+"$PYTHON_CMD" "$PROJECT_ROOT/scripts/stub_bindings.py" audit "$MAPPING_FILE" \
+    "$CANDIDATE_RESOURCES" --standard "$STANDARD_RESOURCES"
+mv -f "$CANDIDATE_RESOURCES" "$LEGACY_RESOURCES"
 echo "Android API 19 兼容资源包构建完成：$LEGACY_RESOURCES"

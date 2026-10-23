@@ -106,6 +106,7 @@ Step 3 "安装基础工具（Scoop）"
 Ensure-ScoopPkg "git"
 Ensure-ScoopPkg "make"
 Ensure-ScoopPkg "7zip"
+Ensure-ScoopPkg "python"
 Ensure-ScoopPkg "nodejs-lts"
 
 # ============================================================
@@ -247,7 +248,7 @@ Write-Host "  环境配置完成！" -ForegroundColor Green
 Write-Host "  ================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  已安装/配置：" -ForegroundColor Blue
-Write-Host "    ✓ Scoop 工具：git / make / 7zip / nodejs-lts / rustup / nsis"
+Write-Host "    ✓ Scoop 工具：git / make / 7zip / python / nodejs-lts / rustup / nsis"
 Write-Host "    ✓ Node.js / npm：React GUI 前端构建"
 Write-Host "    ✓ Java：Temurin JDK 17"
 Write-Host "    ✓ Android SDK（android-clt）"

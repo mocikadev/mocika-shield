@@ -4,17 +4,9 @@
 # 构建脚本（build-stub.sh）会在 R8 产出 mapping.txt 后，重新编译 Rust，
 # 将混淆后的类名/方法名通过环境变量注入编译期常量，保持 DEX 与 .so 一致。
 
-# BinLoader 已重命名为 Ld（源码层面已无意义），R8 内置规则仍会保留类名，
-# 但保留的是已匿名的 Ld，避免 BinLoader 字符串出现在产物中。
-# native 方法通过 RegisterNatives 绑定，R8 无法静态追踪，必须显式声明防止被裁剪。
-# getSignatureSha256 由 Rust 侧通过混淆后的方法名反射调用，同样需防裁剪。
--keepclasseswithmembernames,allowobfuscation class dev.mocika.shield.loader.Ld {
-    native <methods>;
-}
--keepclassmembers,allowobfuscation class dev.mocika.shield.loader.Ld {
-    native <methods>;
-    static java.lang.String getSignatureSha256(android.content.Context);
-}
+# 默认 Native 名称锁定规则由 Gradle 精确转换，不能靠叠加 allowobfuscation 覆盖。
+# JNI 回调类完整保留成员，名称允许混淆；最终绑定由同批映射注入 Native。
+-keep,allowobfuscation class dev.mocika.shield.loader.Ld { *; }
 
 # StubApp：类名允许混淆（shield-cli 从 metadata.json 读取混淆后的类名）。
 # 框架入口方法（attachBaseContext/onCreate/getApplicationContext）覆盖 Application 父类，

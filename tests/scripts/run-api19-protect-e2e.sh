@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FIXTURE="$PROJECT_ROOT/tests/fixtures/android-smoke-app"
 PACKAGE_NAME="dev.mocika.shield.smoke"
 COMPONENT="$PACKAGE_NAME/.MainActivity"
-RESOURCES="$PROJECT_ROOT/shield-stub/build/experiments/api19/resources-api19.zip"
+RESOURCES="$PROJECT_ROOT/shield-stub/build/outputs/resources/resources-api19.zip"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mocika-api19-e2e.XXXXXX")"
 PASSWORD="mocika-test-123"
 trap 'rm -rf "$WORK_DIR"' EXIT

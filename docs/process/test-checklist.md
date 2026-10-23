@@ -177,6 +177,9 @@ Java 工具调用或输出编码变动后，另设置 `SHIELD_TEST_JDK_HOME`，�
 - `cargo test -p mocikashield` 通过
 - `cd shield-stub && ./gradlew testDebugUnitTest --no-daemon` 通过；源码级 JVM 测试使用未混淆的 debug 变体，release 变体由资源构建、Stub DEX 指标和端到端加固回归覆盖
 - `make build-stub` 能生成最新 `resources.zip`
+- 标准、工控和内部内存候选资源均通过 `scripts/stub_bindings.py audit`；最终桥接类、四个 Native 方法和签名回调按同批映射绑定，正式 DEX／ELF 不残留原始桥接包名
+- 壳与业务 DEX 完整类名冲突时在业务 DEX 加密前停止；同短类名、中文类名与正常 ARouter 注册入口不受影响
+- 本机 JNI 探针只证明注册与调用，不替代 Android 4.4、较新系统、缓存及覆盖安装的完整启动回归
 - `make build-cli` 能生成 `shield` 二进制
 - `shield protect -i input.apk -o protected.apk` 可完成基础加固
 

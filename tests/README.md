@@ -17,6 +17,19 @@ RUNTIME_PROFILE=android_api19 ABI_FILTER_TEST=1 bash tests/scripts/run-protect-e
 
 验证未确认排除时拒绝，确认后仅移除旧架构，四种业务库字节保留，输出壳逐 ABI 与兼容资源一致，签名和不压缩打包通过。占位业务库不供加载，这不代替真实设备上的 Native 功能验收；4.4 仅承诺 v7a／NEON，其他架构用于 5.0+。
 
+## 壳类名与 JNI 绑定
+
+正常壳构建会执行 `scripts/stub_bindings.py audit`，验证原始桥接包名已移除、四个 Native 方法和签名回调的实际 DEX 定义存在、全部 ELF 使用同批绑定摘要。标准和 API 19 资源须共享同一份 Stub DEX。
+
+```bash
+python3 -m unittest discover -s scripts/tests -v
+python3 tests/scripts/run-stub-jni-host-probe.py
+```
+
+本机 JVM 探针按最终映射生成最小签名夹具，加载使用生产 `JNI_OnLoad` 的本机 Native，验证动态注册及一次环境方法调用。它仅支持 macOS／Linux，不验证 Android 解密、签名回调、Dalvik／ART 注入或应用启动，不可替代设备回归。核心测试另外覆盖多 DEX 类名冲突、中文类名、畸形索引和 ARouter 注册入口识别。
+
+## 设备回归
+
 连接 Android 设备后，可以额外验证未加固双 DEX 基线，以及使用同一证书覆盖安装加固包后的首次解密和缓存命中二次启动：
 
 ```bash
