@@ -15,6 +15,7 @@ val prepareJniRules by tasks.registering(Exec::class) {
     inputs.file(defaultReleaseRules)
     inputs.file(rootProject.file("../scripts/stub_bindings.py"))
     inputs.file(rootProject.file("../scripts/stub_dex_contract.py"))
+    inputs.file(rootProject.file("../scripts/native_surface.py"))
     outputs.file(jniReleaseRules)
     val python = providers.environmentVariable("PYTHON").orNull
         ?: if (System.getProperty("os.name").lowercase().contains("windows")) "python" else "python3"

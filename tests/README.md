@@ -21,6 +21,8 @@ RUNTIME_PROFILE=android_api19 ABI_FILTER_TEST=1 bash tests/scripts/run-protect-e
 
 正常壳构建会执行 `scripts/stub_bindings.py audit`，验证原始桥接包名已移除、四个 Native 方法和签名回调的实际 DEX 定义存在、全部 ELF 使用同批绑定摘要。标准和 API 19 资源须共享同一份 Stub DEX。
 
+同一入口还通过 `scripts/native_surface.py` 检查四 ABI 的最小导出、调试节、普通符号表和构建机路径；仅使用 Python 标准库，快速单测不需要 Android SDK。检查失败会在更新自动发现资源入口前停止。字符串分类与边界见 [Native 暴露面检查](../docs/design/native-surface.md)。
+
 ```bash
 python3 -m unittest discover -s scripts/tests -v
 python3 tests/scripts/run-stub-jni-host-probe.py

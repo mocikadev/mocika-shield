@@ -83,6 +83,26 @@ class AndroidApi19BuildContractTests(unittest.TestCase):
         self.assertIn("build/outputs/resources/resources-api19.zip", probe)
         self.assertNotIn("build/experiments/api19/resources-api19.zip", probe)
 
+    def test_两套_native_均规范化依赖源码位置且尊重自定义目录(self) -> None:
+        for script in ("scripts/build-stub.sh", "scripts/verify-android-api19-native.sh"):
+            content = (ROOT / script).read_text(encoding="utf-8")
+            self.assertIn('source "$SCRIPT_DIR/native-build-flags.sh"', content)
+            self.assertIn('configure_native_source_paths "$PROJECT_ROOT"', content)
+        windows = (ROOT / "scripts/build-stub.ps1").read_text(encoding="utf-8")
+        self.assertIn("$env:CARGO_HOME", windows)
+        self.assertIn("$env:RUSTUP_HOME", windows)
+        self.assertIn("${cargoSourceHome}", windows)
+        self.assertIn("${rustupSourceHome}", windows)
+        self.assertIn("$nativeSourceFlags -join [char]31", windows)
+
+    def test_资源审计必须先于自动发现入口更新(self) -> None:
+        standard = (ROOT / "scripts/build-stub.sh").read_text(encoding="utf-8")
+        self.assertLess(standard.rindex('scripts/stub_bindings.py audit'), standard.index('ln -sf '))
+        compat = (ROOT / "scripts/build-android-api19-resources.sh").read_text(encoding="utf-8")
+        self.assertLess(compat.rindex('scripts/stub_bindings.py" audit'), compat.index('mv -f "$CANDIDATE_RESOURCES"'))
+        windows = (ROOT / "scripts/build-stub.ps1").read_text(encoding="utf-8")
+        self.assertLess(windows.rindex('$bindingTool, "audit"'), windows.index('Copy-Item $resourcesZip $resourcesZipLink'))
+
 
 if __name__ == "__main__":
     unittest.main()

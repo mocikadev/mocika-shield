@@ -186,7 +186,8 @@ RUST_SRC="shield-stub/src/main/rust"
 
 export ANDROID_NDK_ROOT="$ANDROID_NDK_PATH"
 # 用项目根路径替换编译期嵌入的源码绝对路径，消除 .so 字符串段中的本机路径信息
-export RUSTFLAGS="--remap-path-prefix ${PROJECT_ROOT}=. --remap-path-prefix ${HOME}/.cargo=.cargo --remap-path-prefix ${HOME}/.rustup=.rustup"
+source "$SCRIPT_DIR/native-build-flags.sh"
+configure_native_source_paths "$PROJECT_ROOT"
 
 (
     cd "$RUST_SRC"

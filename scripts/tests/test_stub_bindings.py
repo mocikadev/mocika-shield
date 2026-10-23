@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from scripts.stub_bindings import METHODS, audit, binding_environment, parse_mapping, prepare_rules
 from scripts.stub_dex_contract import dex_contract
+from scripts.tests.test_native_surface import make_elf
 
 
 LD = "dev.mocika.shield.loader.Ld"
@@ -83,18 +84,23 @@ class StubBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             mapping, resource = Path(directory) / "mapping.txt", Path(directory) / "resources.zip"
             mapping.write_text(MAPPING, encoding="utf-8")
-            for defect in (None, "摘要", "原名", "缺库", "方法"):
+            for defect in (None, "摘要", "原名", "缺库", "方法", "导出", "调试", "路径"):
                 with self.subTest(defect=defect):
                     marker = b"wrong" if defect == "摘要" else environment["STUB_BINDING_ID"].encode()
-                    native = b"\x7fELF" + marker
+                    native_marker = marker
                     if defect == "原名":
-                        native += LD.replace(".", "/").encode()
+                        native_marker += LD.replace(".", "/").encode()
+                    if defect == "路径":
+                        native_marker += b"/Users/test-builder/.cargo/lib.rs"
                     with zipfile.ZipFile(resource, "w") as archive:
                         archive.writestr("stub-classes.dex", b"fixture")
                         archive.writestr("metadata.json", json.dumps({"stub_application": "msk.b"}))
                         for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64"):
                             if defect != "缺库" or abi != "x86":
-                                archive.writestr(f"lib/{abi}/libmocikashield.so", native)
+                                exports = ("JNI_OnLoad", "unexpected") if defect == "导出" else ("JNI_OnLoad",)
+                                extra_section = (".debug_info", 1) if defect == "调试" else None
+                                archive.writestr(f"lib/{abi}/libmocikashield.so", make_elf(
+                                    abi, marker=native_marker, exports=exports, extra_section=extra_section))
                     methods = {} if defect == "方法" else definitions
                     with patch("scripts.stub_bindings.dex_contract", return_value=(classes, methods)):
                         if defect is None:
