@@ -45,7 +45,7 @@ Bash 两个入口共享 `scripts/native-build-flags.sh`，Windows Git Bash 先�
 | 规范化的依赖源码相对路径、匿名 Rust 工具链路径 | 保留并分类报告 | 不含构建者用户名，可能用于 panic 定位 |
 | JNI 类名、方法签名、Android 系统调用字符串 | 保留 | 动态注册和系统互操作所需，不伪装成不存在 |
 | Native 注入、载荷、解密及解压失败上下文 | 保留，记录源码位置 | 现有排障依赖这些信息，本轮不为减少字符串而丢失原因 |
-| Manifest 品牌字段及缓存目录 | 不在本阶段改动 | 属于跨模块运行契约，沿用[壳标识后续规划](stub-identity.md)单独评审 |
+| Manifest 品牌字段及缓存目录 | 不在本阶段改动 | 字段由后续[Manifest 运行契约阶段](manifest-runtime-contract.md)独立治理，缓存目录仍保持不变 |
 
 当前 Native 诊断主要位于 `shield-stub/src/main/rust/src/lib.rs` 的 JNI 调用、数组构造和 Native 失败转 Java 反射路径，以及 `bin_loader.rs` 的格式、认证和解压错误。本阶段不更换错误码、不吞异常、不去掉原有失败关闭或兼容回退。
 
@@ -56,7 +56,7 @@ Bash 两个入口共享 `scripts/native-build-flags.sh`，Windows Git Bash 先�
 - [x] 接入现有绑定审计，验证畸形资源会失败、审计位于自动发现入口更新之前；不使用 NDK 工具作为单元测试前提。
 - [x] 对齐三个构建入口的源码路径规范化，分别重建标准四 ABI 与 r25c 工控资源并复验。
 - [x] 完成脚本测试、JNI 本机探针、标准／工控加固签名与在线设备补测，保留系统矩阵限制。
-- [ ] 完整阶段提交一个 PR，同步回归记录和路线图；不自动合并或发布。
+- [x] 完整阶段提交 PR #138，并于 2026-10-23 按维护者授权合并；未发布新版本。
 
 本阶段不改变运行逻辑。构建期路径规范化仍需实际重新编译验证，不能用旧资源上新增检查的失败来冒充修复成功。Windows／Linux 原生构建或未连接的低版本、16 KB 环境保持待验证，不把本机通过外推为全平台通过。
 
@@ -72,3 +72,9 @@ Bash 两个入口共享 `scripts/native-build-flags.sh`，Windows Git Bash 先�
 - `cargo tauri build --bundles app` 生成完整 macOS `.app`，完整应用 adhoc 签名与严格校验通过，包内标准／工控资源再次通过新审计。它仍显示工作区版本 `1.4.2-rc.3`，不是重新发布的 rc.3。
 
 剩余边界：本轮没有运行 Windows／Linux 原生桌面构建，没有补测 Android 4.4、API 21／23、Android 9 专项、16 KB 或 x86 设备；Root 严格策略的热缓存拒绝沿用上一阶段真机记录，本轮未重复执行。没有增加普通提交的重型 CI 或 CLI 发布任务。
+
+## Windows 资源专项补验
+
+2026-10-23，PR #138 合并后，基于 `c463bf0` 的[手动专项构建](https://github.com/mocikadev/mocika-shield/actions/runs/39925504105)通过：Windows 原生 PowerShell 构建标准四 ABI 及内部内存候选资源，再通过 Git Bash 构建 r25c 工控资源；各入口的 JNI 与 Native 暴露面审计均通过。它验证的是本阶段资源构建，不是完整 Windows 安装包、设备矩阵或后续 Manifest 新协议验收。
+
+此次只增加手动验证范围 `windows_resources`，45 项轻量脚本测试通过；默认手动 `all` 以及普通提交／PR 行为不变。运行记录中完整质量检查、Linux 打包、独立壳构建与发布前检查四个重型任务全部跳过，没有发布 CLI 或移动标签。

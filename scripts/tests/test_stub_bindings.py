@@ -9,6 +9,7 @@ from unittest.mock import patch
 from scripts.stub_bindings import METHODS, audit, binding_environment, parse_mapping, prepare_rules
 from scripts.stub_dex_contract import dex_contract
 from scripts.tests.test_native_surface import make_elf
+from scripts.manifest_contract import load_contract
 
 
 LD = "dev.mocika.shield.loader.Ld"
@@ -84,7 +85,7 @@ class StubBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             mapping, resource = Path(directory) / "mapping.txt", Path(directory) / "resources.zip"
             mapping.write_text(MAPPING, encoding="utf-8")
-            for defect in (None, "摘要", "原名", "缺库", "方法", "导出", "调试", "路径"):
+            for defect in (None, "摘要", "原名", "缺库", "方法", "导出", "调试", "路径", "协议", "字段", "重复元数据"):
                 with self.subTest(defect=defect):
                     marker = b"wrong" if defect == "摘要" else environment["STUB_BINDING_ID"].encode()
                     native_marker = marker
@@ -94,7 +95,10 @@ class StubBindingTests(unittest.TestCase):
                         native_marker += b"/Users/test-builder/.cargo/lib.rs"
                     with zipfile.ZipFile(resource, "w") as archive:
                         archive.writestr("stub-classes.dex", b"fixture")
-                        archive.writestr("metadata.json", json.dumps({"stub_application": "msk.b"}))
+                        metadata = json.dumps({"stub_application": "msk.b", "runtime_protocol": 2 if defect == "协议" else 4, "memory_dex": False})
+                        if defect == "重复元数据":
+                            metadata = metadata.replace('"runtime_protocol": 4', '"runtime_protocol": 2, "runtime_protocol": 4')
+                        archive.writestr("metadata.json", metadata)
                         for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64"):
                             if defect != "缺库" or abi != "x86":
                                 exports = ("JNI_OnLoad", "unexpected") if defect == "导出" else ("JNI_OnLoad",)
@@ -102,7 +106,10 @@ class StubBindingTests(unittest.TestCase):
                                 archive.writestr(f"lib/{abi}/libmocikashield.so", make_elf(
                                     abi, marker=native_marker, exports=exports, extra_section=extra_section))
                     methods = {} if defect == "方法" else definitions
-                    with patch("scripts.stub_bindings.dex_contract", return_value=(classes, methods)):
+                    strings = {field["current"] for field in load_contract()["fields"].values()}
+                    if defect == "字段":
+                        strings.remove("rt.policy")
+                    with patch("scripts.stub_bindings.dex_contract", return_value=(classes, methods, strings)):
                         if defect is None:
                             self.assertEqual(audit(mapping, resource)["bridge"], bridge)
                         else:
@@ -118,7 +125,7 @@ class StubBindingTests(unittest.TestCase):
                               (96, 1), (100, 120), (112, 152)):
             struct.pack_into("<I", dex, offset, value)
         dex[152:] = b"\x07Lmsk/a;\0"
-        self.assertEqual(dex_contract(bytes(dex)), ({"Lmsk/a;"}, {}))
+        self.assertEqual(dex_contract(bytes(dex)), ({"Lmsk/a;"}, {}, {"Lmsk/a;"}))
         struct.pack_into("<I", dex, 120, 5)
         with self.assertRaisesRegex(ValueError, "越界"):
             dex_contract(bytes(dex))

@@ -14,9 +14,11 @@ from pathlib import Path
 if __package__:
     from .stub_dex_contract import dex_contract
     from .native_surface import audit_native
+    from .manifest_contract import audit_resource, unique_object
 else:
     from stub_dex_contract import dex_contract
     from native_surface import audit_native
+    from manifest_contract import audit_resource, unique_object
 
 
 PREFIX = "dev.mocika.shield.loader."
@@ -105,7 +107,7 @@ def audit(mapping: Path, resource: Path, standard: Path | None = None) -> dict:
         if len(set(archive.namelist())) != len(archive.namelist()):
             raise ValueError("资源 ZIP 含重复条目")
         dex = archive.read("stub-classes.dex")
-        classes, methods = dex_contract(dex)
+        classes, methods, strings = dex_contract(dex)
         if PREFIX.replace(".", "/").encode() in dex:
             raise ValueError("Stub DEX 仍含原始包名")
         bridge = "L" + environment["STUB_BINLOADER_CLASS"] + ";"
@@ -117,7 +119,8 @@ def audit(mapping: Path, resource: Path, standard: Path | None = None) -> dict:
             required = 0x8 | (0x100 if original != "getSignatureSha256" else 0)
             if flags is None or flags & required != required:
                 raise ValueError(f"Stub DEX 缺少正确的 JNI 方法定义：{original}")
-        metadata = json.loads(archive.read("metadata.json").decode("utf-8-sig"))
+        metadata = json.loads(archive.read("metadata.json").decode("utf-8-sig"), object_pairs_hook=unique_object)
+        audit_resource(metadata, strings)
         if metadata["stub_application"] != environment["STUB_APPLICATION"]:
             raise ValueError("资源 Application 与映射不一致")
         if metadata.get("stub_component_factory", environment["STUB_COMPONENT_FACTORY"]) != environment["STUB_COMPONENT_FACTORY"]:

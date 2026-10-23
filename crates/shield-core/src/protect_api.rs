@@ -210,6 +210,7 @@ pub fn protect_apk(
         &runtime_selection.stub_application,
         runtime_selection.stub_component_factory.as_deref(),
         opts.environment_policy,
+        runtime_selection.manifest_keys,
     )
     .map_err(ShieldError::from)?;
     print_success("Manifest修改完成");
@@ -227,9 +228,11 @@ pub fn protect_apk(
     print_step("处理DEX文件");
     validate_class_identity(&apk_dir, &runtime_resources).map_err(preflight)?;
     let cache_identity = process_dex(&apk_dir, &signature, &ikm).map_err(ShieldError::from)?;
-    add_cache_identity(&apk_dir, &cache_identity).map_err(ShieldError::from)?;
+    add_cache_identity(&apk_dir, &cache_identity, runtime_selection.manifest_keys)
+        .map_err(ShieldError::from)?;
     if runtime_selection.memory_dex {
-        add_memory_payload_metrics(&apk_dir, &cache_identity).map_err(ShieldError::from)?;
+        add_memory_payload_metrics(&apk_dir, &cache_identity, runtime_selection.manifest_keys)
+            .map_err(ShieldError::from)?;
     }
 
     emit_progress(

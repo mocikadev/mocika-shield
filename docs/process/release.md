@@ -61,6 +61,12 @@ Pull Request 合并前必须通过以下 CI 检查：
 
 普通 PR 只执行 Rust 格式和脚本契约测试，避免每次提交重复等待完整编译与跨平台打包。完整代码质量检查、Android 壳构建、Linux Tauri 打包冒烟检查、Windows Android 4.4 资源构建和发布前检查仅在手动触发 CI 时执行；版本发布仍由 Release 工作流完整构建三个平台。
 
+手动 CI 的 `validation_scope` 默认 `all`，保留原完整验证；需要补测 Windows 标准／工控资源时选择 `windows_resources`，只运行 Windows 资源任务及基础快速检查，不同时启动 Linux 打包或其他重型任务。此选项不影响普通提交、PR 或 Release 工作流，未知范围直接拒绝。
+
+```bash
+gh workflow run ci.yml --ref <待验证分支> -f validation_scope=windows_resources
+```
+
 日常开发流程：
 
 1. 从最新 `main` 创建 `feat/*`、`fix/*`、`docs/*` 等临时分支。
@@ -196,7 +202,7 @@ make build-stub  →  make build-cli / make build-gui / make release / make rele
 
 | 工作流 | 文件 | 触发 | 内容 |
 |--------|------|------|------|
-| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | 普通提交与 PR 执行基础快速检查；手动触发时执行完整代码质量、Android 壳、Linux Tauri、Windows Android 4.4 资源及发布前检查 |
+| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | 普通提交与 PR 执行基础快速检查；手动默认完整验证，也可仅补测 Windows 标准／工控资源 |
 | Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows GUI 产物，汇总上传到 GitHub Release |
 
 > GitHub Release 面向普通开源用户，只上传 GUI 安装包与校验和；CLI 包仍可通过本地发布脚本生成，但不会由 CI 上传到 Release。

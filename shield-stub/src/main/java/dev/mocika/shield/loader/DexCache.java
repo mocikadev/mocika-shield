@@ -1,7 +1,6 @@
 package dev.mocika.shield.loader;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -19,9 +18,6 @@ import java.util.List;
 final class DexCache {
     private static final String TAG = "cx";
     private static final String DONE = ".done";
-    private static final String KEY_SCHEMA = "dev.mocika.shield.CACHE_SCHEMA";
-    private static final String KEY_COUNT = "dev.mocika.shield.CACHE_DEX_COUNT";
-    private static final String KEY_ROOT = "dev.mocika.shield.CACHE_ROOT_SHA256";
     private static final int SCHEMA = 1;
     private static final int BUFFER_SIZE = 8192;
 
@@ -135,13 +131,10 @@ final class DexCache {
     }
 
     private static Identity readIdentity(Context context) throws Exception {
-        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                context.getPackageName(), PackageManager.GET_META_DATA);
-        Bundle metadata = info.metaData;
-        if (metadata == null) throw new SecurityException("C09");
-        int schema = metadata.getInt(KEY_SCHEMA, -1);
-        int count = metadata.getInt(KEY_COUNT, -1);
-        String root = metadata.getString(KEY_ROOT);
+        Bundle metadata = RuntimeManifest.read(context);
+        int schema = metadata.getInt(ManifestKeys.CACHE_SCHEMA, -1);
+        int count = metadata.getInt(ManifestKeys.CACHE_COUNT, -1);
+        String root = metadata.getString(ManifestKeys.CACHE_ROOT);
         if (schema != SCHEMA || count <= 0 || root == null || !root.matches("[0-9a-f]{64}")) {
             throw new SecurityException("C10");
         }
