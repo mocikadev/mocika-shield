@@ -13,6 +13,8 @@ use jni::NativeMethod;
 /// 动态注册 native 方法，使 Rust 函数名不出现在 .dynsym，切断符号可读性。
 #[no_mangle]
 pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jni::sys::jint {
+    // 保留同批绑定摘要供离线资源审计，不是密钥或运行时认证凭据。
+    std::hint::black_box(env!("STUB_BINDING_ID"));
     let vm = match unsafe { jni::JavaVM::from_raw(vm) } {
         Ok(v) => v,
         Err(_) => return jni::sys::JNI_ERR,
@@ -28,22 +30,22 @@ pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) 
     let methods = [
         NativeMethod {
             name: env!("STUB_METHOD_INJECT_DEX").into(),
-            sig: "(Ljava/lang/ClassLoader;[Ljava/lang/String;Ljava/lang/String;)Z".into(),
+            sig: env!("STUB_SIGNATURE_INJECT_DEX").into(),
             fn_ptr: f1 as *mut c_void,
         },
         NativeMethod {
             name: env!("STUB_METHOD_EXTRACT_DECRYPT").into(),
-            sig: "(Landroid/content/Context;[B)[[B".into(),
+            sig: env!("STUB_SIGNATURE_EXTRACT_DECRYPT").into(),
             fn_ptr: f2 as *mut c_void,
         },
         NativeMethod {
             name: env!("STUB_METHOD_CHECK_ENV").into(),
-            sig: "()I".into(),
+            sig: env!("STUB_SIGNATURE_CHECK_ENV").into(),
             fn_ptr: f3 as *mut c_void,
         },
         NativeMethod {
-            name: "s".into(),
-            sig: "(Landroid/content/Context;[B)[Ljava/nio/ByteBuffer;".into(),
+            name: env!("STUB_METHOD_DECRYPT_BUFFERS").into(),
+            sig: env!("STUB_SIGNATURE_DECRYPT_BUFFERS").into(),
             fn_ptr: f4 as *mut c_void,
         },
     ];
@@ -229,7 +231,7 @@ fn jni_get_actual_signature(env: &mut JNIEnv, ctx: &JObject) -> Result<String, S
         .call_static_method(
             &bin_loader_class,
             env!("STUB_METHOD_GET_SIG"),
-            "(Landroid/content/Context;)Ljava/lang/String;",
+            env!("STUB_SIGNATURE_GET_SIG"),
             &[JValue::Object(ctx)],
         )
         .map_err(|e| format!("e2: {}", e))? // 调用签名获取方法失败

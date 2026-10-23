@@ -27,34 +27,6 @@ function Run($cmd, $argList) {
     if ($LASTEXITCODE -ne 0) { Err "命令失败: $cmd $($argList -join ' ')" }
 }
 
-# 从 mapping.txt 提取原始类名对应的混淆类名
-# mapping.txt 格式：原始类名 -> 混淆类名:
-function Parse-MappingClass($originalClass, $mappingFile) {
-    $escaped = [regex]::Escape($originalClass)
-    $line = Get-Content $mappingFile | Where-Object { $_ -match "^$escaped ->" } | Select-Object -First 1
-    if ($line -match " -> (.+?):\s*$") { return $matches[1] }
-    if ($line -match " -> (.+)$")       { return $matches[1].TrimEnd(':').Trim() }
-    return $null
-}
-
-# 从 mapping.txt 提取原始方法名在指定类内的混淆方法名
-function Parse-MappingMethod($originalClass, $originalMethod, $mappingFile) {
-    $lines   = Get-Content $mappingFile
-    $inClass = $false
-    $escaped = [regex]::Escape($originalClass)
-    foreach ($line in $lines) {
-        if ($line -match "^$escaped ->") { $inClass = $true; continue }
-        if ($inClass) {
-            if ($line -match "^#") { continue }    # 跳过 R8 注释行（# {"id":...}），不能 break
-            if ($line -notmatch "^\s") { break }   # 遇到下一个类块（非空白、非注释）才停止
-            if ($line -match " $([regex]::Escape($originalMethod))\(") {
-                if ($line -match "-> (\S+)\s*$") { return $matches[1] }
-            }
-        }
-    }
-    return $null
-}
-
 Write-Host "================================================" -ForegroundColor Green
 Write-Host "Mocika Shield - shield-stub 构建" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
@@ -165,36 +137,19 @@ if (-not (Test-Path $mappingFile)) {
 }
 Success "R8 mapping: $mappingFile"
 
-$origBinLoader = "dev.mocika.shield.loader.Ld"
-$origStubApp   = "dev.mocika.shield.loader.StubApp"
-$origStubFactory = "dev.mocika.shield.loader.StubComponentFactory"
-
-$obfBinLoader = Parse-MappingClass $origBinLoader $mappingFile
-$obfStubApp   = Parse-MappingClass $origStubApp   $mappingFile
-$obfStubFactory = Parse-MappingClass $origStubFactory $mappingFile
-
-if (-not $obfBinLoader -or -not $obfStubApp -or -not $obfStubFactory) {
-    Err "无法从 mapping.txt 提取混淆类名`n  Ld: '$obfBinLoader'  StubApp: '$obfStubApp'  StubFactory: '$obfStubFactory'`n  请检查 proguard-rules.pro 是否正确配置了 allowobfuscation"
+$pythonCommand = if ($env:PYTHON) { $env:PYTHON } else { "python" }
+$bindingTool = Join-Path $ProjectRoot "scripts\stub_bindings.py"
+$bindingLines = & $pythonCommand $bindingTool env $mappingFile
+if ($LASTEXITCODE -ne 0) { Err "JNI 绑定映射解析失败" }
+$bindings = @{}
+foreach ($line in $bindingLines) {
+    $pair = $line -split "=", 2
+    if ($pair.Count -ne 2) { Err "JNI 绑定输出格式错误" }
+    $bindings[$pair[0]] = $pair[1]
 }
-
-$obfMethodInject  = Parse-MappingMethod $origBinLoader "p"                 $mappingFile
-$obfMethodExtract = Parse-MappingMethod $origBinLoader "q"                 $mappingFile
-$obfMethodCheckEnv = Parse-MappingMethod $origBinLoader "r"                $mappingFile
-$obfMethodGetSig  = Parse-MappingMethod $origBinLoader "getSignatureSha256" $mappingFile
-
-# 方法名解析失败时保留原名（R8 可能因覆盖关系保留原方法名）
-if (-not $obfMethodInject)  { $obfMethodInject  = "p" }
-if (-not $obfMethodExtract) { $obfMethodExtract = "q" }
-if (-not $obfMethodCheckEnv) { $obfMethodCheckEnv = "r" }
-if (-not $obfMethodGetSig)  { $obfMethodGetSig  = "getSignatureSha256" }
-
-# JVM 内部路径格式（点 → 斜线）
-$obfBinLoaderJvm = $obfBinLoader.Replace(".", "/")
-
-Write-Host "  Ld:      $origBinLoader → $obfBinLoader" -ForegroundColor Green
-Write-Host "  StubApp: $origStubApp → $obfStubApp" -ForegroundColor Green
-Write-Host "  StubFactory: $origStubFactory → $obfStubFactory" -ForegroundColor Green
-Write-Host "  方法: p→$obfMethodInject, q→$obfMethodExtract, r→$obfMethodCheckEnv, getSignatureSha256→$obfMethodGetSig" -ForegroundColor Green
+$obfStubApp = $bindings["STUB_APPLICATION"]
+$obfStubFactory = $bindings["STUB_COMPONENT_FACTORY"]
+Write-Host "  JNI 绑定已完整解析：$($bindings['STUB_BINLOADER_CLASS'])" -ForegroundColor Green
 Write-Host ""
 
 # ==========================================
@@ -213,11 +168,9 @@ New-Item -ItemType Directory -Path $localTargetDir -Force | Out-Null
 Write-Host "  Rust 本地编译缓存: $localTargetDir" -ForegroundColor Yellow
 
 # 设置环境变量（build.rs 通过这些变量把混淆后的符号名嵌入 .so）
-$env:STUB_BINLOADER_CLASS        = $obfBinLoaderJvm
-$env:STUB_METHOD_INJECT_DEX      = $obfMethodInject
-$env:STUB_METHOD_EXTRACT_DECRYPT = $obfMethodExtract
-$env:STUB_METHOD_CHECK_ENV        = $obfMethodCheckEnv
-$env:STUB_METHOD_GET_SIG         = $obfMethodGetSig
+foreach ($key in $bindings.Keys) {
+    [Environment]::SetEnvironmentVariable($key, $bindings[$key], "Process")
+}
 $env:ANDROID_NDK_ROOT            = $ndkPath
 $env:CARGO_TARGET_DIR            = $localTargetDir   # 强制输出到本地磁盘
 
@@ -238,11 +191,9 @@ try {
 } finally {
     Pop-Location
     # 清理临时环境变量（CARGO_TARGET_DIR 不清理，步骤4 通过 $localTargetDir 变量读取）
-    Remove-Item Env:STUB_BINLOADER_CLASS        -ErrorAction SilentlyContinue
-    Remove-Item Env:STUB_METHOD_INJECT_DEX      -ErrorAction SilentlyContinue
-    Remove-Item Env:STUB_METHOD_EXTRACT_DECRYPT -ErrorAction SilentlyContinue
-    Remove-Item Env:STUB_METHOD_CHECK_ENV        -ErrorAction SilentlyContinue
-    Remove-Item Env:STUB_METHOD_GET_SIG         -ErrorAction SilentlyContinue
+    foreach ($key in $bindings.Keys) {
+        [Environment]::SetEnvironmentVariable($key, $null, "Process")
+    }
     Remove-Item Env:RUSTFLAGS                   -ErrorAction SilentlyContinue
     Remove-Item Env:CARGO_TARGET_DIR            -ErrorAction SilentlyContinue
 }
@@ -404,7 +355,6 @@ $filesToPack = @(
     (Join-Path $OutputDir "metadata.json")
 )
 Compress-Archive -Path $filesToPack -DestinationPath $resourcesZip
-Copy-Item $resourcesZip $resourcesZipLink -Force
 
 $sizeMB = "{0:N1} MB" -f ((Get-Item $resourcesZip).Length / 1MB)
 $sizeBytes = (Get-Item $resourcesZip).Length
@@ -416,7 +366,6 @@ $sizeMB = "{0:N1} MB" -f ((Get-Item $resourcesZip).Length / 1MB)
 Success "资源包创建成功"
 Write-Host "  文件: $resourcesZip" -ForegroundColor Green
 Write-Host "  大小: $sizeMB" -ForegroundColor Green
-Success "resources.zip 已更新"
 
 # 候选资源只通过显式资源路径用于内部回归，不参与自动资源发现。
 $standardMetadata = Get-Content (Join-Path $OutputDir "metadata.json") -Raw
@@ -446,6 +395,11 @@ if (Test-Path $memoryResources) { Remove-Item $memoryResources -Force }
 Compress-Archive -Path $filesToPack -DestinationPath $memoryResources
 $standardMetadata | Set-Content (Join-Path $OutputDir "metadata.json") -Encoding UTF8
 Success "内存 DEX 候选资源: $memoryResources"
+
+Run $pythonCommand @($bindingTool, "audit", $mappingFile, $resourcesZip)
+Run $pythonCommand @($bindingTool, "audit", $mappingFile, $memoryResources)
+Copy-Item $resourcesZip $resourcesZipLink -Force
+Success "resources.zip 已通过审计并更新"
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green

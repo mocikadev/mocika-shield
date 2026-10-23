@@ -14,6 +14,7 @@ use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::error::ShieldError;
 use crate::protect::{
     abi_filter::remove_excluded,
+    class_identity::validate_class_identity,
     dex::process_dex,
     manifest::{
         add_cache_identity, add_memory_payload_metrics, modify_manifest,
@@ -224,6 +225,7 @@ pub fn protect_apk(
     rand::rng().fill_bytes(&mut ikm);
 
     print_step("处理DEX文件");
+    validate_class_identity(&apk_dir, &runtime_resources).map_err(preflight)?;
     let cache_identity = process_dex(&apk_dir, &signature, &ikm).map_err(ShieldError::from)?;
     add_cache_identity(&apk_dir, &cache_identity).map_err(ShieldError::from)?;
     if runtime_selection.memory_dex {

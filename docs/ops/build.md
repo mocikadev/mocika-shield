@@ -12,6 +12,7 @@
 | Android build-tools | 35.0.0 | 提供 `d8` 等 Android 构建工具 |
 | Android NDK | 29.0.14206865 + 25.2.9519653 | 标准资源使用 r29；Android 4.4 兼容资源使用 r25c |
 | cargo-ndk | 最新 | Android 交叉编译 |
+| Python | 3.9+ | 构建期 JNI 映射、混淆规则转换及资源契约审计；非桌面工具运行依赖 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
 | tauri-cli | 最新 | GUI 构建驱动（Tauri GUI 需要） |
 
@@ -45,6 +46,8 @@ make build-stub
 **Windows**：运行 `scripts\build-stub.ps1`（Makefile 自动选择）
 
 输出：`shield-stub/build/outputs/resources/resources.zip`
+
+壳构建会统一读取 R8 映射、重编译四 ABI Native 并审计最终绑定，原始桥接包名或资源错配会使构建失败。Linux/macOS 默认使用 `python3`，Windows 默认使用 `python`；可通过 `PYTHON` 指定 Python 3.9 以上的可执行文件路径，Gradle 和构建脚本必须使用同一个解释器。
 
 首次执行前需添加 Android Rust 编译目标：
 

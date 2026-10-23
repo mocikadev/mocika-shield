@@ -1,4 +1,5 @@
 pub mod apk_inspect;
+mod dex_classes;
 mod dex_packer;
 #[cfg(test)]
 mod dex_research;

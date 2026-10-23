@@ -165,59 +165,16 @@ echo ""
 # ==========================================
 echo -e "${BLUE}步骤3: 解析 R8 mapping，提取混淆后的类名/方法名...${NC}"
 
-# 从 mapping.txt 提取指定原始类/成员对应的混淆名
-# mapping.txt 格式：
-#   原始类名 -> 混淆类名:
-#       返回类型 原始方法名(参数) -> 混淆方法名
-parse_mapping_class() {
-    local original_class="$1"
-    local mapping="$2"
-    grep "^${original_class} ->" "$mapping" | sed 's/.*-> //' | tr -d ':'
-}
-
-parse_mapping_method() {
-    local original_class="$1"
-    local original_method="$2"
-    local mapping="$3"
-    # 提取类块内、原始方法名匹配的行，取混淆方法名
-    awk "/^${original_class} ->/{found=1} found && / ${original_method}\(/{print \$NF; exit}" "$mapping"
-}
-
-ORIG_BINLOADER="dev.mocika.shield.loader.Ld"
-ORIG_STUBAPP="dev.mocika.shield.loader.StubApp"
-ORIG_STUB_FACTORY="dev.mocika.shield.loader.StubComponentFactory"
-
-OBF_BINLOADER=$(parse_mapping_class "$ORIG_BINLOADER" "$MAPPING_FILE")
-OBF_STUBAPP=$(parse_mapping_class "$ORIG_STUBAPP" "$MAPPING_FILE")
-OBF_STUB_FACTORY=$(parse_mapping_class "$ORIG_STUB_FACTORY" "$MAPPING_FILE")
-
-if [ -z "$OBF_BINLOADER" ] || [ -z "$OBF_STUBAPP" ] || [ -z "$OBF_STUB_FACTORY" ]; then
-    echo -e "${RED}错误: 无法从 mapping.txt 提取混淆类名${NC}"
-    echo -e "${YELLOW}  BinLoader: '${OBF_BINLOADER}', StubApp: '${OBF_STUBAPP}', StubFactory: '${OBF_STUB_FACTORY}'${NC}"
-    echo -e "${YELLOW}  请检查 proguard-rules.pro 是否正确配置了 allowobfuscation${NC}"
-    exit 1
-fi
-
-# 提取 native 方法和 getSignatureSha256 的混淆名
-OBF_METHOD_INJECT=$(parse_mapping_method "$ORIG_BINLOADER" "p" "$MAPPING_FILE")
-OBF_METHOD_EXTRACT=$(parse_mapping_method "$ORIG_BINLOADER" "q" "$MAPPING_FILE")
-OBF_METHOD_CHECK_ENV=$(parse_mapping_method "$ORIG_BINLOADER" "r" "$MAPPING_FILE")
-OBF_METHOD_GET_SIG=$(parse_mapping_method "$ORIG_BINLOADER" "getSignatureSha256" "$MAPPING_FILE")
-
-# 方法名解析失败时保留原名（R8 可能因覆盖关系保留原方法名）
-OBF_METHOD_INJECT="${OBF_METHOD_INJECT:-p}"
-OBF_METHOD_EXTRACT="${OBF_METHOD_EXTRACT:-q}"
-OBF_METHOD_CHECK_ENV="${OBF_METHOD_CHECK_ENV:-r}"
-OBF_METHOD_GET_SIG="${OBF_METHOD_GET_SIG:-getSignatureSha256}"
-
-# JVM 内部路径格式（点 → 斜线）
-OBF_BINLOADER_JVM="${OBF_BINLOADER//.//}"
-OBF_STUBAPP_DOTTED="$OBF_STUBAPP"
-
-echo -e "${GREEN}  Ld: ${ORIG_BINLOADER} → ${OBF_BINLOADER}${NC}"
-echo -e "${GREEN}  StubApp:   $(echo $ORIG_STUBAPP | sed 's/.*\.//') → ${OBF_STUBAPP}${NC}"
-echo -e "${GREEN}  StubFactory: $(echo $ORIG_STUB_FACTORY | sed 's/.*\.//') → ${OBF_STUB_FACTORY}${NC}"
-echo -e "${GREEN}  方法: p→${OBF_METHOD_INJECT}, q→${OBF_METHOD_EXTRACT}, r→${OBF_METHOD_CHECK_ENV}, getSignatureSha256→${OBF_METHOD_GET_SIG}${NC}"
+PYTHON_CMD="${PYTHON:-python3}"
+BINDINGS_FILE="shield-stub/build/outputs/mapping/release/jni-bindings.env"
+"$PYTHON_CMD" scripts/stub_bindings.py env "$MAPPING_FILE" > "$BINDINGS_FILE"
+while IFS='=' read -r binding_key binding_value; do
+    binding_value="${binding_value%$'\r'}"
+    export "$binding_key=$binding_value"
+done < "$BINDINGS_FILE"
+OBF_STUBAPP_DOTTED="$STUB_APPLICATION"
+OBF_STUB_FACTORY="$STUB_COMPONENT_FACTORY"
+echo -e "${GREEN}  JNI 绑定已完整解析：$STUB_BINLOADER_CLASS${NC}"
 echo ""
 
 # ==========================================
@@ -227,11 +184,6 @@ echo -e "${BLUE}步骤4: 使用混淆后的类名/方法名重新编译 Rust Nat
 
 RUST_SRC="shield-stub/src/main/rust"
 
-export STUB_BINLOADER_CLASS="$OBF_BINLOADER_JVM"
-export STUB_METHOD_INJECT_DEX="$OBF_METHOD_INJECT"
-export STUB_METHOD_EXTRACT_DECRYPT="$OBF_METHOD_EXTRACT"
-export STUB_METHOD_CHECK_ENV="$OBF_METHOD_CHECK_ENV"
-export STUB_METHOD_GET_SIG="$OBF_METHOD_GET_SIG"
 export ANDROID_NDK_ROOT="$ANDROID_NDK_PATH"
 # 用项目根路径替换编译期嵌入的源码绝对路径，消除 .so 字符串段中的本机路径信息
 export RUSTFLAGS="--remap-path-prefix ${PROJECT_ROOT}=. --remap-path-prefix ${HOME}/.cargo=.cargo --remap-path-prefix ${HOME}/.rustup=.rustup"
@@ -403,9 +355,6 @@ fi
 
 cd "$OLDPWD"
 
-# 创建符号链接指向最新版本
-ln -sf "mocika-runtime-resources-${BUILD_VERSION}.zip" "$OUTPUT_DIR/resources.zip"
-
 # 候选资源复用同一份已混淆 Stub，只改变受核心严格校验的运行时能力声明。
 # 自动资源发现仍只返回 resources.zip；resources-memory.zip 仅供显式内部回归。
 cp "$OUTPUT_DIR/metadata.json" "$OUTPUT_DIR/metadata-standard.json"
@@ -437,6 +386,12 @@ zip -r "resources-memory.zip" stub-classes.dex lib/ metadata.json \
 cd "$OLDPWD"
 mv "$OUTPUT_DIR/metadata-standard.json" "$OUTPUT_DIR/metadata.json"
 echo -e "${GREEN}✓ 内存 DEX 候选资源: $OUTPUT_DIR/resources-memory.zip${NC}"
+
+# 在交付资源前校验实际 DEX 方法定义与全部 ELF 的同批绑定摘要。
+"$PYTHON_CMD" scripts/stub_bindings.py audit "$MAPPING_FILE" "$OUTPUT_DIR/$RESOURCES_ZIP"
+"$PYTHON_CMD" scripts/stub_bindings.py audit "$MAPPING_FILE" "$OUTPUT_DIR/resources-memory.zip"
+# 只有全部审计成功后才开放自动发现入口。
+ln -sf "mocika-runtime-resources-${BUILD_VERSION}.zip" "$OUTPUT_DIR/resources.zip"
 
 echo ""
 echo -e "${GREEN}================================================${NC}"

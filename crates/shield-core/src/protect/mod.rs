@@ -1,4 +1,5 @@
 pub(crate) mod cache_identity;
+pub(crate) mod class_identity;
 pub(crate) mod dex;
 pub(crate) mod manifest;
 pub(crate) mod native_alias;

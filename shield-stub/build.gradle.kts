@@ -7,6 +7,21 @@ val runtimeProfileEnabled = providers.environmentVariable("MOCIKA_RUNTIME_PROFIL
 val legacyByteArrayEnabled = providers.environmentVariable("MOCIKA_LEGACY_BYTE_ARRAY")
     .orNull == "1"
 
+// 只调整默认的 Native 名称约束，不修改 SDK 或丢失其他上游兼容规则。
+val defaultReleaseRules = android.getDefaultProguardFile("proguard-android-optimize.txt")
+val jniReleaseRules = layout.buildDirectory.file("intermediates/stub-bindings/proguard-release.pro")
+val prepareJniRules by tasks.registering(Exec::class) {
+    dependsOn("extractProguardFiles")
+    inputs.file(defaultReleaseRules)
+    inputs.file(rootProject.file("../scripts/stub_bindings.py"))
+    inputs.file(rootProject.file("../scripts/stub_dex_contract.py"))
+    outputs.file(jniReleaseRules)
+    val python = providers.environmentVariable("PYTHON").orNull
+        ?: if (System.getProperty("os.name").lowercase().contains("windows")) "python" else "python3"
+    commandLine(python, rootProject.file("../scripts/stub_bindings.py"), "rules",
+        defaultReleaseRules, jniReleaseRules.get().asFile)
+}
+
 android {
     namespace = "dev.mocika.shield.stub"
     compileSdk = 35
@@ -31,7 +46,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(jniReleaseRules, "proguard-rules.pro")
             buildConfigField("boolean", "DEBUG_LOGS", "false")
         }
         debug {
@@ -61,6 +76,10 @@ android {
             jniLibs.srcDirs("build/jniLibs")
         }
     }
+}
+
+tasks.matching { it.name == "minifyReleaseWithR8" }.configureEach {
+    dependsOn(prepareJniRules)
 }
 
 val buildRustLibs by tasks.registering(Exec::class) {

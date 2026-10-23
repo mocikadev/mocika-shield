@@ -94,6 +94,21 @@ java -jar "$ROOT/tools/apksigner.jar" sign \
   --out "$FINAL" "$PROTECTED"
 java -jar "$ROOT/tools/apksigner.jar" verify --verbose "$FINAL"
 
+# 只检查壳的 DEX 逻辑区，不能扫描或改写追加的业务密文。
+python3 - "$FINAL" "$ROOT/shield-stub/build/outputs/resources/resources.zip" <<'PY'
+import struct
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as apk, zipfile.ZipFile(sys.argv[2]) as runtime:
+    dex = apk.read("classes.dex")
+    stub = runtime.read("stub-classes.dex")
+    # 加固输出的 DEX file_size 会覆盖追加数据，以原始 Stub 长度限定检查范围。
+    logical_size = struct.unpack_from("<I", stub, 32)[0]
+    assert b"dev/mocika/shield/loader/" not in dex[:logical_size], "输出仍含原始壳包名"
+    assert b"mocikanativeslot" not in dex[:logical_size], "输出仍含 Native 名称占位符"
+PY
+
 CHECK_RESULT="$("$ROOT/target/release/shield" check-apk "$FINAL")"
 printf '%s\n' "$CHECK_RESULT" | grep -q '"already_protected":true'
 printf '%s\n' "$CHECK_RESULT" | grep -q '"is_signed":true'
