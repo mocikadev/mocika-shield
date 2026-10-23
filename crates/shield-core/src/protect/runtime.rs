@@ -176,6 +176,7 @@ pub(crate) struct RuntimeSelection {
     pub(crate) stub_application: String,
     pub(crate) stub_component_factory: Option<String>,
     pub(crate) memory_dex: bool,
+    pub(crate) profile: crate::RuntimeProfile,
 }
 
 pub(crate) fn read_runtime_selection(
@@ -198,6 +199,11 @@ pub(crate) fn read_runtime_selection(
         stub_application: metadata.stub_application,
         stub_component_factory: metadata.stub_component_factory,
         memory_dex: metadata.memory_dex,
+        profile: if metadata.min_android_api == 19 {
+            crate::RuntimeProfile::AndroidApi19
+        } else {
+            crate::RuntimeProfile::Standard
+        },
     })
 }
 
@@ -219,6 +225,8 @@ fn read_archive_text<R: std::io::Read + std::io::Seek>(
 mod tests {
     use super::*;
     use std::io::Write as _;
+
+    const MIXED_ABIS: &[&str] = &["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "armeabi"];
 
     #[test]
     fn inspect_original_apk_detects_abis_and_names() {
@@ -346,20 +354,37 @@ mod tests {
 
     #[test]
     fn inject_runtime_rewrites_native_paths_and_stub_placeholder() {
-        verify_injection(false, false);
+        verify_injection(&[], false, false);
     }
 
     #[test]
     fn 排除旧架构后注入仍完整且原始包不变() {
-        verify_injection(true, false);
+        verify_injection(MIXED_ABIS, false, false);
     }
 
     #[test]
     fn 排除旧架构不能掩盖受支持壳库缺失() {
-        verify_injection(true, true);
+        verify_injection(MIXED_ABIS, true, false);
     }
 
-    fn verify_injection(mixed: bool, missing_runtime: bool) {
+    #[test]
+    fn 工控资源允许混合主流架构但仍拒绝缺壳() {
+        verify_injection(MIXED_ABIS, false, true);
+        verify_injection(MIXED_ABIS, true, true);
+    }
+
+    #[test]
+    fn 工控纯_dex_仍注入四架构壳() {
+        verify_injection(&[], false, true);
+    }
+
+    #[test]
+    fn 工控单架构与双架构不会被壳引入多余架构() {
+        verify_injection(&["armeabi-v7a"], false, true);
+        verify_injection(&["armeabi-v7a", "arm64-v8a"], false, true);
+    }
+
+    fn verify_injection(native_abis: &[&str], missing_runtime: bool, api19: bool) {
         let dir = tempfile::tempdir().unwrap();
         let apk_dir = dir.path().join("apk");
         fs::create_dir_all(&apk_dir).unwrap();
@@ -372,8 +397,8 @@ mod tests {
             zip.start_file("classes.dex", zip::write::SimpleFileOptions::default())
                 .unwrap();
             zip.write_all(b"dex").unwrap();
-            if mixed {
-                for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "mips"] {
+            {
+                for abi in native_abis {
                     zip.start_file(
                         format!("lib/{abi}/libbusiness.so"),
                         zip::write::SimpleFileOptions::default(),
@@ -391,8 +416,8 @@ mod tests {
             zip.finish().unwrap();
         }
         let original_bytes = fs::read(&original_apk).unwrap();
-        let excluded = if mixed {
-            vec!["mips".to_string()]
+        let excluded = if native_abis.contains(&"armeabi") {
+            vec!["armeabi".to_string()]
         } else {
             vec![]
         };
@@ -415,6 +440,13 @@ mod tests {
                 "memory_dex":false
             }"#;
             zip.start_file("metadata.json", options).unwrap();
+            let metadata = metadata.replace(
+                "\"memory_dex\":false",
+                &format!(
+                    "\"memory_dex\":false,\"min_android_api\":{}",
+                    if api19 { 19 } else { 21 }
+                ),
+            );
             zip.write_all(metadata.as_bytes()).unwrap();
             let mut dex = vec![0u8; 96];
             dex[0..8].copy_from_slice(b"dex\n035\0");
@@ -433,9 +465,28 @@ mod tests {
             zip.finish().unwrap();
         }
 
+        let selection =
+            read_runtime_selection(&resources, EnvironmentPolicy::Compatible, false).unwrap();
+        assert_eq!(
+            selection.profile,
+            if api19 {
+                crate::RuntimeProfile::AndroidApi19
+            } else {
+                crate::RuntimeProfile::Standard
+            }
+        );
+        let original_abis = inspect_original_apk(&original_apk)
+            .unwrap()
+            .abis
+            .into_iter()
+            .collect::<Vec<_>>();
+        selection
+            .profile
+            .validate_native_abis(&original_abis, &excluded)
+            .unwrap();
         let result = inject_runtime(&apk_dir, &resources, &original_apk, &excluded);
         assert_eq!(fs::read(&original_apk).unwrap(), original_bytes);
-        assert!(!apk_dir.join("lib/mips").exists());
+        assert!(!apk_dir.join("lib/armeabi").exists());
         if missing_runtime {
             assert!(result
                 .unwrap_err()
@@ -444,10 +495,21 @@ mod tests {
             return;
         }
         let injected = result.unwrap();
-        assert_eq!(injected.injected_abis.len(), 4);
+        assert_eq!(
+            injected.injected_abis.len(),
+            if native_abis.is_empty() {
+                4
+            } else {
+                native_abis.len() - excluded.len()
+            }
+        );
         assert!(!apk_dir.join("metadata.json").exists());
         for abi in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"] {
-            if mixed {
+            if !native_abis.is_empty() && !native_abis.contains(&abi) {
+                assert!(!apk_dir.join("lib").join(abi).exists());
+                continue;
+            }
+            if !native_abis.is_empty() {
                 assert_eq!(
                     fs::read(apk_dir.join("lib").join(abi).join("libbusiness.so")).unwrap(),
                     b"business"

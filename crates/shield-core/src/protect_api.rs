@@ -13,7 +13,7 @@ use crate::apk_inspect::{
 use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
 use crate::error::ShieldError;
 use crate::protect::{
-    abi_filter::{remove_excluded, validate_exclusions},
+    abi_filter::remove_excluded,
     dex::process_dex,
     manifest::{
         add_cache_identity, add_memory_payload_metrics, modify_manifest,
@@ -146,7 +146,10 @@ pub fn protect_apk(
 
     let apk_check = check_apk(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
     validate_apk_eligibility(&apk_check).map_err(preflight)?;
-    validate_exclusions(&apk_check.native_abis, &opts.excluded_abis).map_err(preflight)?;
+    runtime_selection
+        .profile
+        .validate_native_abis(&apk_check.native_abis, &opts.excluded_abis)
+        .map_err(preflight)?;
     let signature =
         extract_apk_cert_fingerprint(&opts.input, Some(&apksigner)).map_err(ShieldError::from)?;
     validate_output_certificate(&signature, opts.expected_output_cert_fingerprint.as_deref())

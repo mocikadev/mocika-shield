@@ -14,6 +14,7 @@ pub(crate) struct RuntimeMetadata {
     pub(crate) native_alias: NativeAliasProtocol,
     pub(crate) environment_policy: bool,
     pub(crate) memory_dex: bool,
+    pub(crate) min_android_api: u32,
 }
 
 impl RuntimeMetadata {
@@ -25,6 +26,15 @@ impl RuntimeMetadata {
         let environment_policy = parse_bool(json, "environment_policy")
             .context("metadata.json 缺少 environment_policy")?;
         let memory_dex = parse_bool(json, "memory_dex").context("metadata.json 缺少 memory_dex")?;
+        // 老资源未声明最低 API 时沿用标准资源，不把缺字段推测为 API 19。
+        let min_android_api = if value_after_key(json, "min_android_api").is_some() {
+            parse_u32(json, "min_android_api").context("metadata.json 的 min_android_api 无效")?
+        } else {
+            21
+        };
+        if min_android_api == 19 && memory_dex {
+            anyhow::bail!("API 19 兼容资源不能声明内存 DEX");
+        }
         if cache_schema != CACHE_SCHEMA {
             anyhow::bail!("不支持的 DEX 缓存协议: {cache_schema}");
         }
@@ -62,6 +72,7 @@ impl RuntimeMetadata {
             native_alias: NativeAliasProtocol::parse(json)?,
             environment_policy,
             memory_dex,
+            min_android_api,
         })
     }
 }
@@ -133,6 +144,18 @@ mod tests {
         assert!(!metadata.environment_policy);
         assert!(!metadata.memory_dex);
         assert!(metadata.stub_component_factory.is_none());
+        assert_eq!(metadata.min_android_api, 21);
+    }
+
+    #[test]
+    fn 最低系统声明区分兼容资源且不接受无效值() {
+        let api19 = METADATA.replace(
+            "\"memory_dex\":false",
+            "\"memory_dex\":false,\"min_android_api\":19",
+        );
+        assert_eq!(RuntimeMetadata::parse(&api19).unwrap().min_android_api, 19);
+        let invalid = api19.replace("\"min_android_api\":19", "\"min_android_api\":\"19\"");
+        assert!(RuntimeMetadata::parse(&invalid).is_err());
     }
 
     #[test]

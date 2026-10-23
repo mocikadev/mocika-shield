@@ -57,6 +57,15 @@ PROTECT_COMMAND=(
 if [[ "${ENVIRONMENT_POLICY:-compatible}" == "strict" ]]; then
   PROTECT_COMMAND+=(--environment-policy strict)
 fi
+case "${RUNTIME_PROFILE:-standard}" in
+  standard) ;;
+  android_api19)
+    API19_RESOURCES="$ROOT/shield-stub/build/outputs/resources/resources-api19.zip"
+    test -f "$API19_RESOURCES" || { echo "缺少 resources-api19.zip，请先构建兼容资源" >&2; exit 1; }
+    PROTECT_COMMAND+=(--resources "$API19_RESOURCES")
+    ;;
+  *) echo "错误：未知 RUNTIME_PROFILE" >&2; exit 1 ;;
+esac
 if [[ "${ABI_FILTER_TEST:-0}" == "1" ]]; then
   if "${PROTECT_COMMAND[@]}" > "$WORK/rejected.log" 2>&1; then
     echo "错误：未确认排除时不应允许混合旧架构加固" >&2
@@ -100,6 +109,14 @@ fi
 if unzip -Z1 "$FINAL" | grep -q '/libmocikashield\.so$'; then
   echo "最终 APK 仍包含固定名称 libmocikashield.so" >&2
   exit 1
+fi
+
+# 同一产物按保留的 ABI 注入对应壳；占位业务库只验证字节保留，不证明设备运行。
+if [[ "${RUNTIME_PROFILE:-standard}" == "android_api19" ]]; then
+  for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+    cmp <(unzip -p "$API19_RESOURCES" "lib/$abi/libmocikashield.so") \
+        <(unzip -p "$FINAL" "lib/$abi/$(basename "$ARM64_STUB_LIBRARIES")")
+  done
 fi
 
 DECODED="$WORK/output-decoded"

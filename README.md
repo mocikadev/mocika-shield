@@ -27,9 +27,11 @@
 
 | 平台 | 安装包 |
 |---|---|
-| Windows | `MocikaShield_x.y.z_windows_x64_setup.exe` |
+| Windows 10 及以上（64 位） | `MocikaShield_x.y.z_windows_x64_setup.exe` |
 | macOS | `MocikaShield_x.y.z_macos_universal.dmg` |
 | Linux | `MocikaShield_x.y.z_linux_amd64.AppImage` 或 `.deb` |
+
+Windows 桌面版不支持 Windows 7、8 或 8.1；请升级至 Windows 10 或更高版本。这是电脑端运行要求，与加固后 APK 的 Android 兼容范围无关。
 
 使用前安装 **完整 JDK 8 或更高版本**，确保 `java`、`keytool` 可用；使用桌面发布包无需自行安装 Android SDK。安装包尚未进行商业代码签名或 macOS 公证，仅从可信发布地址下载。
 
@@ -65,7 +67,7 @@ xattr -rd com.apple.quarantine /Applications/MocikaShield.app
 | 模式 | 适用范围 |
 |---|---|
 | Android 5.0 及以上 | API 21+，支持 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64`；不要求每个 APK 都包含四种架构 |
-| Android 4.4 工控兼容 | API 19+；只接受无 Native 库或 Native 库仅含 `armeabi-v7a` 的 APK；真机验证范围为 Android 4.4.2、`armeabi-v7a`/NEON 工控设备 |
+| Android 4.4 工控兼容 | 4.4 运行范围为 `armeabi-v7a`/NEON；同包可保留其他主流 ABI 供 5.0+ 使用，旧 `armeabi` 须确认排除；混合包设备回归待验证 |
 
 - 兼容模式不会降低原应用的 `minSdkVersion`，不同厂商系统和硬件仍需实测。
 - 只支持 APK，不支持直接加固 AAB、APKS 或已加固 APK；输入 APK 必须已经签名。
