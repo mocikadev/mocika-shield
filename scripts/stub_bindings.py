@@ -13,8 +13,10 @@ from pathlib import Path
 
 if __package__:
     from .stub_dex_contract import dex_contract
+    from .native_surface import audit_native
 else:
     from stub_dex_contract import dex_contract
+    from native_surface import audit_native
 
 
 PREFIX = "dev.mocika.shield.loader."
@@ -120,8 +122,13 @@ def audit(mapping: Path, resource: Path, standard: Path | None = None) -> dict:
             raise ValueError("资源 Application 与映射不一致")
         if metadata.get("stub_component_factory", environment["STUB_COMPONENT_FACTORY"]) != environment["STUB_COMPONENT_FACTORY"]:
             raise ValueError("资源组件工厂与映射不一致")
+        native_surface = {}
         for abi in ("armeabi-v7a", "arm64-v8a", "x86", "x86_64"):
             native = archive.read(f"lib/{abi}/libmocikashield.so")
+            try:
+                native_surface[abi] = audit_native(native, abi)
+            except ValueError as error:
+                raise ValueError(f"{abi}：{error}") from error
             if not native.startswith(b"\x7fELF") or BRIDGE.replace(".", "/").encode() in native:
                 raise ValueError(f"{abi} Native 非 ELF 或仍含原始桥接类名")
             if environment["STUB_BINDING_ID"].encode() not in native:
@@ -134,7 +141,8 @@ def audit(mapping: Path, resource: Path, standard: Path | None = None) -> dict:
                     entry = f"lib/{abi}/libmocikashield.so"
                     if archive.read(entry) != reference.read(entry):
                         raise ValueError(f"兼容资源的 {abi} 与标准资源不一致")
-    return {"binding_id": environment["STUB_BINDING_ID"], "bridge": bridge, "dex_sha256": hashlib.sha256(dex).hexdigest()}
+    return {"binding_id": environment["STUB_BINDING_ID"], "bridge": bridge,
+            "dex_sha256": hashlib.sha256(dex).hexdigest(), "native_surface": native_surface}
 
 
 def main() -> int:

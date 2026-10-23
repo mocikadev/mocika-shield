@@ -72,10 +72,11 @@ echo "实验输出：$OUTPUT_ROOT"
 
 (
     cd "$RUST_DIR"
+    source "$SCRIPT_DIR/native-build-flags.sh"
+    configure_native_source_paths "$PROJECT_ROOT"
     env -u ANDROID_NDK_HOME -u NDK_HOME \
         ANDROID_NDK_ROOT="$NDK_ROOT" \
         CARGO_TARGET_DIR="$TARGET_OUTPUT" \
-        RUSTFLAGS="--remap-path-prefix $PROJECT_ROOT=." \
         cargo "+$RUST_TOOLCHAIN" ndk \
             --platform 19 \
             --target "$TARGET" \

@@ -177,7 +177,13 @@ $env:CARGO_TARGET_DIR            = $localTargetDir   # 强制输出到本地磁�
 # 消除 .so 字符串段中的本机路径信息
 $userHome = $env:USERPROFILE
 if (-not $userHome) { $userHome = $env:HOMEPATH }
-$env:RUSTFLAGS = "--remap-path-prefix `"${ProjectRoot}`"=. --remap-path-prefix `"${userHome}\.cargo`"=.cargo --remap-path-prefix `"${userHome}\.rustup`"=.rustup"
+$cargoSourceHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $userHome ".cargo" }
+$rustupSourceHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $userHome ".rustup" }
+$previousEncodedRustFlags = [Environment]::GetEnvironmentVariable("CARGO_ENCODED_RUSTFLAGS", "Process")
+$nativeSourceFlags = @("--remap-path-prefix", "${ProjectRoot}=.",
+    "--remap-path-prefix", "${cargoSourceHome}=.cargo",
+    "--remap-path-prefix", "${rustupSourceHome}=.rustup")
+$env:CARGO_ENCODED_RUSTFLAGS = $nativeSourceFlags -join [char]31
 
 Push-Location $rustSrc
 try {
@@ -194,7 +200,7 @@ try {
     foreach ($key in $bindings.Keys) {
         [Environment]::SetEnvironmentVariable($key, $null, "Process")
     }
-    Remove-Item Env:RUSTFLAGS                   -ErrorAction SilentlyContinue
+    [Environment]::SetEnvironmentVariable("CARGO_ENCODED_RUSTFLAGS", $previousEncodedRustFlags, "Process")
     Remove-Item Env:CARGO_TARGET_DIR            -ErrorAction SilentlyContinue
 }
 
