@@ -80,6 +80,7 @@ function checkTitle(locale: Locale, check: ApkPreflightCheck) {
     certificate_unreadable: "preflightCertificate",
     dex_profile: "preflightDex",
     runtime_abi: "preflightAbi",
+    runtime_api19_target: "preflightAbi",
     native_packaging: "preflightNative",
     manifest_sdk: "preflightSdk",
     split_apk: "preflightInstallShape",
@@ -105,6 +106,7 @@ function checkDetail(locale: Locale, check: ApkPreflightCheck) {
       return `${count} DEX · ${formatBytes(Number(size))}`;
     }
     case "runtime_abi": return check.detail ? `${t(locale, "preflightUnsupportedAbi")} ${check.detail}` : t(locale, "preflightAbiReady");
+    case "runtime_api19_target": return t(locale, "preflightApi19Target");
     case "native_packaging": {
       const [count, compressed] = (check.detail ?? "0|0").split("|");
       return `${count} SO · ${compressed} ${t(locale, "preflightCompressedNative")}`;

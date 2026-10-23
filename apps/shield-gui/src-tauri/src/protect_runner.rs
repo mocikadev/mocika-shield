@@ -6,7 +6,7 @@ use crate::cert_store::CertificateRecord;
 use crate::failure_diagnostic::ExecutionFailure;
 use crate::signing::execute_sign_apk;
 use crate::task_manager::TaskManager;
-use shield_core::diagnostic::{Diagnostic, FailureCode};
+use shield_core::diagnostic::Diagnostic;
 use shield_core::{
     extract_keystore_cert_fingerprint, protect_apk as shield_protect_apk, EnvironmentPolicy,
     ProgressEvent, ProtectOptions, ShieldError,
@@ -45,14 +45,6 @@ pub(crate) enum EnvironmentPolicyRequest {
     Strict,
 }
 
-fn unsupported_api19_abis(native_abis: &[String]) -> Vec<String> {
-    native_abis
-        .iter()
-        .filter(|abi| abi.as_str() != "armeabi-v7a")
-        .cloned()
-        .collect()
-}
-
 pub(crate) struct ProtectExecution {
     pub(crate) excluded_abis: Vec<String>,
     pub(crate) task_id: String,
@@ -89,17 +81,22 @@ pub(crate) async fn execute_protect_apk(
                 find_apksigner_path(&app).as_deref(),
             )
             .map_err(|err| format!("检查 Android 4.4 兼容条件失败：{err}"))?;
-            let unsupported = unsupported_api19_abis(&checked.native_abis);
-            if !unsupported.is_empty() {
-                return Err(ExecutionFailure::preflight(
-                    format!(
-                        "Android 4.4 兼容模式暂不支持 APK 中的原生架构：{}",
-                        unsupported.join("、")
-                    ),
-                    Diagnostic::new(FailureCode::UnsupportedAbi),
-                ));
-            }
-            find_named_resources_path(&app, "resources-api19.zip")
+            request
+                .runtime_mode
+                .preflight_profile()
+                .validate_native_abis(&checked.native_abis, &request.excluded_abis)
+                .map_err(|err| {
+                    ExecutionFailure::preflight(err.to_string(), Diagnostic::from_error(&err))
+                })?;
+            Some(
+                find_named_resources_path(&app, "resources-api19.zip").ok_or_else(|| {
+                    ExecutionFailure::preflight(
+                        "缺少 Android 4.4 兼容资源 resources-api19.zip，请重新安装完整应用包"
+                            .into(),
+                        Diagnostic::new(shield_core::diagnostic::FailureCode::ToolNotFound),
+                    )
+                })?,
+            )
         }
     };
     let resolved_apksigner = find_apksigner_path(&app);
@@ -230,23 +227,27 @@ pub(crate) async fn execute_protect_apk(
 
 #[cfg(test)]
 mod tests {
-    use super::unsupported_api19_abis;
+    use super::RuntimeMode;
 
     #[test]
-    fn api19_允许无原生库或仅有_armv7() {
-        assert!(unsupported_api19_abis(&[]).is_empty());
-        assert!(unsupported_api19_abis(&["armeabi-v7a".to_string()]).is_empty());
+    fn 工控模式复用核心预检配置() {
+        assert_eq!(
+            RuntimeMode::AndroidApi19.preflight_profile(),
+            shield_core::RuntimeProfile::AndroidApi19
+        );
+        assert_eq!(
+            RuntimeMode::Standard.preflight_profile(),
+            shield_core::RuntimeProfile::Standard
+        );
     }
 
     #[test]
-    fn api19_拒绝尚未验证的原生架构() {
-        assert_eq!(
-            unsupported_api19_abis(&[
-                "armeabi-v7a".to_string(),
-                "arm64-v8a".to_string(),
-                "x86".to_string(),
-            ]),
-            ["arm64-v8a", "x86"]
-        );
+    fn 工控混合架构任务仍须确认排除旧架构() {
+        let abis = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64", "armeabi"].map(String::from);
+        let profile = RuntimeMode::AndroidApi19.preflight_profile();
+        assert!(profile.validate_native_abis(&abis, &[]).is_err());
+        assert!(profile
+            .validate_native_abis(&abis, &["armeabi".into()])
+            .is_ok());
     }
 }

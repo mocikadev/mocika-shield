@@ -27,9 +27,11 @@ Download a stable desktop installer from [GitHub Releases](https://github.com/mo
 
 | Platform | Package |
 |---|---|
-| Windows | `MocikaShield_x.y.z_windows_x64_setup.exe` |
+| Windows 10 or later (64-bit) | `MocikaShield_x.y.z_windows_x64_setup.exe` |
 | macOS | `MocikaShield_x.y.z_macos_universal.dmg` |
 | Linux | `MocikaShield_x.y.z_linux_amd64.AppImage` or `.deb` |
+
+The Windows desktop app does not support Windows 7, 8, or 8.1; upgrade to Windows 10 or later. This desktop requirement is separate from the Android versions supported by protected APKs.
 
 Install a **full JDK 8 or later**, with `java` and `keytool` available. Desktop release users do not need to install the Android SDK. Installers are not commercially code-signed or notarized; download only from a trusted source.
 
@@ -65,7 +67,7 @@ The screenshot illustrates the layout; available options depend on the current v
 | Mode | Scope |
 |---|---|
 | Android 5.0 and later | API 21+; `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. An APK does not need all four ABIs |
-| Android 4.4 industrial | API 19+; inputs must have no native libraries or only `armeabi-v7a` libraries. Physical-device coverage is an Android 4.4.2 `armeabi-v7a`/NEON industrial device |
+| Android 4.4 industrial | Android 4.4 uses `armeabi-v7a`/NEON; the same APK may retain other supported ABIs for Android 5.0+. Removing legacy `armeabi` requires confirmation. Mixed-ABI device regression is pending |
 
 - Compatibility mode does not lower the application's `minSdkVersion`; vendor systems and hardware still need testing.
 - APK only: no direct AAB or APKS protection, no re-protecting protected APKs, and inputs must be signed.

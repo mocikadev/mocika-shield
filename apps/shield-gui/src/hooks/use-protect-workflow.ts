@@ -238,7 +238,7 @@ export function useProtectWorkflow({
     let started = false;
     try {
       const abiRisk = preflight.checks.find((item) => item.code === "runtime_abi" && item.severity === "warning");
-      const exclusions = runtimeMode === "standard" && abiRisk?.detail ? abiRisk.detail.split("、") : [];
+      const exclusions = abiRisk?.detail ? abiRisk.detail.split("、") : [];
       if (exclusions.length > 0 && !await confirm(tf(locale, "confirmAbiExclusion", {
         excluded: exclusions.join("、"),
         retained: preflight.facts.native_abis.filter((abi) => !exclusions.includes(abi)).join("、"),

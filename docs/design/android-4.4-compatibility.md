@@ -2,6 +2,8 @@
 
 本文记录 Android 4.4（API 19～20）工控设备兼容方案、构建边界和验证要求。Android 4.4.2 `armeabi-v7a`/NEON 工控真机已完成核心运行验证；该结论不自动覆盖其他 CPU、厂商系统和未测试的硬件业务场景。
 
+2026-10-23 起实施[混合架构单包兼容](android-4.4-mixed-abi.md)：允许含 v7a 的四主流架构 APK，旧 `armeabi` 须单次确认排除。4.4 的已支持运行范围仍为 v7a／NEON，其他主流 ABI 用于 5.0+，本次未新增 4.4 x86。下文原四架构表与资源示意已纠正为实际构建范围，不能把历史规划当成已验证能力。
+
 ## 目标与非目标
 
 目标：
@@ -25,7 +27,7 @@
 | ABI | 标准模式 | 工控兼容模式 | 最低系统 |
 |-----|----------|--------------|----------|
 | `armeabi-v7a` | NDK r29 | NDK r25c | 兼容模式 API 19 |
-| `x86` | NDK r29 | NDK r25c | 兼容模式 API 19 |
+| `x86` | NDK r29 | NDK r29 | API 21；API 19 构建仅为后续候选 |
 | `arm64-v8a` | NDK r29 | NDK r29 | API 21 |
 | `x86_64` | NDK r29 | NDK r29 | API 21 |
 
@@ -39,7 +41,7 @@
 
 兼容构建必须使用 Rust 1.77.2。当前 Rust 1.97 的 Android unwind 会引用 API 21 才提供的 `dl_iterate_phdr`，即使传入 `--platform 19` 也只能完成链接，产物无法在 Android 4.4 被动态链接器加载。兼容构建使用 `shield-stub/compat/api19-rust` 下的独立 Cargo 清单与版本 3 锁文件，但通过 `lib.path` 和 `build` 引用同一份生产 Rust 源码；标准构建继续使用根锁文件，两套工具链不会互相改写依赖。更新 Native 依赖后必须重新执行 API 19 加载探针。
 
-Android 4.4 官方没有 64 位 ABI。兼容资源中的 64 位 Stub 继续使用 r29/API 21，32 位 Stub 才使用 r25c/API 19。
+Android 4.4 官方没有 64 位 ABI。兼容资源仅 v7a 使用 r25c/API 19，arm64、x86、x86_64 继续使用 r29/API 21。同一 APK 可覆盖新旧设备，但不代表所有 ABI 都能运行在 4.4 上。
 
 NDK r24 起不再支持非 NEON 的 `armeabi-v7a` 设备，因此 r25c 产物要求 CPU 支持 NEON。若真实设备不支持 NEON，再单独评估 r23c；在出现真实需求前不引入第三套正式工具链。
 
@@ -53,7 +55,7 @@ resources-standard.zip
 
 resources-legacy-api19.zip
 ├── armeabi-v7a：r25c/API 19
-├── x86：r25c/API 19
+├── x86：r29/API 21（暂不支持 4.4 x86）
 ├── arm64-v8a：r29/API 21
 └── x86_64：r29/API 21
 ```

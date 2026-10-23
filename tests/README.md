@@ -9,6 +9,14 @@ make build-stub
 bash tests/scripts/run-protect-e2e.sh
 ```
 
+混合 ABI 工控单包的无设备回归（须已生成兼容资源）使用同一链路：
+
+```bash
+RUNTIME_PROFILE=android_api19 ABI_FILTER_TEST=1 bash tests/scripts/run-protect-e2e.sh
+```
+
+验证未确认排除时拒绝，确认后仅移除旧架构，四种业务库字节保留，输出壳逐 ABI 与兼容资源一致，签名和不压缩打包通过。占位业务库不供加载，这不代替真实设备上的 Native 功能验收；4.4 仅承诺 v7a／NEON，其他架构用于 5.0+。
+
 连接 Android 设备后，可以额外验证未加固双 DEX 基线，以及使用同一证书覆盖安装加固包后的首次解密和缓存命中二次启动：
 
 ```bash

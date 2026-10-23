@@ -69,7 +69,7 @@ CLI 默认拒绝这类混合 APK，需要显式传入本次排除清单，例如
 shield protect -i input.apk -o output.apk --exclude-abis armeabi,mips,mips64
 ```
 
-清单必须与原 APK 中实际需要排除的架构匹配，不允许排除本工具支持的架构。Android 4.4 工控模式继续执行原有 ABI 限制。
+清单必须与原 APK 中实际需要排除的架构匹配，不允许排除本工具支持的架构。Android 4.4 工控模式复用同一单次确认；有 Native 库时必须保留 v7a，其他主流 ABI 供 5.0+ 使用，不能据此在 4.4 运行 64 位或 x86 壳。
 
 ### 签名材料准备
 
@@ -83,7 +83,7 @@ shield protect -i input.apk -o output.apk --exclude-abis armeabi,mips,mips64
 
 启用自动签名时，GUI 会在预检时比对原 APK 与当前所选证书的指纹，并在后端开始加固前再次校验。指纹不一致或证书读取失败都会阻止加固，因为改用其他证书签名会导致运行时无法解密和启动。
 
-加固页提供“运行系统兼容性”选项。默认使用“Android 5.0 及以上”标准模式；目标设备包含 Android 4.4 工控板时，可选择“兼容 Android 4.4”。标准模式已覆盖 Android 5.0～6.0 的旧版 ART 注入路径，并包含 ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 兼容处理。兼容模式当前仅接受不含 Native 库，或 Native 库仅包含 `armeabi-v7a` 的 APK；后端会再次检查 ABI，并从应用内置的固定兼容资源包加固，前端不能传入任意资源路径。GUI 会将该选择保存为常用设置，每个任务开始时冻结，旧版请求未携带此字段时仍按标准模式执行。Android 4.4.2 `armeabi-v7a`/NEON 工控真机已确认能够正常运行；完整业务测试未全部覆盖，其他 CPU、厂商系统和硬件交互仍需按实际设备验证。
+加固页提供“运行系统兼容性”选项。默认使用“Android 5.0 及以上”标准模式；目标设备包含 Android 4.4 工控板时，可选择“兼容 Android 4.4”。标准模式已覆盖 Android 5.0～6.0 的旧版 ART 注入路径，并包含 ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 兼容处理。兼容模式接受不含 Native 库的 APK，或含 `armeabi-v7a`、可混合其他主流 ABI 的 APK；旧 `armeabi` 等须先单次确认排除。4.4 设备使用 v7a／NEON 兼容壳，arm64、x86、x86_64 仅用于 5.0+。后端和核心再次校验保留架构与壳资源完整性，缺兼容资源时明确失败；前端不能传入任意资源路径。GUI 会将模式选择保存为常用设置，但不会记住排除授权，每个任务开始时冻结，旧版请求未携带此字段时仍按标准模式执行。此前 Android 4.4.2 v7a／NEON 工控真机已确认核心运行；本次混合包的同包跨设备、完整业务及覆盖安装仍需实际验收，不能沿用旧样本结论冒充通过。
 
 加固页同时提供“运行环境保护”选项：
 

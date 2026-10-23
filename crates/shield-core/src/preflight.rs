@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
-use crate::protect::abi_filter::STANDARD_ABIS;
+use crate::protect::abi_filter::{validate_exclusions, STANDARD_ABIS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightSeverity {
@@ -16,6 +16,28 @@ pub enum PreflightSeverity {
 pub enum RuntimeProfile {
     Standard,
     AndroidApi19,
+}
+
+impl RuntimeProfile {
+    /// 校验任务明确排除后的架构；兼容模式不等于任意 ABI 都能运行在 API 19。
+    pub fn validate_native_abis(self, original: &[String], excluded: &[String]) -> Result<()> {
+        validate_exclusions(original, excluded)?;
+        if !self.has_target_abi(original) {
+            return Err(crate::diagnostic::Diagnostic::new(
+                crate::diagnostic::FailureCode::UnsupportedAbi,
+            )
+            .attach_preflight(anyhow::anyhow!(
+                "Android 4.4 工控模式的 Native APK 必须包含 armeabi-v7a；其他主流架构仅用于 Android 5.0 及以上"
+            )));
+        }
+        Ok(())
+    }
+
+    fn has_target_abi(self, native_abis: &[String]) -> bool {
+        self != Self::AndroidApi19
+            || native_abis.is_empty()
+            || native_abis.iter().any(|abi| abi == "armeabi-v7a")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,22 +206,15 @@ fn evaluate_archive(
         Some(format!("{}|{}", archive.dex_count, archive.dex_total_size)),
     ));
 
-    let unsupported: Vec<String> = match runtime_profile {
-        RuntimeProfile::AndroidApi19 => native_abis
-            .iter()
-            .filter(|abi| abi.as_str() != "armeabi-v7a")
-            .cloned()
-            .collect(),
-        RuntimeProfile::Standard => native_abis
-            .iter()
-            .filter(|abi| !STANDARD_ABIS.contains(&abi.as_str()))
-            .cloned()
-            .collect(),
-    };
+    let unsupported: Vec<String> = native_abis
+        .iter()
+        .filter(|abi| !STANDARD_ABIS.contains(&abi.as_str()))
+        .cloned()
+        .collect();
     let supported_count = native_abis.len().saturating_sub(unsupported.len());
     let abi_severity = if unsupported.is_empty() {
         PreflightSeverity::Ready
-    } else if runtime_profile == RuntimeProfile::AndroidApi19 || supported_count == 0 {
+    } else if supported_count == 0 {
         PreflightSeverity::Blocked
     } else {
         PreflightSeverity::Warning
@@ -209,6 +224,13 @@ fn evaluate_archive(
         abi_severity,
         (!unsupported.is_empty()).then(|| unsupported.join("、")),
     ));
+    if !runtime_profile.has_target_abi(native_abis) {
+        checks.push(check(
+            "runtime_api19_target",
+            PreflightSeverity::Blocked,
+            None,
+        ));
+    }
 
     checks.push(check(
         "native_packaging",
@@ -290,10 +312,15 @@ mod tests {
     }
 
     #[test]
-    fn 安卓四点四模式阻止非_v7a_架构() {
+    fn 安卓四点四模式允许含_v7a_的混合主流架构() {
         let checks = evaluate_archive(
             &archive(),
-            &["armeabi-v7a".to_string(), "arm64-v8a".to_string()],
+            &[
+                "armeabi-v7a".to_string(),
+                "arm64-v8a".to_string(),
+                "x86".to_string(),
+                "x86_64".to_string(),
+            ],
             false,
             true,
             RuntimeProfile::AndroidApi19,
@@ -304,8 +331,57 @@ mod tests {
                 .find(|item| item.code == "runtime_abi")
                 .unwrap()
                 .severity,
-            PreflightSeverity::Blocked
+            PreflightSeverity::Ready
         );
+    }
+
+    #[test]
+    fn 工控混合旧架构可确认排除但缺_v7a_仍拦截() {
+        let names = |abis: &[&str]| abis.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let mixed = names(&["armeabi-v7a", "arm64-v8a", "armeabi", "x86", "x86_64"]);
+        let checks = evaluate_archive(
+            &archive(),
+            &mixed,
+            false,
+            true,
+            RuntimeProfile::AndroidApi19,
+        );
+        let abi = checks.iter().find(|c| c.code == "runtime_abi").unwrap();
+        assert_eq!(abi.severity, PreflightSeverity::Warning);
+        assert_eq!(abi.detail.as_deref(), Some("armeabi"));
+        assert!(RuntimeProfile::AndroidApi19
+            .validate_native_abis(&mixed, &[])
+            .is_err());
+        assert!(RuntimeProfile::AndroidApi19
+            .validate_native_abis(&mixed, &names(&["armeabi"]))
+            .is_ok());
+        assert!(RuntimeProfile::AndroidApi19
+            .validate_native_abis(&[], &[])
+            .is_ok());
+        for exclusions in [
+            names(&["armeabi", "armeabi"]),
+            names(&["armeabi-v7a"]),
+            names(&["../armeabi"]),
+        ] {
+            assert!(RuntimeProfile::AndroidApi19
+                .validate_native_abis(&mixed, &exclusions)
+                .is_err());
+        }
+        for abis in [&["arm64-v8a"][..], &["x86"][..], &["armeabi"][..]] {
+            let abis = names(abis);
+            let error = RuntimeProfile::AndroidApi19
+                .validate_native_abis(&abis, &[])
+                .unwrap_err();
+            assert!(crate::diagnostic::is_preflight_error(&error));
+            let checks =
+                evaluate_archive(&archive(), &abis, false, true, RuntimeProfile::AndroidApi19);
+            assert!(checks
+                .iter()
+                .any(|c| c.severity == PreflightSeverity::Blocked));
+        }
+        assert!(RuntimeProfile::Standard
+            .validate_native_abis(&names(&["arm64-v8a"]), &[])
+            .is_ok());
     }
 
     #[test]
