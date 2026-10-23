@@ -3,8 +3,6 @@ package dev.mocika.shield.loader;
 import android.annotation.TargetApi;
 import android.app.Application;
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 import java.io.File;
@@ -13,8 +11,6 @@ import java.util.List;
 /** 编排当前进程的一次加载尝试，不拥有具体解密或存储实现。 */
 @TargetApi(28)
 final class MemoryRuntimeCoordinator {
-    private static final String CACHE_ROOT = "dev.mocika.shield.CACHE_ROOT_SHA256";
-    private static final String PAYLOAD_DEX_BYTES = "dev.mocika.shield.PAYLOAD_DEX_BYTES";
     private static Attempt activeAttempt;
 
     private MemoryRuntimeCoordinator() {}
@@ -68,14 +64,12 @@ final class MemoryRuntimeCoordinator {
     }
 
     private static PayloadDescriptor payloadDescriptor(Context context) throws Exception {
-        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                context.getPackageName(), PackageManager.GET_META_DATA);
-        Bundle metadata = info.metaData;
-        String identity = metadata == null ? null : metadata.getString(CACHE_ROOT);
+        Bundle metadata = RuntimeManifest.read(context);
+        String identity = metadata.getString(ManifestKeys.CACHE_ROOT);
         if (identity == null || !identity.matches("[0-9a-f]{64}")) {
             throw new SecurityException("R14");
         }
-        String dexBytesText = metadata == null ? null : metadata.getString(PAYLOAD_DEX_BYTES);
+        String dexBytesText = metadata.getString(ManifestKeys.PAYLOAD_BYTES);
         long dexBytes;
         try {
             dexBytes = dexBytesText != null && dexBytesText.startsWith("bytes:")

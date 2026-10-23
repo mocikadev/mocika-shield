@@ -3,6 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use crate::protect::cache_identity::CacheIdentity;
+use crate::protect::manifest_keys::ManifestKeys;
+use crate::protect::manifest_metadata::ensure_available;
 use crate::EnvironmentPolicy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,20 +42,22 @@ pub(crate) fn modify_manifest(
     stub_app: &str,
     stub_component_factory: Option<&str>,
     environment_policy: EnvironmentPolicy,
+    keys: &ManifestKeys,
 ) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
     let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
-    if content.contains("android:name=\"dev.mocika.shield.ENV_POLICY\"")
-        || content.contains("android:name='dev.mocika.shield.ENV_POLICY'")
-    {
-        anyhow::bail!("原 APK 已占用 Mocika Shield 环境策略字段，无法安全写入运行策略");
-    }
-    if stub_component_factory.is_some()
-        && (content.contains("android:name=\"dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY\"")
-            || content.contains("android:name='dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY'"))
-    {
-        anyhow::bail!("原 APK 已占用 Mocika Shield 原组件工厂字段，无法安全保存原配置");
-    }
+    ensure_available(
+        &content,
+        &[
+            keys.application,
+            keys.policy,
+            keys.factory,
+            keys.cache_schema,
+            keys.cache_count,
+            keys.cache_root,
+            keys.payload_bytes,
+        ],
+    )?;
 
     let app_tag_start = content
         .find("<application")
@@ -73,23 +77,18 @@ pub(crate) fn modify_manifest(
         None => remove_xml_attr(&new_app_tag, "android:appComponentFactory"),
     };
 
-    let already_injected = content.contains("android:name=\"ORIGINAL_APPLICATION\"");
-    let meta_original = if already_injected {
-        String::new()
-    } else {
-        format!(
-            "\n        <meta-data\n            android:name=\"ORIGINAL_APPLICATION\"\n            android:value=\"{}\" />",
-            orig_app
-        )
-    };
+    let meta_original = format!(
+        "\n        <meta-data\n            android:name=\"{}\"\n            android:value=\"{}\" />",
+        keys.application, orig_app
+    );
     let meta_environment = format!(
-        "\n        <meta-data\n            android:name=\"dev.mocika.shield.ENV_POLICY\"\n            android:value=\"{}\" />",
-        environment_policy.as_str()
+        "\n        <meta-data\n            android:name=\"{}\"\n            android:value=\"{}\" />",
+        keys.policy, environment_policy.as_str()
     );
     let meta_component_factory = match (stub_component_factory, orig_component_factory) {
         (Some(_), Some(original)) => format!(
-            "\n        <meta-data\n            android:name=\"dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY\"\n            android:value=\"{}\" />",
-            original
+            "\n        <meta-data\n            android:name=\"{}\"\n            android:value=\"{}\" />",
+            keys.factory, original
         ),
         _ => String::new(),
     };
@@ -122,33 +121,42 @@ pub(crate) fn modify_manifest(
     Ok(())
 }
 
-pub(crate) fn add_cache_identity(apk_dir: &Path, identity: &CacheIdentity) -> Result<()> {
+pub(crate) fn add_cache_identity(
+    apk_dir: &Path,
+    identity: &CacheIdentity,
+    keys: &ManifestKeys,
+) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
     let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
+    ensure_available(
+        &content,
+        &[keys.cache_schema, keys.cache_count, keys.cache_root],
+    )?;
     let close = content
         .rfind("</application>")
         .context("AndroidManifest.xml 中未找到 </application>")?;
     let metadata = format!(
-        "\n        <meta-data android:name=\"dev.mocika.shield.CACHE_SCHEMA\" android:value=\"{}\" />\n        <meta-data android:name=\"dev.mocika.shield.CACHE_DEX_COUNT\" android:value=\"{}\" />\n        <meta-data android:name=\"dev.mocika.shield.CACHE_ROOT_SHA256\" android:value=\"{}\" />\n    ",
-        identity.schema, identity.dex_count, identity.root_sha256
+        "\n        <meta-data android:name=\"{}\" android:value=\"{}\" />\n        <meta-data android:name=\"{}\" android:value=\"{}\" />\n        <meta-data android:name=\"{}\" android:value=\"{}\" />\n    ",
+        keys.cache_schema, identity.schema, keys.cache_count, identity.dex_count, keys.cache_root, identity.root_sha256
     );
     let result = format!("{}{}{}", &content[..close], metadata, &content[close..]);
     fs::write(manifest_path, result).context("写入缓存身份到 AndroidManifest.xml 失败")
 }
 
-pub(crate) fn add_memory_payload_metrics(apk_dir: &Path, identity: &CacheIdentity) -> Result<()> {
+pub(crate) fn add_memory_payload_metrics(
+    apk_dir: &Path,
+    identity: &CacheIdentity,
+    keys: &ManifestKeys,
+) -> Result<()> {
     let manifest_path = apk_dir.join("AndroidManifest.xml");
     let content = fs::read_to_string(&manifest_path).context("读取 AndroidManifest.xml 失败")?;
-    const FIELD: &str = "dev.mocika.shield.PAYLOAD_DEX_BYTES";
-    if content.contains(FIELD) {
-        anyhow::bail!("原 APK 已占用 Mocika Shield 载荷大小字段，无法安全写入内存预算数据");
-    }
+    ensure_available(&content, &[keys.payload_bytes])?;
     let close = content
         .rfind("</application>")
         .context("AndroidManifest.xml 中未找到 </application>")?;
     let metadata = format!(
-        "\n        <meta-data android:name=\"{FIELD}\" android:value=\"bytes:{}\" />\n    ",
-        identity.total_dex_bytes
+        "\n        <meta-data android:name=\"{}\" android:value=\"bytes:{}\" />\n    ",
+        keys.payload_bytes, identity.total_dex_bytes
     );
     let result = format!("{}{}{}", &content[..close], metadata, &content[close..]);
     fs::write(manifest_path, result).context("写入内存预算元数据到 AndroidManifest.xml 失败")
@@ -235,8 +243,13 @@ fn remove_xml_attr(tag: &str, attr: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "manifest_contract_tests.rs"]
+mod contract_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protect::manifest_keys::LEGACY;
 
     #[test]
     fn find_tag_end_simple_tag() {
@@ -340,6 +353,7 @@ mod tests {
             "dev.mocika.StubApp",
             None,
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap();
 
@@ -362,6 +376,7 @@ mod tests {
             "dev.mocika.StubApp",
             None,
             EnvironmentPolicy::Strict,
+            &LEGACY,
         )
         .unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
@@ -387,6 +402,7 @@ mod tests {
             "msk.StubApp",
             Some("msk.StubFactory"),
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap();
 
@@ -410,6 +426,7 @@ mod tests {
             "msk.StubApp",
             Some("msk.StubFactory"),
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap();
 
@@ -437,6 +454,7 @@ mod tests {
             "msk.StubApp",
             Some("msk.StubFactory"),
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap_err();
         assert!(error.to_string().contains("已占用"));
@@ -457,6 +475,7 @@ mod tests {
             "dev.mocika.StubApp",
             None,
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
@@ -466,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn modify_manifest_already_injected_no_duplicate_meta() {
+    fn 旧协议原应用字段占用时拒绝且不改写原包() {
         let dir = tempfile::tempdir().unwrap();
         let manifest = concat!(
             r#"<?xml version="1.0" encoding="utf-8"?>"#,
@@ -482,10 +501,11 @@ mod tests {
             "dev.mocika.StubApp",
             None,
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
-        .unwrap();
+        .unwrap_err();
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
-        assert_eq!(result.matches("ORIGINAL_APPLICATION").count(), 1);
+        assert_eq!(result, manifest);
     }
 
     #[test]
@@ -499,6 +519,7 @@ mod tests {
             "dev.mocika.StubApp",
             None,
             EnvironmentPolicy::Compatible,
+            &LEGACY,
         )
         .unwrap_err();
         assert!(error.to_string().contains("已占用"));
@@ -519,7 +540,7 @@ mod tests {
             root_sha256: "a".repeat(64),
         };
 
-        add_memory_payload_metrics(dir.path(), &identity).unwrap();
+        add_memory_payload_metrics(dir.path(), &identity, &LEGACY).unwrap();
 
         let result = fs::read_to_string(dir.path().join("AndroidManifest.xml")).unwrap();
         assert!(result.contains("dev.mocika.shield.PAYLOAD_DEX_BYTES"));

@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
 
+use crate::protect::manifest_keys::{self, ManifestKeys};
 use crate::protect::native_alias::NativeAliasProtocol;
 
-const STANDARD_RUNTIME_PROTOCOL: u32 = 2;
-const MEMORY_RUNTIME_PROTOCOL: u32 = 3;
 const CACHE_SCHEMA: u32 = 1;
 const MEMORY_DEX_MIN_API: u32 = 31;
 
@@ -15,6 +14,7 @@ pub(crate) struct RuntimeMetadata {
     pub(crate) environment_policy: bool,
     pub(crate) memory_dex: bool,
     pub(crate) min_android_api: u32,
+    pub(crate) manifest_keys: &'static ManifestKeys,
 }
 
 impl RuntimeMetadata {
@@ -27,7 +27,7 @@ impl RuntimeMetadata {
             .context("metadata.json 缺少 environment_policy")?;
         let memory_dex = parse_bool(json, "memory_dex").context("metadata.json 缺少 memory_dex")?;
         // 老资源未声明最低 API 时沿用标准资源，不把缺字段推测为 API 19。
-        let min_android_api = if value_after_key(json, "min_android_api").is_some() {
+        let min_android_api = if json.contains("\"min_android_api\"") {
             parse_u32(json, "min_android_api").context("metadata.json 的 min_android_api 无效")?
         } else {
             21
@@ -38,23 +38,30 @@ impl RuntimeMetadata {
         if cache_schema != CACHE_SCHEMA {
             anyhow::bail!("不支持的 DEX 缓存协议: {cache_schema}");
         }
-        let stub_component_factory = match (runtime_protocol, memory_dex) {
-            (STANDARD_RUNTIME_PROTOCOL, false) => None,
-            (MEMORY_RUNTIME_PROTOCOL, true) => {
-                let min_api = parse_u32(json, "memory_dex_min_api")
-                    .context("metadata.json 缺少 memory_dex_min_api")?;
-                if min_api != MEMORY_DEX_MIN_API {
-                    anyhow::bail!("不支持的内存 DEX 最低 API: {min_api}");
-                }
-                Some(
-                    parse_string(json, "stub_component_factory")
-                        .context("metadata.json 缺少 stub_component_factory")?,
-                )
+        let (manifest_keys, expects_memory) = match runtime_protocol {
+            manifest_keys::LEGACY_STANDARD_PROTOCOL => (&manifest_keys::LEGACY, false),
+            manifest_keys::LEGACY_MEMORY_PROTOCOL => (&manifest_keys::LEGACY, true),
+            manifest_keys::STANDARD_PROTOCOL => (&manifest_keys::CURRENT, false),
+            manifest_keys::MEMORY_PROTOCOL => (&manifest_keys::CURRENT, true),
+            _ => {
+                anyhow::bail!("不支持的 Runtime 资源协议: {runtime_protocol}，请使用配套工具与资源")
             }
-            (STANDARD_RUNTIME_PROTOCOL, true) | (MEMORY_RUNTIME_PROTOCOL, false) => {
-                anyhow::bail!("Runtime 协议与内存 DEX 能力声明不一致");
+        };
+        if memory_dex != expects_memory {
+            anyhow::bail!("Runtime 协议与内存 DEX 能力声明不一致");
+        }
+        let stub_component_factory = if memory_dex {
+            let min_api = parse_u32(json, "memory_dex_min_api")
+                .context("metadata.json 缺少 memory_dex_min_api")?;
+            if min_api != MEMORY_DEX_MIN_API {
+                anyhow::bail!("不支持的内存 DEX 最低 API: {min_api}");
             }
-            _ => anyhow::bail!("不支持的 Runtime 资源协议: {runtime_protocol}"),
+            Some(
+                parse_string(json, "stub_component_factory")
+                    .context("metadata.json 缺少 stub_component_factory")?,
+            )
+        } else {
+            None
         };
         let stub_application = parse_string(json, "stub_application")
             .context("metadata.json 缺少 stub_application")?;
@@ -73,6 +80,7 @@ impl RuntimeMetadata {
             environment_policy,
             memory_dex,
             min_android_api,
+            manifest_keys,
         })
     }
 }
@@ -89,16 +97,23 @@ fn is_java_class_name(value: &str) -> bool {
 
 fn value_after_key<'a>(json: &'a str, field: &str) -> Option<&'a str> {
     let needle = format!("\"{field}\"");
-    let after_key = &json[json.find(&needle)? + needle.len()..];
-    after_key
-        .trim_start()
-        .strip_prefix(':')
-        .map(str::trim_start)
+    let mut values = json.match_indices(&needle).filter_map(|(offset, _)| {
+        json[offset + needle.len()..]
+            .trim_start()
+            .strip_prefix(':')
+            .map(str::trim_start)
+    });
+    let value = values.next()?;
+    if values.next().is_some() {
+        return None;
+    }
+    Some(value)
 }
 
 fn parse_string(json: &str, field: &str) -> Option<String> {
     let value = value_after_key(json, field)?.strip_prefix('"')?;
-    Some(value[..value.find('"')?].to_string())
+    let end = value.find('"')?;
+    scalar_end(&value[end + 1..]).then(|| value[..end].to_string())
 }
 
 fn parse_u32(json: &str, field: &str) -> Option<u32> {
@@ -106,18 +121,24 @@ fn parse_u32(json: &str, field: &str) -> Option<u32> {
     let end = value
         .find(|character: char| !character.is_ascii_digit())
         .unwrap_or(value.len());
-    value[..end].parse().ok()
+    scalar_end(&value[end..])
+        .then(|| value[..end].parse().ok())
+        .flatten()
 }
 
 fn parse_bool(json: &str, field: &str) -> Option<bool> {
     let value = value_after_key(json, field)?;
-    if value.starts_with("true") {
+    if value.strip_prefix("true").is_some_and(scalar_end) {
         Some(true)
-    } else if value.starts_with("false") {
+    } else if value.strip_prefix("false").is_some_and(scalar_end) {
         Some(false)
     } else {
         None
     }
+}
+
+fn scalar_end(value: &str) -> bool {
+    matches!(value.trim_start().chars().next(), Some(',' | '}'))
 }
 
 #[cfg(test)]
@@ -145,6 +166,54 @@ mod tests {
         assert!(!metadata.memory_dex);
         assert!(metadata.stub_component_factory.is_none());
         assert_eq!(metadata.min_android_api, 21);
+        assert_eq!(metadata.manifest_keys.application, "ORIGINAL_APPLICATION");
+    }
+
+    #[test]
+    fn 新旧协议选择配套字段且拒绝未知协议与能力错配() {
+        for protocol in [2, 3, 4, 5, 6] {
+            for memory in [false, true] {
+                let json = METADATA.replace("\"runtime_protocol\":2", &format!("\"runtime_protocol\":{protocol}"))
+                    .replace("\"memory_dex\":false", &format!("\"memory_dex\":{memory},\"memory_dex_min_api\":31,\"stub_component_factory\":\"msk.f\""));
+                let result = RuntimeMetadata::parse(&json);
+                if matches!((protocol, memory), (2 | 4, false) | (3 | 5, true)) {
+                    let metadata = result.unwrap();
+                    assert_eq!(
+                        metadata.manifest_keys.policy,
+                        if protocol <= 3 {
+                            "dev.mocika.shield.ENV_POLICY"
+                        } else {
+                            "rt.policy"
+                        }
+                    );
+                } else {
+                    assert!(result.is_err());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn 拒绝歧义和错误类型的资源契约声明() {
+        for (from, to) in [
+            (
+                "\"runtime_protocol\":2",
+                "\"runtime_protocol\":4,\"runtime_protocol\":2",
+            ),
+            ("\"runtime_protocol\":2", "\"runtime_protocol\":4.1"),
+            ("\"runtime_protocol\":2", "\"runtime_protocol\":\"4\""),
+            ("\"memory_dex\":false", "\"memory_dex\":falsehood"),
+            (
+                "\"environment_policy\":false",
+                "\"environment_policy\":false,\"environment_policy\":true",
+            ),
+            (
+                "\"memory_dex\":false",
+                "\"memory_dex\":false,\"min_android_api\":19,\"min_android_api\":21",
+            ),
+        ] {
+            assert!(RuntimeMetadata::parse(&METADATA.replace(from, to)).is_err());
+        }
     }
 
     #[test]

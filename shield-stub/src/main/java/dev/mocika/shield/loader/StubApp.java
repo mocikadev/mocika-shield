@@ -2,8 +2,6 @@ package dev.mocika.shield.loader;
 
 import android.app.Application;
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 import java.io.File;
@@ -15,9 +13,6 @@ import java.util.List;
 import java.util.Map;
 
 public class StubApp extends Application {
-
-    private static final String ORIGINAL_COMPONENT_FACTORY =
-            "dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY";
 
     private Application realApp;
     private boolean componentFactoryActive;
@@ -109,22 +104,13 @@ public class StubApp extends Application {
     }
 
     private String getRealAppName() {
-        try {
-            ApplicationInfo ai = getPackageManager().getApplicationInfo(
-                    getPackageName(), PackageManager.GET_META_DATA);
-            if (ai.metaData != null) {
-                String v = ai.metaData.getString("ORIGINAL_APPLICATION");
-                if (v != null && !v.isEmpty()) return v;
-            }
-        } catch (Exception ignored) {}
-        return "android.app.Application";
+        return RuntimeManifest.requiredText(RuntimeManifest.read(this).get(ManifestKeys.APPLICATION));
     }
 
     private static String getOriginalComponentFactory(Context context) throws Exception {
-        ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                context.getPackageName(), PackageManager.GET_META_DATA);
-        Bundle metadata = info.metaData;
-        return metadata == null ? null : metadata.getString(ORIGINAL_COMPONENT_FACTORY);
+        Bundle metadata = RuntimeManifest.read(context);
+        Object value = metadata.get(ManifestKeys.FACTORY);
+        return value == null ? null : RuntimeManifest.requiredText(value);
     }
 
     private void replaceAppReferences(Application newApp) {

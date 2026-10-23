@@ -36,6 +36,11 @@ Write-Host ""
 Push-Location $ProjectRoot
 try {
 
+$standardRuntimeProtocol = & python "scripts\manifest_contract.py" standard
+if ($LASTEXITCODE -ne 0) { Err "Manifest 标准资源契约无效" }
+$memoryRuntimeProtocol = & python "scripts\manifest_contract.py" memory
+if ($LASTEXITCODE -ne 0) { Err "Manifest 内存候选契约无效" }
+
 if (-not (Test-Path "Cargo.toml") -or -not (Test-Path "shield-stub")) {
     Err "请在项目根目录运行此脚本"
 }
@@ -329,7 +334,7 @@ $buildDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
   "native_name_placeholder": "mocikanativeslot",
   "native_name_length": 16,
   "native_name_scheme": 1,
-  "runtime_protocol": 2,
+  "runtime_protocol": $standardRuntimeProtocol,
   "cache_schema": 1,
   "environment_policy": true,
   "memory_dex": false
@@ -389,7 +394,7 @@ $standardMetadata = Get-Content (Join-Path $OutputDir "metadata.json") -Raw
   "native_name_placeholder": "mocikanativeslot",
   "native_name_length": 16,
   "native_name_scheme": 1,
-  "runtime_protocol": 3,
+  "runtime_protocol": $memoryRuntimeProtocol,
   "cache_schema": 1,
   "environment_policy": true,
   "memory_dex": true,

@@ -177,6 +177,7 @@ pub(crate) struct RuntimeSelection {
     pub(crate) stub_component_factory: Option<String>,
     pub(crate) memory_dex: bool,
     pub(crate) profile: crate::RuntimeProfile,
+    pub(crate) manifest_keys: &'static crate::protect::manifest_keys::ManifestKeys,
 }
 
 pub(crate) fn read_runtime_selection(
@@ -199,6 +200,7 @@ pub(crate) fn read_runtime_selection(
         stub_application: metadata.stub_application,
         stub_component_factory: metadata.stub_component_factory,
         memory_dex: metadata.memory_dex,
+        manifest_keys: metadata.manifest_keys,
         profile: if metadata.min_android_api == 19 {
             crate::RuntimeProfile::AndroidApi19
         } else {

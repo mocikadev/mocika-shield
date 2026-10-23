@@ -59,7 +59,8 @@ create_budget_variant() {
     local unsigned="$WORK/output-$name-unsigned.apk"
     local final="$WORK/output-$name-signed.apk"
     java -jar "$ROOT/tools/apktool_3.0.1.jar" d "$source" -o "$decoded" -f --no-src >/dev/null
-    python3 - "$decoded/AndroidManifest.xml" "$payload_bytes" <<'PY'
+    python3 - "$decoded/AndroidManifest.xml" "$payload_bytes" "$ROOT/shield-stub/runtime-manifest-contract.json" <<'PY'
+import json
 import pathlib
 import re
 import sys
@@ -67,8 +68,10 @@ import sys
 manifest = pathlib.Path(sys.argv[1])
 payload_bytes = sys.argv[2]
 content = manifest.read_text(encoding="utf-8")
+contract = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+field = re.escape(contract["fields"]["payload_bytes"]["current"])
 updated, count = re.subn(
-    r'(android:name="dev\.mocika\.shield\.PAYLOAD_DEX_BYTES"\s+android:value=")bytes:\d+("\s*/>)',
+    rf'(android:name="{field}"\s+android:value=")bytes:\d+("\s*/>)',
     rf'\1bytes:{payload_bytes}\2',
     content,
 )

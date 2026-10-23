@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 
 
-def dex_contract(data: bytes) -> tuple[set[str], dict]:
+def dex_contract(data: bytes) -> tuple[set[str], dict, set[str]]:
     if len(data) < 112 or data[:8] not in (b"dex\n035\0", b"dex\n037\0", b"dex\n038\0", b"dex\n039\0", b"dex\n040\0"):
         raise ValueError("不支持的 Stub DEX 格式")
 
@@ -96,4 +96,4 @@ def dex_contract(data: bytes) -> tuple[set[str], dict]:
                 if identifier[0] != owner or identifier in methods:
                     raise ValueError("Stub DEX 方法定义重复或所属类错误")
                 methods[identifier] = flags
-    return classes, methods
+    return classes, methods, set(strings)

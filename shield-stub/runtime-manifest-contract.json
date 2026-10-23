@@ -1,0 +1,17 @@
+{
+  "protocols": {
+    "legacy_standard": 2,
+    "legacy_memory": 3,
+    "standard": 4,
+    "memory": 5
+  },
+  "fields": {
+    "application": {"legacy": "ORIGINAL_APPLICATION", "current": "rt.app"},
+    "policy": {"legacy": "dev.mocika.shield.ENV_POLICY", "current": "rt.policy"},
+    "factory": {"legacy": "dev.mocika.shield.ORIGINAL_COMPONENT_FACTORY", "current": "rt.factory"},
+    "cache_schema": {"legacy": "dev.mocika.shield.CACHE_SCHEMA", "current": "rt.cache.schema"},
+    "cache_count": {"legacy": "dev.mocika.shield.CACHE_DEX_COUNT", "current": "rt.cache.count"},
+    "cache_root": {"legacy": "dev.mocika.shield.CACHE_ROOT_SHA256", "current": "rt.cache.root"},
+    "payload_bytes": {"legacy": "dev.mocika.shield.PAYLOAD_DEX_BYTES", "current": "rt.payload.bytes"}
+  }
+}

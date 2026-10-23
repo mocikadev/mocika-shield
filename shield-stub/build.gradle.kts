@@ -7,6 +7,16 @@ val runtimeProfileEnabled = providers.environmentVariable("MOCIKA_RUNTIME_PROFIL
 val legacyByteArrayEnabled = providers.environmentVariable("MOCIKA_LEGACY_BYTE_ARRAY")
     .orNull == "1"
 
+val checkManifestContract by tasks.registering(Exec::class) {
+    val python = providers.environmentVariable("PYTHON").orNull
+        ?: if (System.getProperty("os.name").lowercase().contains("windows")) "python" else "python3"
+    commandLine(python, rootProject.file("../scripts/manifest_contract.py"), "check")
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn(checkManifestContract)
+}
+
 // 只调整默认的 Native 名称约束，不修改 SDK 或丢失其他上游兼容规则。
 val defaultReleaseRules = android.getDefaultProguardFile("proguard-android-optimize.txt")
 val jniReleaseRules = layout.buildDirectory.file("intermediates/stub-bindings/proguard-release.pro")

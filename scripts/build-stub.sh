@@ -24,6 +24,9 @@ echo ""
 # 切换到项目根目录
 cd "$PROJECT_ROOT"
 
+STANDARD_RUNTIME_PROTOCOL="$(python3 scripts/manifest_contract.py standard)"
+MEMORY_RUNTIME_PROTOCOL="$(python3 scripts/manifest_contract.py memory)"
+
 # 检查是否在项目根目录
 if [ ! -f "Cargo.toml" ] || [ ! -d "shield-stub" ]; then
     echo -e "${RED}错误: 请在项目根目录运行此脚本${NC}"
@@ -321,7 +324,7 @@ cat > "$OUTPUT_DIR/metadata.json" << EOF
   "native_name_placeholder": "mocikanativeslot",
   "native_name_length": 16,
   "native_name_scheme": 1,
-  "runtime_protocol": 2,
+  "runtime_protocol": $STANDARD_RUNTIME_PROTOCOL,
   "cache_schema": 1,
   "environment_policy": true,
   "memory_dex": false
@@ -373,7 +376,7 @@ cat > "$OUTPUT_DIR/metadata.json" << EOF
   "native_name_placeholder": "mocikanativeslot",
   "native_name_length": 16,
   "native_name_scheme": 1,
-  "runtime_protocol": 3,
+  "runtime_protocol": $MEMORY_RUNTIME_PROTOCOL,
   "cache_schema": 1,
   "environment_policy": true,
   "memory_dex": true,
