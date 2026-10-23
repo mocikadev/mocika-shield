@@ -7,6 +7,15 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: "手动验证范围：完整检查或仅 Windows 资源构建"
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - windows_resources
 
 permissions:
   contents: read
@@ -39,9 +48,14 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          VALIDATION_SCOPE: ${{ inputs.validation_scope || 'all' }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            case "$VALIDATION_SCOPE" in
+              all|windows_resources) ;;
+              *) echo "错误：未知的手动验证范围" >&2; exit 1 ;;
+            esac
             echo "run_checks=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -85,7 +99,7 @@ jobs:
 
   full-quality:
     name: 完整代码质量检查
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'all' || inputs.validation_scope == '')
     runs-on: ubuntu-24.04
 
     steps:
@@ -120,7 +134,7 @@ jobs:
 
   linux-gui-bundle:
     name: Linux Tauri 打包冒烟检查
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'all' || inputs.validation_scope == '')
     runs-on: ubuntu-22.04
 
     steps:
@@ -201,7 +215,7 @@ jobs:
 
   stub:
     name: Android 壳构建
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'all' || inputs.validation_scope == '')
     runs-on: ubuntu-24.04
 
     steps:
@@ -251,7 +265,7 @@ jobs:
 
   windows-api19-resources:
     name: Windows Android 4.4 资源构建
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'all' || inputs.validation_scope == 'windows_resources' || inputs.validation_scope == '')
     runs-on: windows-2025
 
     steps:
@@ -298,7 +312,7 @@ jobs:
 
   release-readiness:
     name: 发布前检查
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'all' || inputs.validation_scope == '')
     runs-on: ubuntu-24.04
 
     steps:

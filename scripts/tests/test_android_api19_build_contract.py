@@ -7,6 +7,20 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class AndroidApi19BuildContractTests(unittest.TestCase):
+    def test_定向手动验证不触发其他重型任务(self) -> None:
+        content = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("default: all", content)
+        self.assertIn("          - windows_resources", content)
+        self.assertIn("all|windows_resources) ;;", content)
+        self.assertIn("错误：未知的手动验证范围", content)
+        jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", content.split("jobs:\n", 1)[1]))
+        for job in ("full-quality", "linux-gui-bundle", "stub", "release-readiness"):
+            condition = re.search(r"(?m)^    if: (.*)$", jobs[job]).group(1)
+            self.assertIn("github.event_name == 'workflow_dispatch'", condition)
+            self.assertIn("inputs.validation_scope == 'all'", condition)
+            self.assertNotIn("windows_resources", condition)
+        self.assertIn("inputs.validation_scope == 'windows_resources'", jobs["windows-api19-resources"])
+
     def test_android_setup_explicitly_selects_available_packages(self) -> None:
         for workflow in (ROOT / ".github/workflows").glob("*.yml"):
             content = workflow.read_text(encoding="utf-8")
