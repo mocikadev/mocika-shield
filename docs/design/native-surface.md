@@ -45,7 +45,7 @@ Bash 两个入口共享 `scripts/native-build-flags.sh`，Windows Git Bash 先�
 | 规范化的依赖源码相对路径、匿名 Rust 工具链路径 | 保留并分类报告 | 不含构建者用户名，可能用于 panic 定位 |
 | JNI 类名、方法签名、Android 系统调用字符串 | 保留 | 动态注册和系统互操作所需，不伪装成不存在 |
 | Native 注入、载荷、解密及解压失败上下文 | 保留，记录源码位置 | 现有排障依赖这些信息，本轮不为减少字符串而丢失原因 |
-| Manifest 品牌字段及缓存目录 | 不在本阶段改动 | 属于跨模块运行契约，沿用[壳标识后续规划](stub-identity.md)单独评审 |
+| Manifest 品牌字段及缓存目录 | 不在本阶段改动 | 字段由后续[Manifest 运行契约阶段](manifest-runtime-contract.md)独立治理，缓存目录仍保持不变 |
 
 当前 Native 诊断主要位于 `shield-stub/src/main/rust/src/lib.rs` 的 JNI 调用、数组构造和 Native 失败转 Java 反射路径，以及 `bin_loader.rs` 的格式、认证和解压错误。本阶段不更换错误码、不吞异常、不去掉原有失败关闭或兼容回退。
 

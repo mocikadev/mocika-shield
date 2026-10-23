@@ -8,7 +8,7 @@
 
 ## 现状与方案取舍
 
-`protect/manifest.rs` 写入七项元数据，`StubApp`、`RuntimeSecurity`、`DexCache` 与内部内存候选读取。其中六项带 `dev.mocika.shield`，另一项为 `ORIGINAL_APPLICATION`。当前环境策略读取异常或字段缺失会返回兼容策略，原 Application 读取失败会回退系统 Application；名称错配可能悄悄改变行为，不能把它们视作文案替换。
+变更前由 `protect/manifest.rs` 写入七项元数据，`StubApp`、`RuntimeSecurity`、`DexCache` 与内部内存候选读取。其中六项带 `dev.mocika.shield`，另一项为 `ORIGINAL_APPLICATION`。旧壳读取环境策略异常或字段缺失时会返回兼容策略，原 Application 读取失败会回退系统 Application；名称错配可能悄悄改变行为，不能把它们视作文案替换。
 
 | 方案 | 兼容与成本 | 结论 |
 |---|---|---|
@@ -68,7 +68,8 @@
 - [x] 联动 Gradle、Bash、PowerShell、工控构建与资源审计；生成文件过期、协议／DEX 字段错配时停止交付。
 - [x] 执行核心、脚本、Java 与 JNI 测试，实际重建标准／工控／内部候选三套资源，不放宽 DEX 指标。
 - [x] 真机验证标准与工控首次、缓存、清数据及同签名旧壳覆盖新壳；确认缓存复用及热缓存下严格 Root 策略仍拒绝。
-- [ ] 构建完整 macOS `.app` 并检查包内资源，形成一个完整阶段 PR，不自动发布或移动标签。
+- [x] 构建完整 macOS `.app` 并检查包内资源，形成完整阶段 PR #139，不自动发布或移动标签。
+- [ ] 完成新协议的 Windows 资源手动专项构建；不把前一阶段的 Windows 结果混用为本阶段证据。
 
 缺少旧系统、x86 或 16 KB 环境的项目明确保留待验，不把一台新系统 ARM 设备的通过扩大为完整兼容矩阵。Windows 验证只由手动专项或正式发布构建触发，不给普通提交新增重型 CI。
 
@@ -87,7 +88,15 @@
 - 使用变更前保存的旧核心消费新标准资源，明确拒绝 `Runtime` 协议 4，未生成输出；新核心使用公开 rc.3 的旧标准／工控资源加固成功，不将单元解析通过冒充旧内部内存候选的设备验收。
 - 一加 8 系统报告 Android 17／API 37、4 KB，ADB Root 调试保持原状。标准和工控各自的 ARM64／ARMv7 四组均通过旧壳首次启动、同签名覆盖新壳、强停重启、清数据重新解密及双 DEX／多组件／远程进程启动。核对实际 `app_process64`／`app_process32`；覆盖和热启动时两份缓存的路径、长度、inode、修改时间不变。
 - 工控 ARMv7 热缓存上覆盖严格策略包，出现 `SecurityException: S01` 且无业务 Application 成功标记；恢复兼容策略正常运行。此为日志验证，不是拒绝提示的视觉复验。
+- 对真实工控加固 APK 移除有效策略键后重新打包、对齐、同证书签名并覆盖安装，热缓存下出现 `SecurityException: S02`，业务未启动，缓存路径、长度、inode 和修改时间未改变；恢复正常包后重新启动通过。确认策略缺失并非只在纯函数测试中拒绝。
+- 工控混合 ABI 的无设备端到端回归通过，覆盖未确认排除时拒绝、显式排除旧 ABI、保留主流 ABI 业务库字节、签名、解包 Manifest 和 `extractNativeLibs=false` 打包检查。
 - 内部候选协议 5 在同一设备 ARM64 上补测首次与重启，真实双 DEX、主／远程进程及原组件工厂五类委托标记全部通过；随后恢复工控 ARMv7 兼容策略测试包。此项只覆盖本次字段联动，不是内存 DEX 性能、完整恢复矩阵或产品准入复审。
 - `cargo tauri build --bundles app` 生成完整 macOS `.app`，本地 adhoc 签名与严格校验通过；包内标准／工控 ZIP 再次通过完整审计。仍显示工作区版本 `1.4.2-rc.3`，未替换公开安装包。
 
 后续验收边界：Manifest 新协议的 Windows 原生构建待手动专项验证；Native 暴露面上一阶段的 Windows 通过记录不能替代本次新协议验收。Android 4.4、API 21／23、Android 9 专项、16 KB、x86／x86_64 及内部内存候选的完整恢复矩阵本轮未执行；不扩展支持承诺或恢复已暂停功能。
+
+## 提交与 Windows 补验状态
+
+整阶段代码与文档已提交 [PR #139](https://github.com/mocikadev/mocika-shield/pull/139)，必需快速检查通过，未启用自动合并。新协议的 [Windows 手动专项](https://github.com/mocikadev/mocika-shield/actions/runs/39928587673)针对代码提交 `3d52151`，已通过环境和基础快速检查，资源构建仍在运行；没有以排队或运行状态记作成功。本节以外的后续文档收尾不改变被验证的代码、构建入口或资源定义。
+
+临时 Windows 验证分支已删除，对应 CI 选项保留在本 PR；当前只保留该阶段开发分支。公开 rc.3、版本号和发行状态未变。
