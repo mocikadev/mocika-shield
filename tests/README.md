@@ -53,6 +53,18 @@ ENVIRONMENT_POLICY=strict EXPECT_PROTECTED_REJECTION=1 RUN_DEVICE_TEST=1 \
 
 存在多个在线设备时通过 `ANDROID_SERIAL` 指定目标设备。测试证书只在系统临时目录中生成，脚本退出时自动清理，不向仓库提交任何私钥。日常 CI 不启动模拟器；真实运行时回归由维护者在真机或指定模拟器上按需执行。
 
+已完成构建时，跨版本壳资源回归可复用已审计产物，不重复编译 Native。下面入口要求显式模拟器序列号、预期 API／ABI，以及含同代标准／工控 ZIP 的旧资源目录；只操作项目自有 Smoke 测试包。缓存证据要求测试模拟器已经启用 Root ADB，脚本不自动开启 Root，也不操作连接的真机：
+
+```bash
+ANDROID_SERIAL=emulator-5570 EXPECTED_API=35 EXPECTED_ABI=arm64-v8a \
+  EXPECTED_PAGE_SIZE=16384 PREVIOUS_RESOURCES=/path/to/previous/resources \
+  bash tests/scripts/run-stub-resource-upgrade-e2e.sh
+```
+
+API 19 使用 `EXPECTED_API=19 EXPECTED_ABI=armeabi-v7a`，不设置 `EXPECTED_PAGE_SIZE`；脚本只选择工控资源。API 21 以上同时验证标准／工控资源，并验证未加固双 DEX 基线。原始夹具没有接入旧版 MultiDex，API 19 不把其直接启动作为基线；旧壳与新壳仍须完整加载两份 DEX。所有节点覆盖旧壳启动、旧壳升级新壳、缓存重启、清数据重新解密与第二次缓存复用，六类业务／远程进程成功标记必须齐全。缓存状态采用兼容旧 toolbox 的 inode、长度、权限与时间列表，不把安装成功当作启动成功。
+
+API 19 节点还必须在 `/proc/cpuinfo` 中确认 NEON，否则在安装前拒绝。原始夹具的旧版 MultiDex 边界见 [Android 官方说明](https://developer.android.com/build/multidex#mdex-pre-l)。不要通过跳过第二 DEX 标记或降低运行条件来让不符合基线的模拟器通过。
+
 ## API 29+ 内存 DEX 加载探针
 
 `fixtures/android-memory-loader-probe` 是隔离研究夹具，不进入正式 Stub 或资源包。它把 Application、Activity、Service、Provider 和跨 DEX 依赖编译到两个独立 DEX 资源中，并分别构建反射写入 `LoadedApk.mClassLoader` 与公开 `AppComponentFactory.instantiateClassLoader()` 两种入口进行对照。
