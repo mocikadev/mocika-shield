@@ -131,8 +131,10 @@ NDK r29 与 r25c 的现有分工、4.4 v7a／NEON 限制和混合 ABI 排除确�
 - [x] 联动 Bash、PowerShell、API 19 构建及最终产物审计，消除正式打包的名称猜测回退；Windows 原生运行另列待验。
 - [x] 在现有核心边界增加严格的业务／壳完整类名冲突检测及多 DEX 回归。
 - [x] 完成本地标准与工控真实双 DEX 加固、签名、资源审计及完整 macOS `.app`；不把构建通过当作设备启动通过。
+- [x] 在一加 8／API 37 上补测标准及工控资源的 ARM64、ARMv7 真实运行、旧壳覆盖升级、缓存复用和严格 Root 策略。
 - [ ] 完成 Android 设备矩阵和 Windows 原生构建验收。
-- [ ] 整阶段提交一个 PR，同步回归与发布说明；维护者确认后安排新的版本，不重打 rc.3。
+- [x] 首期整阶段提交 [PR #137](https://github.com/mocikadev/mocika-shield/pull/137)，同步设计及回归说明。
+- [ ] 维护者确认后安排交付版本，不重打 rc.3。
 - [ ] 独立审议 Manifest 等运行契约标识的治理；每任务全命名空间随机化保持后续可选项。
 
 普通文档提交不触发新增重型 CI。绑定解析等轻量测试复用现有检查；完整壳与三平台构建只放在现有手动验证或发布流程，不增加 CLI 发布任务。
@@ -154,4 +156,27 @@ NDK r29 与 r25c 的现有分工、4.4 v7a／NEON 限制和混合 ABI 排除确�
 - 指标：新 Stub 为 30,056 字节、20 类、295 方法、52 字段、480 字符串，`make audit-stub-dex` 在原有上限内通过，未放宽阈值。
 - 桌面包：`cargo tauri build --bundles app` 生成 `target/release/bundle/macos/MocikaShield.app`，完整应用 adhoc 签名和严格校验通过；包内标准／API 19 ZIP 再次通过 JNI 契约审计，没有把内部映射作为资源分发。
 
-本机补装 r25c 与 Rust 1.77.2 的 ARMv7 目标，未切换全局 Java 或默认 Rust 版本。SDK 安装器对新下载 r25c 的符号链接解压异常已使用官方压缩包恢复，生产 API 19 Native 已实际重编译，未继续复用旧库。没有连接 Android 设备，也没有可用模拟器镜像；Android 4.4、API 21／23、Android 9、较新 ARM64、16 KB 和 x86 系列的真实启动／缓存／覆盖安装，以及 Windows 原生发布构建仍待验证。
+本机补装 r25c 与 Rust 1.77.2 的 ARMv7 目标，未切换全局 Java 或默认 Rust 版本。SDK 安装器对新下载 r25c 的符号链接解压异常已使用官方压缩包恢复，生产 API 19 Native 已实际重编译，未继续复用旧库。首期构建验收时没有连接 Android 设备，也没有可用模拟器镜像；后续真机结果见下节，不将单台新系统设备的结果外推为全部系统通过。
+
+## 一加 8 真机补测
+
+2026-10-23，设备为一加 8（IN2010），系统报告 Android 17／API 37，页大小为 4 KB，支持 `arm64-v8a` 和 `armeabi-v7a`。ADB shell 为 uid 0、`service.adb.root=1`；测试期间没有切换 Root 调试、全局 Java 或设备安全设置，仅安装、覆盖和清除项目自有 `dev.mocika.shield.smoke` 测试应用的数据。
+
+先使用现有 `RUN_DEVICE_TEST=1 ABI_FILTER_TEST=1` 回归入口，分别验证标准和工控资源的 ARM64 路径：未加固双 DEX 基线、同签名覆盖安装后的首次启动及二次启动均通过。混合 ABI 附带的占位库不由业务加载，不作为第三方 Native 功能证据。
+
+随后用同一份真实双 DEX 输入及同一临时测试证书，分别生成旧壳、新壳加固包。旧资源从公开 `1.4.2-rc.3` 安装包提取，已检查其 DEX 确实含 `Ldev/mocika/shield/loader/Ld;`；新资源来自本 PR 构建。使用 `adb install --abi` 明确选择进程位宽，并核对包管理器 ABI 与实际 `/proc/<pid>/exe`，不是仅检查安装成功。
+
+| 资源与 Native 基线 | 实际进程 | 旧壳覆盖新壳 | 清数据后重新解密 | 二次启动与缓存复用 |
+|---|---|---|---|---|
+| 标准 ARM64／r29 | `app_process64` | 通过 | 通过 | 通过 |
+| 标准 ARMv7／r29 | `app_process32` | 通过 | 通过 | 通过 |
+| 工控 ARM64／r29 | `app_process64` | 通过 | 通过 | 通过 |
+| 工控 ARMv7／r25c／API 19 | `app_process32` | 通过 | 通过 | 通过 |
+
+四组均观察到 Provider、Application、Activity、第二 DEX、Receiver 和远程 Service 的成功标记。旧壳缓存预热后覆盖新壳，两份 `c*.dex` 的路径、长度、inode 和修改时间保持不变；强停二次启动再次保持一致。清除测试应用数据后，两份 DEX 能重新解密并恢复全部启动标记，随后缓存再次复用。
+
+在工控 ARMv7 组的热缓存上，同证书覆盖严格环境策略包，日志出现 `SecurityException: S01`，业务 Application 成功标记未出现，缓存状态未改写。恢复兼容策略后再次正常运行，确认缓存命中没有绕过本次映射后的 Native 环境检查。该拒绝证据来自日志，不作为界面提示的视觉验收。
+
+从设备回读最终安装的兼容策略 APK，确认新桥接类 `Lmsk/f;` 存在、原始桥接类不存在，v7a Native 与新工控资源逐字节一致且不同于标准 r29 库。设备最后保留正常运行的工控 ARMv7 兼容策略测试包，Root 调试开关保持原状。
+
+本轮仅证明上述四种资源／进程组合在这台 API 37、4 KB 设备上的运行；Android 4.4 Dalvik、API 21／23、Android 9 专项、16 KB、x86／x86_64 和 Windows 原生构建仍待验证，不将 r25c 库在新系统运行通过改写为旧系统已补测。为取得旧资源，本轮下载公开 rc.3 的 Linux `.deb` 一次，仅提取资源、未运行其中程序；该次下载属于维护验证，不计为新增用户。
