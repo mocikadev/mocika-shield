@@ -9,13 +9,17 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 
 SCHEMA_VERSION = 1
 PLATFORMS = ("Windows", "macOS", "Linux", "其他")
+USAGE_FIELDS = {
+    "usage_date", "active_devices", "app_starts", "protect_starts", "protect_successes",
+    "protect_failures", "sign_successes", "sign_failures",
+}
 def github_get(repository: str, endpoint: str, token: str) -> Any:
     suffix = f"/{endpoint}" if endpoint else ""
     request = urllib.request.Request(
@@ -56,7 +60,7 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
             date = row.get("date") or row.get("usage_date") or row.get("day")
             if not date:
                 raise ValueError("匿名使用统计缺少日期字段")
-            trend.append({**row, "date": str(date)})
+            trend.append({**{key: row[key] for key in USAGE_FIELDS if key in row}, "date": str(date)})
         trend.sort(key=lambda row: row["date"])
     except (OSError, ValueError, TypeError) as error:
         print(f"警告：匿名使用统计接口不可用：{error}", file=sys.stderr)
@@ -66,8 +70,10 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     today = datetime.now(timezone.utc).date().isoformat()
     complete_trend = [row for row in trend if row["date"] < today][-14:]
     latest = complete_trend[-1] if complete_trend else {}
-    version_trend = normalize_usage_breakdown(payload.get("versions"), "版本统计")
-    failure_breakdown = normalize_usage_breakdown(payload.get("failure_breakdown"), "失败阶段统计")
+    version_trend = normalize_usage_breakdown(payload.get("versions"), "版本统计", USAGE_FIELDS | {"app_version"})
+    failure_breakdown = normalize_usage_breakdown(payload.get("failure_breakdown"), "失败阶段统计", {
+        "usage_date", "app_version", "operation", "stage", "count",
+    })
     complete_versions = [row for row in (version_trend or []) if row["date"] < today][-90:]
     complete_failures = [row for row in (failure_breakdown or []) if row["date"] < today][-90:]
     # 只读取公开聚合白名单；绝不抓取报告接口或保留混入响应的报告正文。
@@ -77,8 +83,17 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     coverage_rows = normalize_public_failure_rows(payload.get("failure_classifier_coverage"), {
         "usage_date", "app_version", "failure_classifier_version", "reporting_devices", "failure_count",
     }, today)
+    try:
+        activity_windows = normalize_activity_windows(payload.get("activity_windows"))
+    except (ValueError, TypeError, KeyError):
+        print("警告：活跃窗口数据无效，保留其他使用统计", file=sys.stderr)
+        activity_windows = None
     return {
         "available": True,
+        "active_devices_definition": "distinct_installation_per_utc_period"
+        if payload.get("active_devices_definition") == "distinct_installation_per_utc_period" else None,
+        "activity_windows_available": activity_windows is not None,
+        "activity_windows": activity_windows,
         "active_devices": latest.get("active_devices"),
         "latest_complete_date": latest.get("date"),
         "app_starts": sum(int(row.get("app_starts") or 0) for row in complete_trend),
@@ -95,8 +110,29 @@ def collect_usage_stats(stats_url: str) -> dict[str, Any]:
     }
 
 
+def normalize_activity_windows(value: Any) -> Optional[list[dict[str, Any]]]:
+    """窗口已在数据库跨日期去重；这里只保留公开聚合字段，不用日活相加替代。"""
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("活跃窗口字段不是数组")
+    rows = []
+    for row in value:
+        if not isinstance(row, dict):
+            raise ValueError("活跃窗口元素不是对象")
+        days, devices = row.get("window_days"), row.get("active_devices")
+        if days not in (7, 30) or type(devices) is not int or devices < 0:
+            raise ValueError("活跃窗口计数无效")
+        start, end = date.fromisoformat(row["start_date"]), date.fromisoformat(row["end_date"])
+        if end - start != timedelta(days=days - 1):
+            raise ValueError("活跃窗口日期无效")
+        rows.append({"window_days": days, "start_date": start.isoformat(),
+                     "end_date": end.isoformat(), "active_devices": devices})
+    return rows
+
+
 def normalize_public_failure_rows(value: Any, fields: set[str], today: str) -> Optional[list[dict[str, Any]]]:
-    rows = normalize_usage_breakdown(value, "失败类别统计")
+    rows = normalize_usage_breakdown(value, "失败类别统计", fields)
     if rows is None:
         return None
     return [
@@ -105,7 +141,7 @@ def normalize_public_failure_rows(value: Any, fields: set[str], today: str) -> O
     ]
 
 
-def normalize_usage_breakdown(value: Any, label: str) -> Optional[list[dict[str, Any]]]:
+def normalize_usage_breakdown(value: Any, label: str, fields: set[str]) -> Optional[list[dict[str, Any]]]:
     """新版维度缺失时明确不可用，不能用零值替代历史空白。"""
     if value is None:
         return None
@@ -118,7 +154,7 @@ def normalize_usage_breakdown(value: Any, label: str) -> Optional[list[dict[str,
         date = row.get("date") or row.get("usage_date") or row.get("day")
         if not date:
             raise ValueError(f"{label}缺少日期字段")
-        rows.append({**row, "date": str(date)})
+        rows.append({**{key: row[key] for key in fields if key in row}, "date": str(date)})
     rows.sort(key=lambda row: row["date"])
     return rows
 
@@ -142,6 +178,8 @@ def is_download_asset(name: str) -> bool:
 def normalize_releases(releases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
     for release in releases:
+        if release.get("draft"):
+            continue
         for asset in release.get("assets", []):
             name = str(asset.get("name", ""))
             if not name or not is_download_asset(name):
@@ -165,6 +203,18 @@ def build_snapshot(payload: dict[str, Any], collected_at: datetime) -> dict[str,
     clones = payload["clones"]
     usage = payload.get("usage", {})
     assets = normalize_releases(payload["releases"])
+    releases_available = payload.get("releases_available", True)
+    published_versions = {
+        str(release.get("tag_name", "")).removeprefix("v")
+        for release in payload["releases"]
+        if not release.get("draft") and release.get("published_at")
+    }
+    if isinstance(usage, dict) and "version_trend" in usage:
+        usage = {**usage, "version_trend": [
+            {**row, "release_version_match": row.get("app_version") in published_versions
+             if releases_available else None}
+            for row in usage["version_trend"]
+        ]}
     platform_downloads = {platform: 0 for platform in PLATFORMS}
     for asset in assets:
         platform_downloads[asset["platform"]] += asset["download_count"]
@@ -173,9 +223,10 @@ def build_snapshot(payload: dict[str, Any], collected_at: datetime) -> dict[str,
         "date": collected_at.date().isoformat(),
         "collected_at": collected_at.isoformat().replace("+00:00", "Z"),
         "repository": {
-            "stars": int(repository.get("stargazers_count", 0)),
-            "forks": int(repository.get("forks_count", 0)),
-            "open_issues": int(repository.get("open_issues_count", 0)),
+            "available": repository.get("available", True),
+            "stars": optional_int(repository.get("stargazers_count")),
+            "forks": optional_int(repository.get("forks_count")),
+            "open_issues": optional_int(repository.get("open_issues_count")),
         },
         "traffic": {
             "window_days": 14,
@@ -187,9 +238,10 @@ def build_snapshot(payload: dict[str, Any], collected_at: datetime) -> dict[str,
         },
         "usage": usage if isinstance(usage, dict) else {},
         "release_assets": assets,
+        "release_assets_available": releases_available,
         "totals": {
-            "downloads": sum(item["download_count"] for item in assets),
-            "platform_downloads": platform_downloads,
+            "downloads": sum(item["download_count"] for item in assets) if releases_available else None,
+            "platform_downloads": platform_downloads if releases_available else None,
         },
     }
 
@@ -229,21 +281,20 @@ def write_outputs(history: dict[str, Any], output_dir: Path) -> None:
 
 
 def collect_payload(repository: str, token: str) -> dict[str, Any]:
-    def optional_traffic(endpoint: str) -> dict[str, Any]:
+    def optional_github(endpoint: str) -> Any:
         try:
-            result = github_get(repository, endpoint, token)
-            result["available"] = True
-            return result
-        except RuntimeError as error:
-            if "状态码 403" not in str(error):
-                raise
-            return {"available": False, "count": None, "uniques": None}
+            return github_get(repository, endpoint, token)
+        except (RuntimeError, OSError, ValueError):
+            print(f"警告：GitHub 指标不可用：{endpoint or 'repository'}", file=sys.stderr)
+            return None
 
+    releases = optional_github("releases?per_page=100")
     payload = {
-        "repository": github_get(repository, "", token),
-        "releases": github_get(repository, "releases?per_page=100", token),
-        "views": optional_traffic("traffic/views?per=day"),
-        "clones": optional_traffic("traffic/clones?per=day"),
+        "repository": optional_github("") or {"available": False},
+        "releases": releases if releases is not None else [],
+        "releases_available": releases is not None,
+        "views": optional_github("traffic/views?per=day") or {"available": False},
+        "clones": optional_github("traffic/clones?per=day") or {"available": False},
     }
     stats_url = os.environ.get(
         "STATS_API_URL",
