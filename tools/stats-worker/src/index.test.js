@@ -27,12 +27,14 @@ test("趋势响应保持旧数据数组并提供版本与失败细分", () => {
     formatTrendResponse(14, [{ usage_date: "2026-08-25", active_devices: 1 }], [], []),
     {
       schema_version: 2,
+      active_devices_definition: "distinct_installation_per_utc_period",
       window_days: 14,
       data: [{ usage_date: "2026-08-25", active_devices: 1 }],
       versions: [],
       failure_breakdown: [],
       failure_reason_breakdown: [],
       failure_classifier_coverage: [],
+      activity_windows: [],
     },
   );
 });

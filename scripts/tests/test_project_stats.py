@@ -12,6 +12,7 @@ from scripts.project_stats import (
     build_snapshot,
     classify_platform,
     collect_usage_stats,
+    collect_payload,
     load_history,
     merge_snapshot,
     write_outputs,
@@ -19,6 +20,91 @@ from scripts.project_stats import (
 
 
 class ProjectStatsTests(unittest.TestCase):
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_滚动活跃只保留聚合白名单且旧接口不伪造零(self, urlopen):
+        body = {"data": [], "activity_windows": [{
+            "window_days": 7, "start_date": "2026-10-20", "end_date": "2026-10-26",
+            "active_devices": 12, "anonymous_id": "不允许保留的标识", "payload_json": "报告正文",
+        }]}
+        urlopen.return_value.__enter__.return_value = io.BytesIO(json.dumps(body).encode())
+        usage = collect_usage_stats("https://stats.invalid/stats/trend")
+        self.assertTrue(usage["activity_windows_available"])
+        self.assertEqual(usage["activity_windows"], [{
+            "window_days": 7, "start_date": "2026-10-20", "end_date": "2026-10-26", "active_devices": 12,
+        }])
+        self.assertNotIn("报告正文", json.dumps(usage, ensure_ascii=False))
+        urlopen.return_value.__enter__.return_value = io.BytesIO(b'{"data": []}')
+        old = collect_usage_stats("https://stats.invalid/stats/trend")
+        self.assertFalse(old["activity_windows_available"])
+        self.assertIsNone(old["activity_windows"])
+
+    def test_版本匹配仅依据公开发布且不修改原统计(self):
+        usage = {"version_trend": [{"app_version": "1.4.1"}, {"app_version": "1.9.0"}, {"app_version": "1.4.2-rc.4"}]}
+        payload = {"repository": {}, "views": {}, "clones": {}, "usage": usage, "releases": [
+            {"tag_name": "v1.4.1", "published_at": "2026-10-08T00:00:00Z", "draft": False, "assets": []},
+            {"tag_name": "v1.4.2-rc.4", "published_at": "2026-10-23T00:00:00Z", "draft": True,
+             "assets": [{"name": "private.exe", "download_count": 99}]},
+        ]}
+        snapshot = build_snapshot(payload, datetime(2026, 10, 26, tzinfo=timezone.utc))
+        self.assertEqual([r["release_version_match"] for r in snapshot["usage"]["version_trend"]], [True, False, False])
+        self.assertEqual(snapshot["totals"]["downloads"], 0)
+        self.assertNotIn("release_version_match", usage["version_trend"][0])
+        payload["releases_available"] = False
+        unknown = build_snapshot(payload, datetime(2026, 10, 26, tzinfo=timezone.utc))
+        self.assertEqual([r["release_version_match"] for r in unknown["usage"]["version_trend"]], [None, None, None])
+
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_非法窗口不影响已有日趋势且不写成零(self, urlopen):
+        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        for windows in ("bad", [{"window_days": 7, "active_devices": -1}], [{"window_days": 7}]):
+            urlopen.return_value.__enter__.return_value = io.BytesIO(json.dumps({
+                "data": [{"usage_date": yesterday, "active_devices": 3}], "activity_windows": windows,
+            }).encode())
+            with self.subTest(windows=windows), redirect_stderr(io.StringIO()):
+                usage = collect_usage_stats("https://stats.invalid/stats/trend")
+                self.assertEqual(usage["active_devices"], 3)
+                self.assertFalse(usage["activity_windows_available"])
+                self.assertIsNone(usage["activity_windows"])
+
+    @patch("scripts.project_stats.collect_usage_stats", return_value={"available": True, "active_devices": 7})
+    @patch("scripts.project_stats.github_get", side_effect=RuntimeError("GitHub API 请求失败：状态码 403"))
+    def test_GitHub不可用不影响使用采集也不把关注下载写成零(self, github_get, usage):
+        with redirect_stderr(io.StringIO()):
+            payload = collect_payload("mocikadev/mocika-shield", "test-token")
+        snapshot = build_snapshot(payload, datetime(2026, 10, 26, tzinfo=timezone.utc))
+        self.assertEqual(snapshot["usage"]["active_devices"], 7)
+        self.assertIsNone(snapshot["repository"]["stars"])
+        self.assertIsNone(snapshot["totals"]["downloads"])
+        self.assertFalse(snapshot["release_assets_available"])
+
+    @patch("scripts.project_stats.collect_usage_stats", return_value={"available": True, "active_devices": 7})
+    @patch("scripts.project_stats.github_get", side_effect=json.JSONDecodeError("无效响应", "bad", 0))
+    def test_GitHub无效JSON不影响使用采集(self, github_get, usage):
+        with redirect_stderr(io.StringIO()):
+            payload = collect_payload("mocikadev/mocika-shield", "test-token")
+        snapshot = build_snapshot(payload, datetime(2026, 10, 26, tzinfo=timezone.utc))
+        self.assertEqual(snapshot["usage"]["active_devices"], 7)
+        self.assertIsNone(snapshot["totals"]["downloads"])
+
+    @patch("scripts.project_stats.urllib.request.urlopen")
+    def test_所有公开聚合只保留白名单且丢弃混入的私有字段(self, urlopen):
+        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+        private = {"anonymous_id": "不允许保存的标识", "payload_json": "不允许保存的报告"}
+        payload = {
+            "data": [{"usage_date": yesterday, "active_devices": 3, **private}],
+            "versions": [{"usage_date": yesterday, "app_version": "1.4.1", "active_devices": 3, **private}],
+            "failure_breakdown": [{"usage_date": yesterday, "app_version": "1.4.1", "operation": "protect", "stage": "manifest", "count": 1, **private}],
+        }
+        urlopen.return_value.__enter__.return_value = io.BytesIO(json.dumps(payload).encode())
+        result = collect_usage_stats("https://stats.invalid/stats/trend")
+        self.assertEqual(result["active_devices"], 3)
+        self.assertEqual(result["version_trend"][0]["app_version"], "1.4.1")
+        self.assertEqual(result["failure_breakdown"][0]["count"], 1)
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertNotIn("不允许保存", serialized)
+        self.assertNotIn("anonymous_id", serialized)
+        self.assertNotIn("payload_json", serialized)
+
     @patch("scripts.project_stats.urllib.request.urlopen")
     def test_新原因聚合保留版本但丢弃报告正文(self, urlopen):
         yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()

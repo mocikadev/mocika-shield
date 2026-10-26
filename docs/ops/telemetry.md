@@ -36,6 +36,8 @@ Mocika Shield 默认开启匿名使用统计，用于了解实际启动、加固
 
 公开趋势与当前汇总接口使用短时缓存，降低 D1 读取和 GitHub API 请求量。Worker 可选配置只读的 `GITHUB_TOKEN` 密钥；未配置时使用 GitHub 公开接口匿名额度。
 
+维护者查看最新关注和下载直接查询 GitHub；使用趋势查询 `/stats/trend` 或经授权查询 D1，不以汇总接口作为共同前置条件。兼容汇总接口遇到 GitHub 限流时仅将对应字段标为不可用，不影响匿名使用数据；数据库异常返回受控错误。新日活按匿名实例跨版本去重，近 7／30 日窗口单独去重且包含今日；口径标识、旧历史边界和版本匹配限制见[项目维护统计](project-statistics.md)。
+
 仅首次建立空数据库时使用 `schema.sql`。已有线上数据库升级不得依赖 `CREATE TABLE IF NOT EXISTS` 自动增加字段。Beta.5 按[失败诊断运维步骤](failure-diagnostics.md)执行增量迁移、兼容验证与部署，报告接收最后单独启用。
 
 ```bash

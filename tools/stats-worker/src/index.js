@@ -2,6 +2,7 @@ import { getCurrentSummary } from "./github-summary.js";
 import { normalizeFailureReasonCounts } from "./failure-reasons.js";
 import { cleanupErrorReports, saveErrorReport } from "./error-reports.js";
 import { cleanupApplicationUsage, saveApplicationUsage } from "./application-usage.js";
+import { queryActivityWindows, queryUsage } from "./usage-queries.js";
 
 const ALLOWED_EVENTS = new Set([
   "app_start_count",
@@ -69,15 +70,17 @@ export function normalizeFailureCounts(value) {
   });
 }
 
-export function formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown = [], failureClassifierCoverage = []) {
+export function formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown = [], failureClassifierCoverage = [], activityWindows = []) {
   return {
     schema_version: 2,
+    active_devices_definition: "distinct_installation_per_utc_period",
     window_days: days,
     data,
     versions,
     failure_breakdown: failureBreakdown,
     failure_reason_breakdown: failureReasonBreakdown,
     failure_classifier_coverage: failureClassifierCoverage,
+    activity_windows: activityWindows,
   };
 }
 
@@ -183,72 +186,6 @@ async function saveDailyUsage(request, env) {
   return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
-async function queryStats(env, days) {
-  const result = await env.DB.prepare(`
-    WITH unified_usage AS (
-      SELECT anonymous_id, usage_date, app_version, app_start_count, protect_start_count,
-        protect_success_count, protect_failed_count, sign_success_count, sign_failed_count
-      FROM daily_usage_v2
-      WHERE usage_date >= date('now', ?)
-      UNION ALL
-      SELECT legacy.anonymous_id, legacy.usage_date, legacy.app_version, legacy.app_start_count,
-        legacy.protect_start_count, legacy.protect_success_count, legacy.protect_failed_count,
-        legacy.sign_success_count, legacy.sign_failed_count
-      FROM daily_usage legacy
-      WHERE legacy.usage_date >= date('now', ?)
-        AND NOT EXISTS (
-          SELECT 1 FROM daily_usage_v2 current
-          WHERE current.anonymous_id = legacy.anonymous_id
-            AND current.usage_date = legacy.usage_date
-            AND current.app_version = legacy.app_version
-        )
-    )
-    SELECT usage_date, COUNT(*) AS active_devices,
-      SUM(app_start_count) AS app_starts,
-      SUM(protect_success_count) AS protect_successes,
-      SUM(protect_failed_count) AS protect_failures,
-      SUM(sign_success_count) AS sign_successes
-    FROM unified_usage
-    GROUP BY usage_date
-    ORDER BY usage_date ASC
-  `).bind(`-${days - 1} days`, `-${days - 1} days`).all();
-  return result.results || [];
-}
-
-async function queryVersionStats(env, days) {
-  const result = await env.DB.prepare(`
-    WITH unified_usage AS (
-      SELECT anonymous_id, usage_date, app_version, app_start_count, protect_start_count,
-        protect_success_count, protect_failed_count, sign_success_count, sign_failed_count
-      FROM daily_usage_v2
-      WHERE usage_date >= date('now', ?)
-      UNION ALL
-      SELECT legacy.anonymous_id, legacy.usage_date, legacy.app_version, legacy.app_start_count,
-        legacy.protect_start_count, legacy.protect_success_count, legacy.protect_failed_count,
-        legacy.sign_success_count, legacy.sign_failed_count
-      FROM daily_usage legacy
-      WHERE legacy.usage_date >= date('now', ?)
-        AND NOT EXISTS (
-          SELECT 1 FROM daily_usage_v2 current
-          WHERE current.anonymous_id = legacy.anonymous_id
-            AND current.usage_date = legacy.usage_date
-            AND current.app_version = legacy.app_version
-        )
-    )
-    SELECT usage_date, app_version, COUNT(*) AS active_devices,
-      SUM(app_start_count) AS app_starts,
-      SUM(protect_start_count) AS protect_starts,
-      SUM(protect_success_count) AS protect_successes,
-      SUM(protect_failed_count) AS protect_failures,
-      SUM(sign_success_count) AS sign_successes,
-      SUM(sign_failed_count) AS sign_failures
-    FROM unified_usage
-    GROUP BY usage_date, app_version
-    ORDER BY usage_date ASC, app_version ASC
-  `).bind(`-${days - 1} days`, `-${days - 1} days`).all();
-  return result.results || [];
-}
-
 async function queryFailureBreakdown(env, days) {
   const result = await env.DB.prepare(`
     SELECT usage_date, app_version, operation, stage, SUM(count) AS count
@@ -287,22 +224,23 @@ async function queryFailureClassifierCoverage(env, days) {
 async function getStats(request, env) {
   const url = new URL(request.url);
   const days = Math.min(Math.max(Number(url.searchParams.get("days") || 14), 1), 90);
-  const [data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage] = await Promise.all([
-    queryStats(env, days),
-    queryVersionStats(env, days),
+  const [data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage, activityWindows] = await Promise.all([
+    queryUsage(env, days),
+    queryUsage(env, days, true),
     queryFailureBreakdown(env, days),
     queryFailureReasonBreakdown(env, days),
     queryFailureClassifierCoverage(env, days),
+    queryActivityWindows(env),
   ]);
   return json(
-    formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage),
+    formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown, failureClassifierCoverage, activityWindows),
     200,
     `public, max-age=60, s-maxage=${PUBLIC_CACHE_SECONDS}`,
   );
 }
 
 async function getSummary(env) {
-  const summary = await getCurrentSummary(env, queryStats(env, 15));
+  const summary = await getCurrentSummary(env, queryUsage(env, 15));
   return json(summary, 200, `public, max-age=60, s-maxage=${PUBLIC_CACHE_SECONDS}`);
 }
 
@@ -320,18 +258,18 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
     try {
       const path = new URL(request.url).pathname;
-      if (request.method === "POST" && path === "/events/daily") return saveDailyUsage(request, env);
-      if (request.method === "POST" && path === "/reports/errors") return saveErrorReport(request, env);
-      if (request.method === "POST" && path === "/reports/application-usage") return saveApplicationUsage(request, env);
+      if (request.method === "POST" && path === "/events/daily") return await saveDailyUsage(request, env);
+      if (request.method === "POST" && path === "/reports/errors") return await saveErrorReport(request, env);
+      if (request.method === "POST" && path === "/reports/application-usage") return await saveApplicationUsage(request, env);
       if (request.method === "GET" && path === "/stats/trend") {
-        return cached(request, ctx, () => getStats(request, env));
+        return await cached(request, ctx, () => getStats(request, env));
       }
       if (request.method === "GET" && path === "/stats/summary") {
-        return cached(request, ctx, () => getSummary(env));
+        return await cached(request, ctx, () => getSummary(env));
       }
       return json({ error: "接口不存在" }, 404);
-    } catch (error) {
-      console.error(error);
+    } catch {
+      console.error("统计请求处理失败");
       return json({ error: "统计服务暂时不可用" }, 503);
     }
   },
