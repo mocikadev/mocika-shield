@@ -23,32 +23,40 @@ export function getJavaStatusText(locale: Locale, buildInfo: BuildInfo | null) {
   return tf(locale, "javaReadyDetail", { version: buildInfo.java_version });
 }
 
-export function getProtectJavaError(locale: Locale, buildInfo: BuildInfo | null) {
+function withSetupHint(locale: Locale, message: string) {
+  return `${message}${locale === "zh" ? "。" : ". "}${t(locale, "javaSetupHint")}`;
+}
+
+function getRuntimeError(locale: Locale, buildInfo: BuildInfo | null) {
   if (!buildInfo) {
     return t(locale, "checkingEnvironment");
   }
-  if (buildInfo.java_ready && buildInfo.keytool_ready) {
+  if (buildInfo.java_ready) {
     return "";
   }
-  return tf(locale, "javaRequiredForProtect", { min: buildInfo.min_java_major });
+  if (buildInfo.java_major) {
+    return withSetupHint(locale, tf(locale, "javaTooLowDetail", { version: buildInfo.java_version, min: buildInfo.min_java_major }));
+  }
+  return withSetupHint(locale, tf(locale, "javaMissingDetail", { min: buildInfo.min_java_major }));
+}
+
+export function getProtectJavaError(locale: Locale, buildInfo: BuildInfo | null, autoSign: boolean) {
+  const runtimeError = getRuntimeError(locale, buildInfo);
+  if (runtimeError || !buildInfo) return runtimeError;
+  // 自动签名前仍需读取证书指纹；纯加固不要求无关工具。
+  return autoSign && !buildInfo.keytool_ready
+    ? withSetupHint(locale, tf(locale, "javaRequiredForAutoSign", { min: buildInfo.min_java_major }))
+    : "";
 }
 
 export function getSignJavaError(locale: Locale, buildInfo: BuildInfo | null) {
-  if (!buildInfo) {
-    return t(locale, "checkingEnvironment");
-  }
-  if (buildInfo.java_ready && buildInfo.keytool_ready) {
-    return "";
-  }
-  return tf(locale, "javaRequiredForSign", { min: buildInfo.min_java_major });
+  return getRuntimeError(locale, buildInfo);
 }
 
 export function getAliasJavaError(locale: Locale, buildInfo: BuildInfo | null) {
-  if (!buildInfo) {
-    return t(locale, "checkingEnvironment");
-  }
-  if (buildInfo.java_ready && buildInfo.keytool_ready) {
-    return "";
-  }
-  return tf(locale, "javaRequiredForAlias", { min: buildInfo.min_java_major });
+  const runtimeError = getRuntimeError(locale, buildInfo);
+  if (runtimeError || !buildInfo) return runtimeError;
+  return buildInfo.keytool_ready
+    ? ""
+    : withSetupHint(locale, tf(locale, "javaMissingKeytool", { min: buildInfo.min_java_major }));
 }

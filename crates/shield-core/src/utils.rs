@@ -233,13 +233,14 @@ fn read_java_version(java_path: &Path) -> Result<(Option<String>, Option<u32>)> 
         .output()
         .context("执行 java -version 失败")?;
 
-    let text = if output.stderr.is_empty() {
-        String::from_utf8_lossy(&output.stdout).to_string()
-    } else {
-        String::from_utf8_lossy(&output.stderr).to_string()
-    };
+    anyhow::ensure!(output.status.success(), "执行 java -version 未成功");
 
-    Ok(parse_java_version_text(&text))
+    let stderr_version = parse_java_version_text(&String::from_utf8_lossy(&output.stderr));
+    Ok(if stderr_version.1.is_some() {
+        stderr_version
+    } else {
+        parse_java_version_text(&String::from_utf8_lossy(&output.stdout))
+    })
 }
 
 fn parse_java_version_text(text: &str) -> (Option<String>, Option<u32>) {
@@ -300,9 +301,20 @@ pub fn probe_java_environment() -> JavaEnvironmentInfo {
 
 pub fn ensure_java_runtime() -> Result<JavaEnvironmentInfo> {
     let info = probe_java_environment();
+    validate_java_runtime(&info)?;
+    Ok(info)
+}
 
+fn validate_java_runtime(info: &JavaEnvironmentInfo) -> Result<()> {
     if info.java_path.is_none() {
         anyhow::bail!(missing_java_message());
+    }
+
+    if info.major_version.is_none() {
+        anyhow::bail!(
+            "已找到 Java，但无法确认其版本或 java -version 未成功；请检查 Java 是否能正常启动。\n{}",
+            install_java_hint()
+        );
     }
 
     if !info.java_ready() {
@@ -314,14 +326,14 @@ pub fn ensure_java_runtime() -> Result<JavaEnvironmentInfo> {
         );
     }
 
-    Ok(info)
+    Ok(())
 }
 
 pub fn ensure_keytool() -> Result<JavaEnvironmentInfo> {
     let info = ensure_java_runtime()?;
     if !info.keytool_ready() {
         anyhow::bail!(
-            "已检测到 Java，但未找到可执行的 keytool；证书识别与签名需要完整 JDK {}+。\n{}",
+            "已检测到 Java，但未找到可执行的 keytool；证书操作及加固后自动签名的证书核对需要完整 JDK {}+。\n{}",
             MIN_JAVA_MAJOR_VERSION,
             install_java_hint()
         );
@@ -519,5 +531,56 @@ OpenJDK 64-Bit Server VM Temurin-17.0.15+6 (build 17.0.15+6, mixed mode)"#;
         assert_eq!(version, None);
         assert_eq!(major, None);
         assert_eq!(parse_java_major_version("ea"), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn java探测不能接受非零退出的版本文本() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let java = dir.path().join("java");
+        std::fs::write(
+            &java,
+            "#!/bin/sh\necho 'openjdk version \"17.0.1\"' >&2\nexit 1\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(super::read_java_version(&java).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn java版本在标准输出时不被启动器警告覆盖() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let java = dir.path().join("java");
+        std::fs::write(
+            &java,
+            "#!/bin/sh\necho '启动器警告' >&2\necho 'openjdk version \"11.0.1\"'\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(super::read_java_version(&java).unwrap().1, Some(11));
+    }
+
+    #[test]
+    fn 未知版本不应提示版本过低() {
+        let mut info = JavaEnvironmentInfo {
+            java_path: Some(PathBuf::from("java")),
+            keytool_path: None,
+            version_text: None,
+            major_version: None,
+        };
+        let message = super::validate_java_runtime(&info).unwrap_err().to_string();
+        assert!(message.contains("无法确认"));
+        assert!(!message.contains("版本过低"));
+        info.major_version = Some(7);
+        info.version_text = Some("1.7.0_80".into());
+        assert!(super::validate_java_runtime(&info)
+            .unwrap_err()
+            .to_string()
+            .contains("版本过低"));
+        info.major_version = Some(8);
+        assert!(super::validate_java_runtime(&info).is_ok());
     }
 }

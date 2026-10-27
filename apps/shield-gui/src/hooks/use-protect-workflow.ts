@@ -250,7 +250,7 @@ export function useProtectWorkflow({
         const confirmed = window.confirm(t(locale, "confirmOverwriteOutput"));
         if (!confirmed) return;
       }
-      const javaError = getProtectJavaError(locale, buildInfo);
+      const javaError = getProtectJavaError(locale, buildInfo, autoSignReady);
       if (javaError) {
         setError(javaError);
         notifyError(javaError);

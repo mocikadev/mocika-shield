@@ -22,6 +22,10 @@ Java 优先从 PATH 查找，再查 JAVA_HOME/bin。keytool 优先使用该 Java
 
 如果只能找到 Java 而找不到 keytool，请确认安装的是完整 JDK 而非仅 JRE，将 `JAVA_HOME` 指向 JDK 根目录（不要包含 `bin`），或将 JDK 的 `bin` 目录加入用户/系统 PATH，然后重新启动桌面工具以继承新环境。无需为本次修复降低或升级操作系统版本。探测方案与验证边界见 [Java 工具探测](../design/java-tool-discovery.md)。
 
+维护中的任务依赖校准：纯加固及使用已保存证书的独立签名只要求可用的 Java 8+，不因缺少 keytool 被前端额外拦截；导入、创建、校验证书，以及加固后自动签名前的证书指纹核对仍需要 keytool，完整 JDK 继续作为推荐环境。此变更未随 1.4.2 发布，实施与验收见[工具链就绪检查](../superpowers/plans/2026-10-27-toolchain-readiness.md)。不取消签名一致性检查，不保证所有 JRE 发行版与用户证书组合均已验证。
+
+关于页可“刷新环境”重新检查当前进程可见的工具；它不会修改系统环境，也不能让已运行的桌面进程重新继承外部改动的 PATH。修改环境变量后请先重启本工具。已找到 Java 但版本命令失败或无法解析时，不应当作版本过低；请先在对应环境确认 `java -version` 能成功执行。
+
 ## Linux 构建依赖
 
 Linux 下构建 Tauri 桌面包时，除 Rust / Node.js / Java / Android SDK 外，还需要系统包：
