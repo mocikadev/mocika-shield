@@ -166,6 +166,8 @@ function Build-Stub {
     if (-not (Test-Path $zip)) { Err "shield-stub 构建失败，resources.zip 未生成" }
     $api19Zip = Join-Path $Root "shield-stub\build\outputs\resources\resources-api19.zip"
     if (-not (Test-Path $api19Zip)) { Err "shield-stub 构建失败，resources-api19.zip 未生成" }
+    $pythonCommand = if ($env:PYTHON) { $env:PYTHON } else { "python" }
+    Run $pythonCommand @((Join-Path $Root "scripts\check_resource_version.py"), $Version, $zip, $api19Zip)
     Success "shield-stub 构建完成"
 }
 

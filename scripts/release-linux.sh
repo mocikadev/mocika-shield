@@ -75,7 +75,7 @@ check_deps() {
 build_stub() {
   info "构建 shield-stub（resources.zip）..."
   cd "$ROOT"
-  bash scripts/build-stub.sh
+  SHIELD_VERSION="$VERSION" bash scripts/build-stub.sh
   SKIP_STANDARD_STUB_BUILD=1 bash scripts/build-android-api19-resources.sh
   RESOURCES_ZIP="$ROOT/shield-stub/build/outputs/resources/resources.zip"
   if [[ ! -f "$RESOURCES_ZIP" ]]; then
@@ -84,6 +84,8 @@ build_stub() {
   if [[ ! -f "$ROOT/shield-stub/build/outputs/resources/resources-api19.zip" ]]; then
     error "shield-stub 构建失败，resources-api19.zip 未生成"
   fi
+  python3 scripts/check_resource_version.py "$VERSION" "$RESOURCES_ZIP" \
+    "$ROOT/shield-stub/build/outputs/resources/resources-api19.zip"
   success "shield-stub 构建完成"
 }
 
