@@ -20,6 +20,9 @@ def check_version(path: Path, expected: str) -> None:
 
 
 def main() -> int:
+    # Windows CI 的重定向管道可能使用 cp1252；只固定本脚本输出，不修改系统设置。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version", help="本次发布版本（含预发布后缀）")
     parser.add_argument("resources", nargs="+", type=Path, help="待打包的资源 ZIP")
