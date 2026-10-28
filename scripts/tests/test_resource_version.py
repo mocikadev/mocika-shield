@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -14,6 +15,25 @@ CHECKER = ROOT / "scripts/check_resource_version.py"
 
 
 class ResourceVersionTests(unittest.TestCase):
+    def test_非_utf8输出环境仍能报告成功和失败(self):
+        for defect in (None, "版本不一致", "文件缺失"):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / "中文资源.zip"
+                if defect != "文件缺失":
+                    with zipfile.ZipFile(path, "w") as archive:
+                        archive.writestr("metadata.json", json.dumps({
+                            "version": "1.0.0" if defect else "1.4.3",
+                        }))
+                env = dict(os.environ, PYTHONIOENCODING="cp1252:strict", PYTHONUTF8="0")
+                result = subprocess.run(
+                    [sys.executable, str(CHECKER), "1.4.3", str(path)],
+                    env=env, capture_output=True,
+                )
+                self.assertEqual(result.returncode, 1 if defect else 0)
+                output = (result.stderr if defect else result.stdout).decode("utf-8")
+                self.assertIn("资源版本检查失败" if defect else "资源版本检查通过", output)
+                self.assertNotIn("Traceback", output)
+
     def test_三平台发布均在资源构建后校验版本(self):
         for platform in ("macos", "linux"):
             text = (ROOT / f"scripts/release-{platform}.sh").read_text()
