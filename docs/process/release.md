@@ -173,6 +173,8 @@ mocika-shield-x.y.z/
 
 GUI 发布包已内置 apktool.jar、apksigner.jar、resources.zip，用户无需额外配置工具路径。
 
+三平台发布入口必须在标准与工控资源构建完成后、桌面打包前检查两套资源的 `metadata.json.version` 与本次发布版本完全一致（含预发布后缀）。macOS/Linux 向资源构建子进程显式传递 `SHIELD_VERSION="$VERSION"`，Windows 使用 `-ShieldVersion $Version`；检查由 `scripts/check_resource_version.py` 共用，缺失或不一致立即停止，不能仅凭安装包文件名和应用版本判为通过。
+
 ### Windows 本地发布产物（`dist/` 目录）
 
 ```
