@@ -124,6 +124,16 @@ Detailed guides are currently primarily in Chinese. The CLI is source-built; Rel
 
 </details>
 
+## Support the Project
+
+If Mocika Shield has helped you, feel free to buy me a coffee via WeChat ☕
+
+<img src="docs/assets/community/wechat-sponsor.png" alt="WeChat donation QR code" width="200" />
+
+You're also welcome to share the types of apps you protect and the devices they run on through a donation message, GitHub issue, or our QQ group. Real-world use cases help us prioritize future compatibility work.
+
+Thank you to everyone who uses, provides feedback on, and supports Mocika Shield.
+
 ## License
 
 Dual-licensed under **MIT OR Apache-2.0**, at your choice: [MIT](LICENSE-MIT) · [Apache-2.0](LICENSE-APACHE).

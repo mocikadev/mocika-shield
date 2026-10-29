@@ -124,6 +124,16 @@ CLI 仅供源码构建和自动化使用，Release 不单独提供 CLI 包。构
 
 </details>
 
+## 支持一下
+
+如果 Mocika Shield 帮到了你，欢迎扫码请我喝杯咖啡 ☕
+
+<img src="docs/assets/community/wechat-sponsor.png" alt="微信赞赏码" width="200" />
+
+也欢迎通过赞赏留言、Issue 或 QQ 群，分享你加固的应用类型和设备环境。这些真实案例能帮助我们判断后续适配方向。
+
+感谢每一位使用、反馈和支持 Mocika Shield 的朋友。
+
 ## 许可证
 
 采用 **MIT OR Apache-2.0** 双协议，可选择其中任意一种：[MIT](LICENSE-MIT) · [Apache-2.0](LICENSE-APACHE)。
