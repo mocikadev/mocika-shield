@@ -161552,7 +161552,3739 @@
           "其他": 0
         }
       }
+    },
+    {
+      "date": "2026-10-29",
+      "collected_at": "2026-10-29T06:35:39.992943Z",
+      "repository": {
+        "available": true,
+        "stars": 104,
+        "forks": 25,
+        "open_issues": 4
+      },
+      "traffic": {
+        "window_days": 14,
+        "available": true,
+        "views": 972,
+        "unique_visitors": 551,
+        "clones": 563,
+        "unique_cloners": 178
+      },
+      "usage": {
+        "available": true,
+        "active_devices_definition": "distinct_installation_per_utc_period",
+        "activity_windows_available": true,
+        "activity_windows": [
+          {
+            "window_days": 7,
+            "start_date": "2026-10-23",
+            "end_date": "2026-10-29",
+            "active_devices": 54
+          },
+          {
+            "window_days": 30,
+            "start_date": "2026-09-30",
+            "end_date": "2026-10-29",
+            "active_devices": 148
+          }
+        ],
+        "active_devices": 16,
+        "latest_complete_date": "2026-10-28",
+        "app_starts": 365,
+        "protect_successes": 216,
+        "protect_failures": 35,
+        "trend": [
+          {
+            "protect_successes": 21,
+            "active_devices": 13,
+            "app_starts": 21,
+            "protect_failures": 0,
+            "sign_successes": 15,
+            "usage_date": "2026-10-15",
+            "date": "2026-10-15"
+          },
+          {
+            "protect_successes": 24,
+            "active_devices": 6,
+            "app_starts": 19,
+            "protect_failures": 9,
+            "sign_successes": 30,
+            "usage_date": "2026-10-16",
+            "date": "2026-10-16"
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 7,
+            "app_starts": 11,
+            "protect_failures": 0,
+            "sign_successes": 2,
+            "usage_date": "2026-10-17",
+            "date": "2026-10-17"
+          },
+          {
+            "protect_successes": 4,
+            "active_devices": 8,
+            "app_starts": 10,
+            "protect_failures": 0,
+            "sign_successes": 3,
+            "usage_date": "2026-10-18",
+            "date": "2026-10-18"
+          },
+          {
+            "protect_successes": 23,
+            "active_devices": 28,
+            "app_starts": 40,
+            "protect_failures": 11,
+            "sign_successes": 19,
+            "usage_date": "2026-10-19",
+            "date": "2026-10-19"
+          },
+          {
+            "protect_successes": 21,
+            "active_devices": 21,
+            "app_starts": 40,
+            "protect_failures": 3,
+            "sign_successes": 19,
+            "usage_date": "2026-10-20",
+            "date": "2026-10-20"
+          },
+          {
+            "protect_successes": 12,
+            "active_devices": 10,
+            "app_starts": 35,
+            "protect_failures": 2,
+            "sign_successes": 15,
+            "usage_date": "2026-10-21",
+            "date": "2026-10-21"
+          },
+          {
+            "protect_successes": 12,
+            "active_devices": 10,
+            "app_starts": 22,
+            "protect_failures": 0,
+            "sign_successes": 12,
+            "usage_date": "2026-10-22",
+            "date": "2026-10-22"
+          },
+          {
+            "protect_successes": 12,
+            "active_devices": 8,
+            "app_starts": 14,
+            "protect_failures": 3,
+            "sign_successes": 13,
+            "usage_date": "2026-10-23",
+            "date": "2026-10-23"
+          },
+          {
+            "protect_successes": 10,
+            "active_devices": 7,
+            "app_starts": 11,
+            "protect_failures": 2,
+            "sign_successes": 10,
+            "usage_date": "2026-10-24",
+            "date": "2026-10-24"
+          },
+          {
+            "protect_successes": 12,
+            "active_devices": 8,
+            "app_starts": 61,
+            "protect_failures": 1,
+            "sign_successes": 23,
+            "usage_date": "2026-10-25",
+            "date": "2026-10-25"
+          },
+          {
+            "protect_successes": 31,
+            "active_devices": 20,
+            "app_starts": 37,
+            "protect_failures": 1,
+            "sign_successes": 20,
+            "usage_date": "2026-10-26",
+            "date": "2026-10-26"
+          },
+          {
+            "protect_successes": 16,
+            "active_devices": 11,
+            "app_starts": 17,
+            "protect_failures": 3,
+            "sign_successes": 16,
+            "usage_date": "2026-10-27",
+            "date": "2026-10-27"
+          },
+          {
+            "protect_successes": 15,
+            "active_devices": 16,
+            "app_starts": 27,
+            "protect_failures": 0,
+            "sign_successes": 12,
+            "usage_date": "2026-10-28",
+            "date": "2026-10-28"
+          }
+        ],
+        "version_breakdown_available": true,
+        "version_trend": [
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.3.0",
+            "date": "2026-10-15",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.0",
+            "date": "2026-10-15",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-15",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 10,
+            "active_devices": 8,
+            "sign_failures": 0,
+            "app_starts": 14,
+            "protect_failures": 0,
+            "protect_starts": 10,
+            "sign_successes": 5,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.1",
+            "date": "2026-10-15",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 6,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 0,
+            "protect_failures": 0,
+            "protect_starts": 6,
+            "sign_successes": 6,
+            "usage_date": "2026-10-15",
+            "app_version": "1.6.4",
+            "date": "2026-10-15",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.8.0",
+            "date": "2026-10-15",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 7,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 7,
+            "sign_successes": 13,
+            "usage_date": "2026-10-16",
+            "app_version": "1.3.0",
+            "date": "2026-10-16",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-16",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-16",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-16",
+            "app_version": "1.4.1",
+            "date": "2026-10-16",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 11,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 6,
+            "protect_failures": 5,
+            "protect_starts": 16,
+            "sign_successes": 11,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.0",
+            "date": "2026-10-16",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 1,
+            "protect_starts": 1,
+            "sign_successes": 0,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.1",
+            "date": "2026-10-16",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 2,
+            "protect_starts": 2,
+            "sign_successes": 0,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.2",
+            "date": "2026-10-16",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 6,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 1,
+            "protect_starts": 7,
+            "sign_successes": 6,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.3",
+            "date": "2026-10-16",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 4,
+            "sign_failures": 0,
+            "app_starts": 8,
+            "protect_failures": 0,
+            "protect_starts": 3,
+            "sign_successes": 2,
+            "usage_date": "2026-10-17",
+            "app_version": "1.4.1",
+            "date": "2026-10-17",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 3,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-17",
+            "app_version": "1.7.0",
+            "date": "2026-10-17",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 0,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.0",
+            "date": "2026-10-18",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-18",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 2,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.1",
+            "date": "2026-10-18",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 3,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-18",
+            "app_version": "1.7.0",
+            "date": "2026-10-18",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-18",
+            "app_version": "1.8.4",
+            "date": "2026-10-18",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 0,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 4,
+            "usage_date": "2026-10-19",
+            "app_version": "1.3.0",
+            "date": "2026-10-19",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 3,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-19",
+            "app_version": "1.4.1",
+            "date": "2026-10-19",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-19",
+            "app_version": "1.4.2-rc.2",
+            "date": "2026-10-19",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.3",
+            "date": "2026-10-19",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 11,
+            "active_devices": 20,
+            "sign_failures": 0,
+            "app_starts": 25,
+            "protect_failures": 8,
+            "protect_starts": 19,
+            "sign_successes": 7,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4",
+            "date": "2026-10-19",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 8,
+            "active_devices": 7,
+            "sign_failures": 2,
+            "app_starts": 9,
+            "protect_failures": 3,
+            "protect_starts": 11,
+            "sign_successes": 7,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5",
+            "date": "2026-10-19",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 0,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.6",
+            "date": "2026-10-19",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 2,
+            "usage_date": "2026-10-20",
+            "app_version": "1.3.0",
+            "date": "2026-10-20",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-20",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 6,
+            "active_devices": 4,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 0,
+            "protect_starts": 6,
+            "sign_successes": 3,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.1",
+            "date": "2026-10-20",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 4,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 0,
+            "protect_starts": 4,
+            "sign_successes": 4,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.2-rc.2",
+            "date": "2026-10-20",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-20",
+            "app_version": "1.6.3",
+            "date": "2026-10-20",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.5",
+            "date": "2026-10-20",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 9,
+            "active_devices": 13,
+            "sign_failures": 0,
+            "app_starts": 26,
+            "protect_failures": 3,
+            "protect_starts": 12,
+            "sign_successes": 9,
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6",
+            "date": "2026-10-20",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 2,
+            "usage_date": "2026-10-21",
+            "app_version": "1.4.1",
+            "date": "2026-10-21",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 3,
+            "usage_date": "2026-10-21",
+            "app_version": "1.4.2-rc.2",
+            "date": "2026-10-21",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.4",
+            "date": "2026-10-21",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.5",
+            "date": "2026-10-21",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 8,
+            "active_devices": 8,
+            "sign_failures": 0,
+            "app_starts": 29,
+            "protect_failures": 1,
+            "protect_starts": 9,
+            "sign_successes": 10,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.6",
+            "date": "2026-10-21",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 1,
+            "protect_starts": 1,
+            "sign_successes": 0,
+            "usage_date": "2026-10-21",
+            "app_version": "1.9.0",
+            "date": "2026-10-21",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 0,
+            "protect_starts": 3,
+            "sign_successes": 4,
+            "usage_date": "2026-10-22",
+            "app_version": "1.3.0",
+            "date": "2026-10-22",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-22",
+            "app_version": "1.4.0",
+            "date": "2026-10-22",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 6,
+            "protect_failures": 0,
+            "protect_starts": 3,
+            "sign_successes": 3,
+            "usage_date": "2026-10-22",
+            "app_version": "1.4.1",
+            "date": "2026-10-22",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-22",
+            "app_version": "1.8.5",
+            "date": "2026-10-22",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 4,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-22",
+            "app_version": "1.8.6",
+            "date": "2026-10-22",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 5,
+            "active_devices": 5,
+            "sign_failures": 0,
+            "app_starts": 6,
+            "protect_failures": 0,
+            "protect_starts": 5,
+            "sign_successes": 4,
+            "usage_date": "2026-10-22",
+            "app_version": "1.9.0",
+            "date": "2026-10-22",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 0,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 3,
+            "usage_date": "2026-10-23",
+            "app_version": "1.3.0",
+            "date": "2026-10-23",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 2,
+            "usage_date": "2026-10-23",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-23",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 6,
+            "active_devices": 4,
+            "sign_failures": 0,
+            "app_starts": 8,
+            "protect_failures": 0,
+            "protect_starts": 6,
+            "sign_successes": 6,
+            "usage_date": "2026-10-23",
+            "app_version": "1.4.1",
+            "date": "2026-10-23",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 3,
+            "protect_starts": 5,
+            "sign_successes": 2,
+            "usage_date": "2026-10-23",
+            "app_version": "1.9.0",
+            "date": "2026-10-23",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 5,
+            "active_devices": 4,
+            "sign_failures": 0,
+            "app_starts": 8,
+            "protect_failures": 2,
+            "protect_starts": 7,
+            "sign_successes": 5,
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.1",
+            "date": "2026-10-24",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 4,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 4,
+            "sign_successes": 4,
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.2-rc.2",
+            "date": "2026-10-24",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-24",
+            "app_version": "1.8.6",
+            "date": "2026-10-24",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 0,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-24",
+            "app_version": "1.9.0",
+            "date": "2026-10-24",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.0",
+            "date": "2026-10-25",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 2,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.0-alpha.1",
+            "date": "2026-10-25",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 9,
+            "active_devices": 6,
+            "sign_failures": 1,
+            "app_starts": 17,
+            "protect_failures": 1,
+            "protect_starts": 11,
+            "sign_successes": 20,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1",
+            "date": "2026-10-25",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 40,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 1,
+            "usage_date": "2026-10-25",
+            "app_version": "1.8.6",
+            "date": "2026-10-25",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-25",
+            "app_version": "1.9.0",
+            "date": "2026-10-25",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.3.0",
+            "date": "2026-10-26",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 3,
+            "sign_successes": 0,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.0",
+            "date": "2026-10-26",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 13,
+            "active_devices": 5,
+            "sign_failures": 0,
+            "app_starts": 6,
+            "protect_failures": 0,
+            "protect_starts": 13,
+            "sign_successes": 4,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.1",
+            "date": "2026-10-26",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 3,
+            "active_devices": 4,
+            "sign_failures": 2,
+            "app_starts": 8,
+            "protect_failures": 0,
+            "protect_starts": 3,
+            "sign_successes": 4,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2",
+            "date": "2026-10-26",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2-rc.4",
+            "date": "2026-10-26",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.4",
+            "date": "2026-10-26",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.5",
+            "date": "2026-10-26",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 1,
+            "protect_starts": 3,
+            "sign_successes": 3,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.6",
+            "date": "2026-10-26",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 9,
+            "active_devices": 8,
+            "sign_failures": 0,
+            "app_starts": 13,
+            "protect_failures": 0,
+            "protect_starts": 9,
+            "sign_successes": 8,
+            "usage_date": "2026-10-26",
+            "app_version": "1.9.0",
+            "date": "2026-10-26",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 2,
+            "usage_date": "2026-10-27",
+            "app_version": "1.3.0",
+            "date": "2026-10-27",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 0,
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.0",
+            "date": "2026-10-27",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 5,
+            "active_devices": 5,
+            "sign_failures": 1,
+            "app_starts": 11,
+            "protect_failures": 0,
+            "protect_starts": 5,
+            "sign_successes": 6,
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.2",
+            "date": "2026-10-27",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 8,
+            "active_devices": 3,
+            "sign_failures": 0,
+            "app_starts": 4,
+            "protect_failures": 3,
+            "protect_starts": 11,
+            "sign_successes": 8,
+            "usage_date": "2026-10-27",
+            "app_version": "1.9.0",
+            "date": "2026-10-27",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 2,
+            "sign_failures": 0,
+            "app_starts": 3,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 2,
+            "usage_date": "2026-10-28",
+            "app_version": "1.3.0",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 2,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 2,
+            "protect_failures": 0,
+            "protect_starts": 2,
+            "sign_successes": 0,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.0",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.1",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 6,
+            "active_devices": 5,
+            "sign_failures": 0,
+            "app_starts": 9,
+            "protect_failures": 0,
+            "protect_starts": 7,
+            "sign_successes": 7,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.2",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.2-rc.2",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 1,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 1,
+            "sign_successes": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.3",
+            "date": "2026-10-28",
+            "release_version_match": true
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-28",
+            "app_version": "1.8.4",
+            "date": "2026-10-28",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 0,
+            "active_devices": 1,
+            "sign_failures": 0,
+            "app_starts": 1,
+            "protect_failures": 0,
+            "protect_starts": 0,
+            "sign_successes": 0,
+            "usage_date": "2026-10-28",
+            "app_version": "1.8.5",
+            "date": "2026-10-28",
+            "release_version_match": false
+          },
+          {
+            "protect_successes": 5,
+            "active_devices": 6,
+            "sign_failures": 0,
+            "app_starts": 8,
+            "protect_failures": 0,
+            "protect_starts": 5,
+            "sign_successes": 2,
+            "usage_date": "2026-10-28",
+            "app_version": "1.9.0",
+            "date": "2026-10-28",
+            "release_version_match": false
+          }
+        ],
+        "failure_breakdown_available": true,
+        "failure_breakdown": [
+          {
+            "count": 5,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.0",
+            "date": "2026-10-16"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.1",
+            "date": "2026-10-16"
+          },
+          {
+            "count": 2,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.2",
+            "date": "2026-10-16"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.3",
+            "date": "2026-10-16"
+          },
+          {
+            "count": 6,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "manifest",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "prepare",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 2,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "manifest",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "sign",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "sign",
+            "stage": "execute",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5",
+            "date": "2026-10-19"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "manifest",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6",
+            "date": "2026-10-20"
+          },
+          {
+            "count": 2,
+            "operation": "protect",
+            "stage": "prepare",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6",
+            "date": "2026-10-20"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.6",
+            "date": "2026-10-21"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-21",
+            "app_version": "1.9.0",
+            "date": "2026-10-21"
+          },
+          {
+            "count": 3,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-23",
+            "app_version": "1.9.0",
+            "date": "2026-10-23"
+          },
+          {
+            "count": 2,
+            "operation": "protect",
+            "stage": "manifest",
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.1",
+            "date": "2026-10-24"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "manifest",
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1",
+            "date": "2026-10-25"
+          },
+          {
+            "count": 1,
+            "operation": "sign",
+            "stage": "execute",
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1",
+            "date": "2026-10-25"
+          },
+          {
+            "count": 2,
+            "operation": "sign",
+            "stage": "execute",
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2",
+            "date": "2026-10-26"
+          },
+          {
+            "count": 1,
+            "operation": "protect",
+            "stage": "prepare",
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.6",
+            "date": "2026-10-26"
+          },
+          {
+            "count": 1,
+            "operation": "sign",
+            "stage": "execute",
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.2",
+            "date": "2026-10-27"
+          },
+          {
+            "count": 3,
+            "operation": "protect",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-27",
+            "app_version": "1.9.0",
+            "date": "2026-10-27"
+          }
+        ],
+        "failure_reason_breakdown_available": true,
+        "failure_reason_breakdown": [
+          {
+            "operation": "certificate",
+            "count": 13,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-15",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "protect",
+            "count": 5,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-16",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.0"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-16",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.1"
+          },
+          {
+            "operation": "protect",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-16",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.2"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-16",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.3"
+          },
+          {
+            "operation": "certificate",
+            "count": 3,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-19",
+            "code": "KEYSTORE_PASSWORD_INVALID",
+            "stage": "execute",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "certificate",
+            "count": 7,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-19",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "protect",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-19",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-19",
+            "code": "APK_REPACK_FAILED",
+            "stage": "manifest",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "protect",
+            "count": 4,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-19",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-19",
+            "code": "UNKNOWN",
+            "stage": "prepare",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "operation": "protect",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-19",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-19",
+            "code": "APK_REPACK_FAILED",
+            "stage": "manifest",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5"
+          },
+          {
+            "operation": "sign",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-19",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5"
+          },
+          {
+            "operation": "sign",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "sign",
+            "date": "2026-10-19",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5"
+          },
+          {
+            "operation": "certificate",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-20",
+            "code": "KEYSTORE_PASSWORD_INVALID",
+            "stage": "execute",
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "certificate",
+            "count": 5,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-20",
+            "code": "KEYSTORE_PASSWORD_INVALID",
+            "stage": "execute",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "certificate",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-20",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-20",
+            "code": "UNKNOWN",
+            "stage": "manifest",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "protect",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-20",
+            "code": "UNKNOWN",
+            "stage": "prepare",
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "certificate",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-21",
+            "code": "KEY_ALIAS_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-21",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-21",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect",
+            "date": "2026-10-21",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-21",
+            "app_version": "1.9.0"
+          },
+          {
+            "operation": "protect",
+            "count": 3,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-23",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-23",
+            "app_version": "1.9.0"
+          },
+          {
+            "operation": "certificate",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-24",
+            "code": "KEY_ALIAS_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "protect",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-24",
+            "code": "APK_REPACK_FAILED",
+            "stage": "manifest",
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "certificate",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-25",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-25",
+            "code": "APK_REPACK_FAILED",
+            "stage": "manifest",
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "sign",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "sign",
+            "date": "2026-10-25",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1"
+          },
+          {
+            "operation": "certificate",
+            "count": 6,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-25",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-25",
+            "app_version": "1.9.0"
+          },
+          {
+            "operation": "certificate",
+            "count": 3,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-26",
+            "code": "KEYSTORE_PASSWORD_INVALID",
+            "stage": "execute",
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "certificate",
+            "count": 8,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-26",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "certificate",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-26",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "sign",
+            "count": 2,
+            "classifier_version": 1,
+            "flow": "sign",
+            "date": "2026-10-26",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "protect",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-26",
+            "code": "UNKNOWN",
+            "stage": "prepare",
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.6"
+          },
+          {
+            "operation": "certificate",
+            "count": 5,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-27",
+            "code": "KEYSTORE_PASSWORD_INVALID",
+            "stage": "execute",
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "sign",
+            "count": 1,
+            "classifier_version": 1,
+            "flow": "sign",
+            "date": "2026-10-27",
+            "code": "TOOL_PROCESS_FAILED",
+            "stage": "execute",
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.2"
+          },
+          {
+            "operation": "protect",
+            "count": 3,
+            "classifier_version": 1,
+            "flow": "protect_with_sign",
+            "date": "2026-10-27",
+            "code": "UNKNOWN",
+            "stage": "dex_runtime",
+            "usage_date": "2026-10-27",
+            "app_version": "1.9.0"
+          },
+          {
+            "operation": "certificate",
+            "count": 6,
+            "classifier_version": 1,
+            "flow": "certificate",
+            "date": "2026-10-28",
+            "code": "TOOL_NOT_FOUND",
+            "stage": "execute",
+            "usage_date": "2026-10-28",
+            "app_version": "1.9.0"
+          }
+        ],
+        "failure_classifier_coverage": [
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 8,
+            "usage_date": "2026-10-15",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.6.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-15",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-15",
+            "app_version": "1.8.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-16",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-16",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-16",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-16",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-16",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-16",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-16",
+            "failure_count": 5,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-16",
+            "failure_count": 1,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-16",
+            "failure_count": 2,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-16",
+            "failure_count": 1,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-16",
+            "app_version": "1.8.3"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-17",
+            "failure_count": 0,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-17",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-17",
+            "failure_count": 0,
+            "reporting_devices": 3,
+            "usage_date": "2026-10-17",
+            "app_version": "1.7.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-18",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-18",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-18",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-18",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-18",
+            "failure_count": 0,
+            "reporting_devices": 3,
+            "usage_date": "2026-10-18",
+            "app_version": "1.7.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-18",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-18",
+            "app_version": "1.8.4"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-19",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-19",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 0,
+            "reporting_devices": 3,
+            "usage_date": "2026-10-19",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-19",
+            "app_version": "1.4.2-rc.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.3"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 8,
+            "reporting_devices": 20,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 5,
+            "reporting_devices": 7,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-19",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-19",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-20",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-20",
+            "app_version": "1.4.2-rc.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-20",
+            "app_version": "1.6.3"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-20",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-20",
+            "failure_count": 3,
+            "reporting_devices": 13,
+            "usage_date": "2026-10-20",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-21",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-21",
+            "app_version": "1.4.2-rc.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 1,
+            "reporting_devices": 8,
+            "usage_date": "2026-10-21",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-21",
+            "failure_count": 1,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-21",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-22",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-22",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-22",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-22",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-22",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-22",
+            "failure_count": 0,
+            "reporting_devices": 5,
+            "usage_date": "2026-10-22",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-23",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-23",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-23",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-23",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-23",
+            "failure_count": 0,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-23",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-23",
+            "failure_count": 3,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-23",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-24",
+            "failure_count": 2,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-24",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-24",
+            "app_version": "1.4.2-rc.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-24",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-24",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-24",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-24",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-25",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-25",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.0-alpha.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-25",
+            "failure_count": 2,
+            "reporting_devices": 6,
+            "usage_date": "2026-10-25",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-25",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-25",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-25",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-25",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 5,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 2,
+            "reporting_devices": 4,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.4.2-rc.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 1,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-26",
+            "app_version": "1.8.6"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-26",
+            "failure_count": 0,
+            "reporting_devices": 8,
+            "usage_date": "2026-10-26",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-27",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-27",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-27",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-27",
+            "failure_count": 1,
+            "reporting_devices": 5,
+            "usage_date": "2026-10-27",
+            "app_version": "1.4.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-27",
+            "failure_count": 3,
+            "reporting_devices": 3,
+            "usage_date": "2026-10-27",
+            "app_version": "1.9.0"
+          },
+          {
+            "failure_classifier_version": null,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 2,
+            "usage_date": "2026-10-28",
+            "app_version": "1.3.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.0"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.1"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 5,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.2-rc.2"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.4.3"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.8.4"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 1,
+            "usage_date": "2026-10-28",
+            "app_version": "1.8.5"
+          },
+          {
+            "failure_classifier_version": 1,
+            "date": "2026-10-28",
+            "failure_count": 0,
+            "reporting_devices": 6,
+            "usage_date": "2026-10-28",
+            "app_version": "1.9.0"
+          }
+        ]
+      },
+      "release_assets": [
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_linux_amd64.AppImage",
+          "download_count": 8,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_linux_amd64.deb",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_macos_aarch64.dmg",
+          "download_count": 5,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_macos_universal.dmg",
+          "download_count": 4,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.0.0",
+          "published_at": "2026-04-16T12:01:21Z",
+          "name": "MocikaShield_1.0.0_windows_x64_setup.exe",
+          "download_count": 13,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_amd64.AppImage",
+          "download_count": 6,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_amd64.deb",
+          "download_count": 6,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_gnome_amd64.AppImage",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_linux_gnome_amd64.deb",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_arm64.dmg",
+          "download_count": 14,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_swift_arm64.dmg",
+          "download_count": 18,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_swift_universal.dmg",
+          "download_count": 6,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_macos_universal.dmg",
+          "download_count": 8,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.1.0",
+          "published_at": "2026-04-24T12:53:01Z",
+          "name": "MocikaShield_1.1.0_windows_x64_setup.exe",
+          "download_count": 89,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_macos_universal.dmg",
+          "download_count": 5,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0",
+          "published_at": "2026-07-09T10:10:05Z",
+          "name": "MocikaShield_1.2.0_windows_x64_setup.exe",
+          "download_count": 2,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "MocikaShield_1.2.0-rc.1_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-macos-universal.tar.gz",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.1",
+          "published_at": "2026-07-07T13:48:12Z",
+          "name": "mocika-shield-cli-1.2.0-rc.1-windows-x86_64.zip",
+          "download_count": 3,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_macos_universal.dmg",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "MocikaShield_1.2.0-rc.2_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-macos-universal.tar.gz",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.2",
+          "published_at": "2026-07-08T12:14:00Z",
+          "name": "mocika-shield-cli-1.2.0-rc.2-windows-x86_64.zip",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "MocikaShield_1.2.0-rc.3_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-linux-x86_64.tar.gz",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-macos-universal.tar.gz",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.3",
+          "published_at": "2026-07-09T07:14:40Z",
+          "name": "mocika-shield-cli-1.2.0-rc.3-windows-x86_64.zip",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.0-rc.4",
+          "published_at": "2026-07-09T08:55:31Z",
+          "name": "MocikaShield_1.2.0-rc.4_windows_x64_setup.exe",
+          "download_count": 0,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.1",
+          "published_at": "2026-07-09T12:03:28Z",
+          "name": "MocikaShield_1.2.1_windows_x64_setup.exe",
+          "download_count": 5,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.2",
+          "published_at": "2026-07-10T07:32:20Z",
+          "name": "MocikaShield_1.2.2_windows_x64_setup.exe",
+          "download_count": 5,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_linux_amd64.deb",
+          "download_count": 7,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_macos_universal.dmg",
+          "download_count": 14,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.3",
+          "published_at": "2026-07-10T10:22:03Z",
+          "name": "MocikaShield_1.2.3_windows_x64_setup.exe",
+          "download_count": 31,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_macos_universal.dmg",
+          "download_count": 6,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.4",
+          "published_at": "2026-07-20T04:15:35Z",
+          "name": "MocikaShield_1.2.4_windows_x64_setup.exe",
+          "download_count": 27,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_macos_universal.dmg",
+          "download_count": 7,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.5",
+          "published_at": "2026-07-23T06:12:59Z",
+          "name": "MocikaShield_1.2.5_windows_x64_setup.exe",
+          "download_count": 8,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_linux_amd64.AppImage",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_macos_universal.dmg",
+          "download_count": 10,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.6",
+          "published_at": "2026-07-23T12:46:48Z",
+          "name": "MocikaShield_1.2.6_windows_x64_setup.exe",
+          "download_count": 37,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7",
+          "published_at": "2026-07-29T07:02:59Z",
+          "name": "MocikaShield_1.2.7_linux_amd64.AppImage",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7",
+          "published_at": "2026-07-29T07:02:59Z",
+          "name": "MocikaShield_1.2.7_linux_amd64.deb",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7",
+          "published_at": "2026-07-29T07:02:59Z",
+          "name": "MocikaShield_1.2.7_macos_universal.dmg",
+          "download_count": 4,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7",
+          "published_at": "2026-07-29T07:02:59Z",
+          "name": "MocikaShield_1.2.7_windows_x64_setup.exe",
+          "download_count": 15,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7-rc.1",
+          "published_at": "2026-07-27T12:30:14Z",
+          "name": "MocikaShield_1.2.7-rc.1_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.1",
+          "published_at": "2026-07-27T12:30:14Z",
+          "name": "MocikaShield_1.2.7-rc.1_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.1",
+          "published_at": "2026-07-27T12:30:14Z",
+          "name": "MocikaShield_1.2.7-rc.1_macos_universal.dmg",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7-rc.1",
+          "published_at": "2026-07-27T12:30:14Z",
+          "name": "MocikaShield_1.2.7-rc.1_windows_x64_setup.exe",
+          "download_count": 2,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7-rc.2",
+          "published_at": "2026-07-28T03:02:52Z",
+          "name": "MocikaShield_1.2.7-rc.2_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.2",
+          "published_at": "2026-07-28T03:02:52Z",
+          "name": "MocikaShield_1.2.7-rc.2_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.2",
+          "published_at": "2026-07-28T03:02:52Z",
+          "name": "MocikaShield_1.2.7-rc.2_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7-rc.2",
+          "published_at": "2026-07-28T03:02:52Z",
+          "name": "MocikaShield_1.2.7-rc.2_windows_x64_setup.exe",
+          "download_count": 3,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7-rc.3",
+          "published_at": "2026-07-28T09:17:32Z",
+          "name": "MocikaShield_1.2.7-rc.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.3",
+          "published_at": "2026-07-28T09:17:32Z",
+          "name": "MocikaShield_1.2.7-rc.3_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.3",
+          "published_at": "2026-07-28T09:17:32Z",
+          "name": "MocikaShield_1.2.7-rc.3_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7-rc.3",
+          "published_at": "2026-07-28T09:17:32Z",
+          "name": "MocikaShield_1.2.7-rc.3_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7-rc.4",
+          "published_at": "2026-07-28T10:13:08Z",
+          "name": "MocikaShield_1.2.7-rc.4_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.4",
+          "published_at": "2026-07-28T10:13:08Z",
+          "name": "MocikaShield_1.2.7-rc.4_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.4",
+          "published_at": "2026-07-28T10:13:08Z",
+          "name": "MocikaShield_1.2.7-rc.4_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7-rc.4",
+          "published_at": "2026-07-28T10:13:08Z",
+          "name": "MocikaShield_1.2.7-rc.4_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.2.7-rc.5",
+          "published_at": "2026-07-28T14:13:22Z",
+          "name": "MocikaShield_1.2.7-rc.5_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.5",
+          "published_at": "2026-07-28T14:13:22Z",
+          "name": "MocikaShield_1.2.7-rc.5_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.2.7-rc.5",
+          "published_at": "2026-07-28T14:13:22Z",
+          "name": "MocikaShield_1.2.7-rc.5_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.2.7-rc.5",
+          "published_at": "2026-07-28T14:13:22Z",
+          "name": "MocikaShield_1.2.7-rc.5_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.3.0",
+          "published_at": "2026-07-30T02:27:06Z",
+          "name": "MocikaShield_1.3.0_linux_amd64.AppImage",
+          "download_count": 29,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0",
+          "published_at": "2026-07-30T02:27:06Z",
+          "name": "MocikaShield_1.3.0_linux_amd64.deb",
+          "download_count": 22,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0",
+          "published_at": "2026-07-30T02:27:06Z",
+          "name": "MocikaShield_1.3.0_macos_universal.dmg",
+          "download_count": 65,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.3.0",
+          "published_at": "2026-07-30T02:27:06Z",
+          "name": "MocikaShield_1.3.0_windows_x64_setup.exe",
+          "download_count": 213,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.3.0-alpha.1",
+          "published_at": "2026-07-29T10:45:24Z",
+          "name": "MocikaShield_1.3.0-alpha.1_linux_amd64.AppImage",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-alpha.1",
+          "published_at": "2026-07-29T10:45:24Z",
+          "name": "MocikaShield_1.3.0-alpha.1_linux_amd64.deb",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-alpha.1",
+          "published_at": "2026-07-29T10:45:24Z",
+          "name": "MocikaShield_1.3.0-alpha.1_macos_universal.dmg",
+          "download_count": 3,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.3.0-alpha.1",
+          "published_at": "2026-07-29T10:45:24Z",
+          "name": "MocikaShield_1.3.0-alpha.1_windows_x64_setup.exe",
+          "download_count": 3,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.3.0-alpha.2",
+          "published_at": "2026-07-29T12:31:52Z",
+          "name": "MocikaShield_1.3.0-alpha.2_linux_amd64.AppImage",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-alpha.2",
+          "published_at": "2026-07-29T12:31:52Z",
+          "name": "MocikaShield_1.3.0-alpha.2_linux_amd64.deb",
+          "download_count": 2,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-alpha.2",
+          "published_at": "2026-07-29T12:31:52Z",
+          "name": "MocikaShield_1.3.0-alpha.2_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.3.0-alpha.2",
+          "published_at": "2026-07-29T12:31:52Z",
+          "name": "MocikaShield_1.3.0-alpha.2_windows_x64_setup.exe",
+          "download_count": 2,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.3.0-beta.1",
+          "published_at": "2026-07-29T13:11:33Z",
+          "name": "MocikaShield_1.3.0-beta.1_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-beta.1",
+          "published_at": "2026-07-29T13:11:33Z",
+          "name": "MocikaShield_1.3.0-beta.1_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-beta.1",
+          "published_at": "2026-07-29T13:11:33Z",
+          "name": "MocikaShield_1.3.0-beta.1_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.3.0-beta.1",
+          "published_at": "2026-07-29T13:11:33Z",
+          "name": "MocikaShield_1.3.0-beta.1_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.3.0-rc.1",
+          "published_at": "2026-07-29T14:04:37Z",
+          "name": "MocikaShield_1.3.0-rc.1_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-rc.1",
+          "published_at": "2026-07-29T14:04:37Z",
+          "name": "MocikaShield_1.3.0-rc.1_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.3.0-rc.1",
+          "published_at": "2026-07-29T14:04:37Z",
+          "name": "MocikaShield_1.3.0-rc.1_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.3.0-rc.1",
+          "published_at": "2026-07-29T14:04:37Z",
+          "name": "MocikaShield_1.3.0-rc.1_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0",
+          "published_at": "2026-09-18T07:53:31Z",
+          "name": "MocikaShield_1.4.0_linux_amd64.AppImage",
+          "download_count": 56,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0",
+          "published_at": "2026-09-18T07:53:31Z",
+          "name": "MocikaShield_1.4.0_linux_amd64.deb",
+          "download_count": 70,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0",
+          "published_at": "2026-09-18T07:53:31Z",
+          "name": "MocikaShield_1.4.0_macos_universal.dmg",
+          "download_count": 76,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0",
+          "published_at": "2026-09-18T07:53:31Z",
+          "name": "MocikaShield_1.4.0_windows_x64_setup.exe",
+          "download_count": 130,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-alpha.1",
+          "published_at": "2026-07-31T11:21:37Z",
+          "name": "MocikaShield_1.4.0-alpha.1_linux_amd64.AppImage",
+          "download_count": 40,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-alpha.1",
+          "published_at": "2026-07-31T11:21:37Z",
+          "name": "MocikaShield_1.4.0-alpha.1_linux_amd64.deb",
+          "download_count": 38,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-alpha.1",
+          "published_at": "2026-07-31T11:21:37Z",
+          "name": "MocikaShield_1.4.0-alpha.1_macos_universal.dmg",
+          "download_count": 37,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-alpha.1",
+          "published_at": "2026-07-31T11:21:37Z",
+          "name": "MocikaShield_1.4.0-alpha.1_windows_x64_setup.exe",
+          "download_count": 47,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-alpha.2",
+          "published_at": "2026-09-01T07:36:09Z",
+          "name": "MocikaShield_1.4.0-alpha.2_linux_amd64.AppImage",
+          "download_count": 4,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-alpha.2",
+          "published_at": "2026-09-01T07:36:09Z",
+          "name": "MocikaShield_1.4.0-alpha.2_linux_amd64.deb",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-alpha.2",
+          "published_at": "2026-09-01T07:36:09Z",
+          "name": "MocikaShield_1.4.0-alpha.2_macos_universal.dmg",
+          "download_count": 4,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-alpha.2",
+          "published_at": "2026-09-01T07:36:09Z",
+          "name": "MocikaShield_1.4.0-alpha.2_windows_x64_setup.exe",
+          "download_count": 7,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.1",
+          "published_at": "2026-09-02T07:10:37Z",
+          "name": "MocikaShield_1.4.0-beta.1_linux_amd64.AppImage",
+          "download_count": 26,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.1",
+          "published_at": "2026-09-02T07:10:37Z",
+          "name": "MocikaShield_1.4.0-beta.1_linux_amd64.deb",
+          "download_count": 24,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.1",
+          "published_at": "2026-09-02T07:10:37Z",
+          "name": "MocikaShield_1.4.0-beta.1_macos_universal.dmg",
+          "download_count": 30,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.1",
+          "published_at": "2026-09-02T07:10:37Z",
+          "name": "MocikaShield_1.4.0-beta.1_windows_x64_setup.exe",
+          "download_count": 28,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.2",
+          "published_at": "2026-09-11T07:34:18Z",
+          "name": "MocikaShield_1.4.0-beta.2_linux_amd64.AppImage",
+          "download_count": 12,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.2",
+          "published_at": "2026-09-11T07:34:18Z",
+          "name": "MocikaShield_1.4.0-beta.2_linux_amd64.deb",
+          "download_count": 14,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.2",
+          "published_at": "2026-09-11T07:34:18Z",
+          "name": "MocikaShield_1.4.0-beta.2_macos_universal.dmg",
+          "download_count": 14,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.2",
+          "published_at": "2026-09-11T07:34:18Z",
+          "name": "MocikaShield_1.4.0-beta.2_windows_x64_setup.exe",
+          "download_count": 19,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.3",
+          "published_at": "2026-09-16T07:18:58Z",
+          "name": "MocikaShield_1.4.0-beta.3_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.3",
+          "published_at": "2026-09-16T07:18:58Z",
+          "name": "MocikaShield_1.4.0-beta.3_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.3",
+          "published_at": "2026-09-16T07:18:58Z",
+          "name": "MocikaShield_1.4.0-beta.3_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.3",
+          "published_at": "2026-09-16T07:18:58Z",
+          "name": "MocikaShield_1.4.0-beta.3_windows_x64_setup.exe",
+          "download_count": 3,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.4",
+          "published_at": "2026-09-16T08:12:19Z",
+          "name": "MocikaShield_1.4.0-beta.4_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.4",
+          "published_at": "2026-09-16T08:12:19Z",
+          "name": "MocikaShield_1.4.0-beta.4_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.4",
+          "published_at": "2026-09-16T08:12:19Z",
+          "name": "MocikaShield_1.4.0-beta.4_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.4",
+          "published_at": "2026-09-16T08:12:19Z",
+          "name": "MocikaShield_1.4.0-beta.4_windows_x64_setup.exe",
+          "download_count": 2,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.5",
+          "published_at": "2026-09-16T09:48:33Z",
+          "name": "MocikaShield_1.4.0-beta.5_linux_amd64.AppImage",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.5",
+          "published_at": "2026-09-16T09:48:33Z",
+          "name": "MocikaShield_1.4.0-beta.5_linux_amd64.deb",
+          "download_count": 6,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.5",
+          "published_at": "2026-09-16T09:48:33Z",
+          "name": "MocikaShield_1.4.0-beta.5_macos_universal.dmg",
+          "download_count": 7,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.5",
+          "published_at": "2026-09-16T09:48:33Z",
+          "name": "MocikaShield_1.4.0-beta.5_windows_x64_setup.exe",
+          "download_count": 10,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.0-beta.6",
+          "published_at": "2026-09-18T07:10:58Z",
+          "name": "MocikaShield_1.4.0-beta.6_linux_amd64.AppImage",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.6",
+          "published_at": "2026-09-18T07:10:58Z",
+          "name": "MocikaShield_1.4.0-beta.6_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.0-beta.6",
+          "published_at": "2026-09-18T07:10:58Z",
+          "name": "MocikaShield_1.4.0-beta.6_macos_universal.dmg",
+          "download_count": 2,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.0-beta.6",
+          "published_at": "2026-09-18T07:10:58Z",
+          "name": "MocikaShield_1.4.0-beta.6_windows_x64_setup.exe",
+          "download_count": 2,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.1",
+          "published_at": "2026-10-08T01:51:28Z",
+          "name": "MocikaShield_1.4.1_linux_amd64.AppImage",
+          "download_count": 13,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.1",
+          "published_at": "2026-10-08T01:51:28Z",
+          "name": "MocikaShield_1.4.1_linux_amd64.deb",
+          "download_count": 16,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.1",
+          "published_at": "2026-10-08T01:51:28Z",
+          "name": "MocikaShield_1.4.1_macos_universal.dmg",
+          "download_count": 45,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.1",
+          "published_at": "2026-10-08T01:51:28Z",
+          "name": "MocikaShield_1.4.1_windows_x64_setup.exe",
+          "download_count": 116,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.2",
+          "published_at": "2026-10-26T05:37:27Z",
+          "name": "MocikaShield_1.4.2_linux_amd64.AppImage",
+          "download_count": 4,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2",
+          "published_at": "2026-10-26T05:37:27Z",
+          "name": "MocikaShield_1.4.2_linux_amd64.deb",
+          "download_count": 8,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2",
+          "published_at": "2026-10-26T05:37:27Z",
+          "name": "MocikaShield_1.4.2_macos_universal.dmg",
+          "download_count": 16,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.2",
+          "published_at": "2026-10-26T05:37:27Z",
+          "name": "MocikaShield_1.4.2_windows_x64_setup.exe",
+          "download_count": 48,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.2-rc.1",
+          "published_at": "2026-10-12T03:22:41Z",
+          "name": "MocikaShield_1.4.2-rc.1_linux_amd64.AppImage",
+          "download_count": 4,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.1",
+          "published_at": "2026-10-12T03:22:41Z",
+          "name": "MocikaShield_1.4.2-rc.1_linux_amd64.deb",
+          "download_count": 4,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.1",
+          "published_at": "2026-10-12T03:22:41Z",
+          "name": "MocikaShield_1.4.2-rc.1_macos_universal.dmg",
+          "download_count": 3,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.2-rc.1",
+          "published_at": "2026-10-12T03:22:41Z",
+          "name": "MocikaShield_1.4.2-rc.1_windows_x64_setup.exe",
+          "download_count": 5,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.2-rc.2",
+          "published_at": "2026-10-13T04:16:05Z",
+          "name": "MocikaShield_1.4.2-rc.2_linux_amd64.AppImage",
+          "download_count": 25,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.2",
+          "published_at": "2026-10-13T04:16:05Z",
+          "name": "MocikaShield_1.4.2-rc.2_linux_amd64.deb",
+          "download_count": 22,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.2",
+          "published_at": "2026-10-13T04:16:05Z",
+          "name": "MocikaShield_1.4.2-rc.2_macos_universal.dmg",
+          "download_count": 24,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.2-rc.2",
+          "published_at": "2026-10-13T04:16:05Z",
+          "name": "MocikaShield_1.4.2-rc.2_windows_x64_setup.exe",
+          "download_count": 23,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.2-rc.3",
+          "published_at": "2026-10-23T04:18:58Z",
+          "name": "MocikaShield_1.4.2-rc.3_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.3",
+          "published_at": "2026-10-23T04:18:58Z",
+          "name": "MocikaShield_1.4.2-rc.3_linux_amd64.deb",
+          "download_count": 1,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.3",
+          "published_at": "2026-10-23T04:18:58Z",
+          "name": "MocikaShield_1.4.2-rc.3_macos_universal.dmg",
+          "download_count": 0,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.2-rc.3",
+          "published_at": "2026-10-23T04:18:58Z",
+          "name": "MocikaShield_1.4.2-rc.3_windows_x64_setup.exe",
+          "download_count": 4,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.2-rc.4",
+          "published_at": "2026-10-23T10:35:42Z",
+          "name": "MocikaShield_1.4.2-rc.4_linux_amd64.AppImage",
+          "download_count": 5,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.4",
+          "published_at": "2026-10-23T10:35:42Z",
+          "name": "MocikaShield_1.4.2-rc.4_linux_amd64.deb",
+          "download_count": 3,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.2-rc.4",
+          "published_at": "2026-10-23T10:35:42Z",
+          "name": "MocikaShield_1.4.2-rc.4_macos_universal.dmg",
+          "download_count": 6,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.2-rc.4",
+          "published_at": "2026-10-23T10:35:42Z",
+          "name": "MocikaShield_1.4.2-rc.4_windows_x64_setup.exe",
+          "download_count": 7,
+          "platform": "Windows"
+        },
+        {
+          "tag": "v1.4.3",
+          "published_at": "2026-10-29T06:07:37Z",
+          "name": "MocikaShield_1.4.3_linux_amd64.AppImage",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.3",
+          "published_at": "2026-10-29T06:07:37Z",
+          "name": "MocikaShield_1.4.3_linux_amd64.deb",
+          "download_count": 0,
+          "platform": "Linux"
+        },
+        {
+          "tag": "v1.4.3",
+          "published_at": "2026-10-29T06:07:37Z",
+          "name": "MocikaShield_1.4.3_macos_universal.dmg",
+          "download_count": 1,
+          "platform": "macOS"
+        },
+        {
+          "tag": "v1.4.3",
+          "published_at": "2026-10-29T06:07:37Z",
+          "name": "MocikaShield_1.4.3_windows_x64_setup.exe",
+          "download_count": 1,
+          "platform": "Windows"
+        }
+      ],
+      "release_assets_available": true,
+      "totals": {
+        "downloads": 1902,
+        "platform_downloads": {
+          "Windows": 916,
+          "macOS": 454,
+          "Linux": 532,
+          "其他": 0
+        }
+      }
     }
   ],
-  "updated_at": "2026-10-28T06:25:09.756341Z"
+  "updated_at": "2026-10-29T06:35:39.992943Z"
 }
