@@ -3,6 +3,7 @@ import { normalizeFailureReasonCounts } from "./failure-reasons.js";
 import { cleanupErrorReports, saveErrorReport } from "./error-reports.js";
 import { cleanupApplicationUsage, saveApplicationUsage } from "./application-usage.js";
 import { queryActivityWindows, queryUsage } from "./usage-queries.js";
+import { cleanupDailyCountries, saveDailyCountry } from "./usage-country.js";
 
 const ALLOWED_EVENTS = new Set([
   "app_start_count",
@@ -182,6 +183,7 @@ async function saveDailyUsage(request, env) {
     ));
   }
   await env.DB.batch(statements);
+  await saveDailyCountry(request, env, body.anonymous_id, body.usage_date, createdAt);
 
   return new Response(null, { status: 204, headers: corsHeaders() });
 }
@@ -274,6 +276,6 @@ export default {
     }
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(Promise.allSettled([cleanupErrorReports(env), cleanupApplicationUsage(env)]));
+    ctx.waitUntil(Promise.allSettled([cleanupErrorReports(env), cleanupApplicationUsage(env), cleanupDailyCountries(env)]));
   },
 };
