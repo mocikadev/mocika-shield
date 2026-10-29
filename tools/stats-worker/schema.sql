@@ -54,6 +54,18 @@ CREATE INDEX IF NOT EXISTS idx_daily_usage_v2_date_version
 CREATE INDEX IF NOT EXISTS idx_daily_usage_failure_v2_date_version
   ON daily_usage_failure_v2(usage_date, app_version);
 
+-- 国家／地区只描述当日请求出口，不记录原始 IP，不回填历史。
+CREATE TABLE IF NOT EXISTS daily_usage_country (
+  anonymous_id TEXT NOT NULL,
+  observed_date TEXT NOT NULL,
+  country_code TEXT NOT NULL CHECK(length(country_code) = 2 AND country_code GLOB '[A-Z][A-Z]'),
+  observed_at TEXT NOT NULL,
+  PRIMARY KEY (anonymous_id, observed_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_usage_country_date
+  ON daily_usage_country(observed_date);
+
 CREATE TABLE IF NOT EXISTS daily_usage_failure_reason (
   anonymous_id TEXT NOT NULL,
   usage_date TEXT NOT NULL,
