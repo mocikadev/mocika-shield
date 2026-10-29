@@ -97,7 +97,7 @@ StoreNativeLibraries
 
 不建议通过修改 apktool YAML 作为唯一修复，因为不同 apktool 版本、输入 APK 结构和空 Native 库样本可能产生不同配置。最终 APK 的 ZIP 重写和复验由 `shield-core` 自己负责，apktool 配置只能作为辅助优化。
 
-### 已验证产物复用（维护中，尚未发布）
+### 已验证产物复用（1.4.3 已交付）
 
 对齐入口可在保守的普通 ZIP32 布局资格检查通过后，确认既有偏移和当前 Native 压缩策略均合规，再逐条读取至 EOF 校验 CRC 与声明长度；全部满足才原样复用，减少同次加固后签名的重复重压。仅偏移合规不够，`extractNativeLibs=false` 对应的 Stored 策略也不能跳过。
 
