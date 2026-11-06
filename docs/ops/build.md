@@ -70,17 +70,24 @@ make build-cli
 
 ```bash
 make build-gui
-# 等价于：cd apps/shield-gui && cargo tauri build --no-bundle
+# macOS：bash scripts/build-macos-app.sh
+# Linux / Windows：cd apps/shield-gui && cargo tauri build --no-bundle
 ```
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（Linux / macOS）：`target/release/mocika-shield`
+输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 macOS 实验自动化特性；不读取 GUI 证书库、不安装到应用目录、不修改系统 PATH。默认 `make build-cli` 仍不启用该特性，当前公开的 1.4.3 安装包没有这些新入口。
+
+输出（Linux）：`target/release/mocika-shield`
 输出（Windows）：`target\\release\\mocika-shield.exe`
 
-如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等正式 bundle，请使用下方发布脚本，而不是 `make build-gui`。
+macOS 共包构建先验证既有标准/工控资源版本，再编译 CLI 和 GUI、核对两者架构与实际资源，最后完成内层 CLI 与整个 `.app` 的 adhoc 签名和校验；不要事后向已经交付的应用复制二进制。`bash scripts/build-macos-app.sh universal` 可构建通用架构，须先安装两个 Apple Rust target；通用架构仍需单独实测。首次构建前在 `apps/shield-gui` 执行 `npm ci`。此入口固定使用仓库 `target`，不接受 `CARGO_TARGET_DIR`。
 
-> **本机测试规则**：如果目的是在本机实际验证 GUI 效果、签名、加固等完整桌面流程，不要只使用 `make build-gui` 产出的裸二进制。应构建对应平台的正式应用包；在 macOS 上默认使用 `.app` / `.dmg` 产物进行测试。
+Skill 独立放在根目录 `skills/mocika-shield/`，由用户通过所用 Agent 或管理工具安装、升级，不随应用打包；App 构建不依赖该目录。构建会拒绝旧技能资源残留，不把开发期旧共包内容带入最终签名。CLI 仍在 `.app` 内独立运行。安装、路径定位及外部配置说明见 [Agent 接入](agent-setup.md)。
+
+如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等安装产物，请使用下方发布脚本；macOS 发布脚本复用同一共包入口制作 DMG，其他平台共包尚未接入。
+
+> **本机测试规则**：实际验证 GUI 效果、签名、加固等完整桌面流程须使用应用包。macOS 的 `make build-gui` 现在直接交付 `.app`；其他平台仍不可把裸二进制当作完整安装包。
 
 ## 发布包构建
 

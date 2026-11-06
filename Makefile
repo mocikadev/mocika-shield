@@ -24,7 +24,7 @@ help:
 	@echo "  build-cli              编译 shield-cli（当前平台 release）"
 	@echo "  build-stub             构建 shield-stub（Android AAR + 资源包）"
 	@echo "  audit-stub-dex         输出 Stub DEX 指标并检查膨胀上限（需先 build-stub）"
-	@echo "  build-gui              构建 shield-gui Tauri 桌面应用（需先 build-stub）"
+	@echo "  build-gui              构建 GUI（macOS 为带独立 CLI 的 .app；需先 build-stub）"
 	@echo "  build-all              build-stub + build-cli + build-gui（Tauri）"
 	@echo "  release-linux          Linux 本地发布包（默认 GUI + CLI，可用 SKIP_CLI_RELEASE=1 跳过 CLI），在 Linux 上运行"
 	@echo "  release-windows        Windows 本地发布包（默认 GUI + CLI，可用 SKIP_CLI_RELEASE=1 跳过 CLI），在 Windows 上运行"
@@ -61,11 +61,16 @@ audit-stub-dex:
 
 build-gui:
 	@echo "🖥️  构建 shield-gui（Tauri）..."
+ifeq ($(shell uname -s 2>/dev/null),Darwin)
+	bash scripts/build-macos-app.sh
+	@echo "✅ 产物: target/release/bundle/macos/MocikaShield.app"
+else
 	cd apps/shield-gui && cargo tauri build --no-bundle
 ifeq ($(OS),Windows_NT)
 	@echo "✅ 产物: target/release/mocika-shield.exe"
 else
 	@echo "✅ 产物: target/release/mocika-shield"
+endif
 endif
 
 build-all: build-stub build-cli build-gui

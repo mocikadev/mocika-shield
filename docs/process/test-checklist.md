@@ -186,6 +186,18 @@ Java 工具调用或输出编码变动后，另设置 `SHIELD_TEST_JDK_HOME`，�
 - `make build-cli` 能生成 `shield` 二进制
 - `shield protect -i input.apk -o protected.apk` 可完成基础加固
 
+### macOS 应用内自动化 CLI（开发分支）
+
+- `make build-gui` 生成完整 `.app`，GUI 与 `Contents/MacOS/shield` 架构匹配，JAR 和标准/工控资源只有一套，资源版本与应用版本一致
+- CLI 装入后完成内层及整个应用的最终签名；`codesign --verify --deep --strict` 通过，不向已交付签名包事后追加文件
+- 将 `.app` 复制到源码目录外，在 GUI 关闭、工作目录独立且配置不指定工具/资源路径时完成规划→摘要确认→加固签名；输入和应用包不被修改
+- 应用资源缺失不能借用户/源码目录补齐；显式覆盖仍按任务材料摘要检查，不作为自动回退
+- `SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不漏掉应用内 CLI；不增加独立 CLI Release 资产或日常重型任务
+- App 只含 CLI 和运行资源，不依赖或携带 Skill 源码；旧技能残留必须阻断最终签名。根目录 `skills/mocika-shield/` 可完整搬迁，包内引用与定位脚本可用，不包含本机路径或凭据
+- Skill 独立版本、协议兼容、显式路径/宿主变量/PATH 优先级、无效配置不回退、多候选拒绝均有检查；模拟技能更新不改变外部 CLI 路径和签名配置，不假称所有管理工具都已验收
+- 技能结构检查与 [客户端行为场景](../../tests/agent-skill/cases.json) 分开记录；未在新客户端实际操作时，不把取消按钮、授权判断、发现/自动匹配或协议兼容标为通过
+- 真实专项入口及未验证平台见 [Agent 阶段验收记录](agent-integration-plan.md#已完成macos-应用内共包)；普通 CLI 源码构建仍不启用执行特性，现有公开安装包不因此改变
+
 ## 匿名使用统计与维护数据
 
 - 启动、加固成功/失败、签名成功/失败均能写入本地每日汇总

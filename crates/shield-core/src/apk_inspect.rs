@@ -189,8 +189,8 @@ pub fn extract_keystore_cert_fingerprint(
         ks.to_str().unwrap_or(""),
         "-alias",
         alias,
-        "-storepass",
-        ks_pass,
+        "-storepass:env",
+        crate::java_process::KS_PASS_ENV,
     ];
     if let Some(kind) = ks_type {
         args.push("-storetype");
@@ -199,6 +199,7 @@ pub fn extract_keystore_cert_fingerprint(
 
     let output = keytool_command(&keytool)
         .args(&args)
+        .env(crate::java_process::KS_PASS_ENV, ks_pass)
         .output()
         .context("执行 keytool 失败")?;
 
@@ -245,6 +246,9 @@ fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bo
                 "verify",
                 apk_path.to_str().unwrap_or(""),
             ])
+            // 此处只消费退出状态；原始输出不能继承并污染调用方的 JSON 协议。
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status()
         {
             return Ok(status.success());

@@ -94,55 +94,30 @@ build_stub() {
   success "shield-stub 构建完成"
 }
 
-# ========== 构建 CLI ==========
-build_cli() {
-  info "构建 CLI..."
-  cd "$ROOT"
-
-  if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
-    cargo build --release -p shield-cli --target aarch64-apple-darwin
-    cargo build --release -p shield-cli --target x86_64-apple-darwin
-
-    mkdir -p "$ROOT/target/universal/release"
-    lipo -create \
-      "$ROOT/target/aarch64-apple-darwin/release/shield" \
-      "$ROOT/target/x86_64-apple-darwin/release/shield" \
-      -output "$ROOT/target/universal/release/shield"
-    CLI_BIN="$ROOT/target/universal/release/shield"
-    success "CLI universal binary 构建完成"
-  else
-    cargo build --release -p shield-cli
-    CLI_BIN="$ROOT/target/release/shield"
-    success "CLI 构建完成（$(uname -m)）"
-  fi
-  echo "  大小: $(du -h "$CLI_BIN" | cut -f1)"
-}
-
 # ========== 构建 GUI（先生成并签名 .app，再由已验证应用包创建 .dmg）==========
 build_gui() {
-  info "构建 GUI（cargo tauri build --bundles app）..."
+  info "构建 GUI 与应用内 CLI..."
   cd "$ROOT/apps/shield-gui"
 
   npm ci
   local BUNDLE_BASE
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
-    cargo tauri build --bundles app --target universal-apple-darwin
+    bash "$ROOT/scripts/build-macos-app.sh" universal
     BUNDLE_BASE="$ROOT/target/universal-apple-darwin/release/bundle"
+    CLI_BIN="$ROOT/target/universal/release/shield"
   else
-    cargo tauri build --bundles app
+    bash "$ROOT/scripts/build-macos-app.sh"
     BUNDLE_BASE="$ROOT/target/release/bundle"
+    CLI_BIN="$ROOT/target/release/shield"
   fi
 
   local APP_DIR
-  APP_DIR=$(find "$BUNDLE_BASE/macos" -name "*.app" -maxdepth 1 2>/dev/null | head -n 1)
-  if [[ -z "$APP_DIR" ]]; then
+  APP_DIR="$BUNDLE_BASE/macos/MocikaShield.app"
+  if [[ ! -d "$APP_DIR" ]]; then
     error "Tauri .app 未生成: $BUNDLE_BASE/macos/"
   fi
 
-  info "对完整 .app 执行 adhoc 签名并校验..."
-  codesign --force --deep --sign - "$APP_DIR"
-  codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-  success ".app adhoc 签名校验通过"
+  success "共包入口已完成完整 .app adhoc 签名与校验"
 
   local ARCH_SUFFIX
   if [[ "$BUILD_UNIVERSAL" == "universal" ]]; then
@@ -200,6 +175,7 @@ package_cli() {
   fi
 
   cp "$ROOT/shield-stub/build/outputs/resources/resources.zip" "$CLI_PKG_DIR/resources/resources.zip"
+  cp "$ROOT/shield-stub/build/outputs/resources/resources-api19.zip" "$CLI_PKG_DIR/resources/resources-api19.zip"
 
   cat > "$CLI_PKG_DIR/shield.sh" << 'RUNEOF'
 #!/usr/bin/env bash
@@ -233,7 +209,8 @@ mocika-shield-cli-${VERSION}-macos-${ARCH_LABEL}/
 │   ├── apktool.jar
 │   └── apksigner.jar
 ├── resources/
-│   └── resources.zip   # Android 壳资源
+│   ├── resources.zip         # 标准 Android 壳资源
+│   └── resources-api19.zip   # Android 4.4 工控兼容资源
 ├── shield.sh           # 快捷启动脚本
 └── README.md
 \`\`\`
@@ -263,8 +240,8 @@ collect_gui() {
 
   # .app
   local APP_DIR
-  APP_DIR=$(find "$BUNDLE_BASE/macos" -name "*.app" -maxdepth 1 2>/dev/null | head -n 1)
-  if [[ -n "$APP_DIR" ]]; then
+  APP_DIR="$BUNDLE_BASE/macos/MocikaShield.app"
+  if [[ -d "$APP_DIR" ]]; then
     cp -r "$APP_DIR" "$DIST_DIR/gui-app/"
     success ".app: $(basename "$APP_DIR")"
   else
@@ -342,14 +319,11 @@ main() {
   check_env
   build_stub
   prepare_dirs
-  if [[ "$SKIP_CLI_RELEASE" == "1" ]]; then
-    info "跳过 CLI 构建与打包（SKIP_CLI_RELEASE=1）"
-  else
-    build_cli
-  fi
   build_gui
   if [[ "$SKIP_CLI_RELEASE" != "1" ]]; then
     package_cli
+  else
+    info "仅跳过独立 CLI 压缩包，应用内 CLI 已构建（SKIP_CLI_RELEASE=1）"
   fi
   collect_gui
   generate_checksums

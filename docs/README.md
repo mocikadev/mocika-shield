@@ -14,6 +14,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | `apps/shield-cli/` | Rust CLI，负责参数解析、终端输出与 JSON 进度协议 |
 | `shield-stub/` | Android 壳模块，包含 Java 壳层和 Rust JNI native 库 |
 | `apps/shield-gui/` | Tauri v2 + React 桌面 GUI，唯一正式 GUI，目标覆盖 Linux / macOS / Windows |
+| `skills/` | 面向使用者 Agent 的独立技能源码，由用户安装和升级，不随 App 打包，不承载核心执行实现 |
 | `scripts/` | 构建、版本同步、发布脚本 |
 | `tools/` | `apktool`、`apksigner` 等外部工具 |
 
@@ -24,6 +25,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 第一次使用 | [../README.md](../README.md)、[usage.md](usage.md) |
 | 配置开发环境 | [ops/environment.md](ops/environment.md) |
 | 从源码构建 | [ops/build.md](ops/build.md) |
+| 安装本地 Agent Skill、配置共包 CLI 与验收客户端 | [ops/agent-setup.md](ops/agent-setup.md) |
 | 本地排障 | [ops/troubleshooting.md](ops/troubleshooting.md) |
 | 查看维护统计方案 | [ops/project-statistics.md](ops/project-statistics.md) |
 | 查看匿名使用统计方案 | [ops/telemetry.md](ops/telemetry.md) |
@@ -45,6 +47,9 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 了解 API 31 以上内存 DEX 正式接入边界 | [design/memory-dex-production.md](design/memory-dex-production.md) |
 | 了解 DEX 结构与方法代码分离研究 | [design/dex-code-separation.md](design/dex-code-separation.md) |
 | 了解工具链轻量化、CI 与 Gradle 集成规划 | [design/toolchain-modernization.md](design/toolchain-modernization.md) |
+| 了解 Agent、Skill、本地 MCP 接入与安全边界 | [design/agent-integration.md](design/agent-integration.md)、[阶段任务与验收记录](process/agent-integration-plan.md) |
+| 了解 Agent 工作子进程、取消与原子无覆盖提交 | [design/agent-executor.md](design/agent-executor.md) |
+| 了解自动化命令、结果协议与取消/断开语义 | [design/agent-cli-contract.md](design/agent-cli-contract.md) |
 | 查看中文路径、Java 工具输出编码修复与验证边界 | [design/chinese-toolchain-compatibility.md](design/chinese-toolchain-compatibility.md) |
 | 了解可选资源文件保护边界 | [design/asset-protection.md](design/asset-protection.md) |
 | 了解 Android 4.4 工控兼容方案 | [design/android-4.4-compatibility.md](design/android-4.4-compatibility.md) |

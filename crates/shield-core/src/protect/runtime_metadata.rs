@@ -18,6 +18,20 @@ pub(crate) struct RuntimeMetadata {
 }
 
 impl RuntimeMetadata {
+    pub(crate) fn validate_policy(
+        &self,
+        policy: crate::EnvironmentPolicy,
+        allow_memory: bool,
+    ) -> Result<()> {
+        if policy == crate::EnvironmentPolicy::Strict && !self.environment_policy {
+            anyhow::bail!("所选 Runtime 资源不支持严格环境策略，请更新资源包或改用兼容模式");
+        }
+        if self.memory_dex && !allow_memory {
+            anyhow::bail!("内存 DEX 候选资源只能通过显式资源路径用于内部回归");
+        }
+        Ok(())
+    }
+
     pub(crate) fn parse(json: &str) -> Result<Self> {
         let runtime_protocol =
             parse_u32(json, "runtime_protocol").context("metadata.json 缺少 runtime_protocol")?;

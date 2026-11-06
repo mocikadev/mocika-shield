@@ -94,8 +94,8 @@ pub fn sign_apk_with_progress(
         .to_str()
         .context("apksigner 路径包含非法字符")?
         .to_string();
-    let ks_pass_arg = format!("pass:{}", opts.keystore_password);
-    let key_pass_arg = format!("pass:{}", opts.key_password);
+    let ks_pass_arg = format!("env:{}", crate::java_process::KS_PASS_ENV);
+    let key_pass_arg = format!("env:{}", crate::java_process::KEY_PASS_ENV);
 
     let v = &opts.signing_versions;
     let temp_dir = TempDir::new().context("创建签名临时目录失败")?;
@@ -160,6 +160,8 @@ pub fn sign_apk_with_progress(
     on_progress(SigningProgressStep::Sign).map_err(anyhow::Error::msg)?;
     let output = java_command(&java)
         .args(&cmd_args)
+        .env(crate::java_process::KS_PASS_ENV, &opts.keystore_password)
+        .env(crate::java_process::KEY_PASS_ENV, &opts.key_password)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

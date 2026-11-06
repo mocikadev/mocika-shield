@@ -116,6 +116,73 @@ GUI 启动时会一次性加载应用配置与证书数据库，运行期间使�
 
 ## CLI 用法
 
+### Agent 只读检查（开发分支，未发布）
+
+此入口尚未包含在当前公开的 `1.4.3` 安装包中，仅供从本开发分支构建的 CLI 验证；官方 Skill、MCP 和无头安装交付尚未完成。设计与后续任务见 [Agent 接入方案](design/agent-integration.md)及[阶段计划](process/agent-integration-plan.md)。
+
+```bash
+# 检查纯加固依赖；不要求 keytool，不代表自动签名已就绪
+shield doctor --operation protect
+
+# 分别检查独立签名和证书操作依赖
+shield doctor --operation sign
+shield doctor --operation certificate
+
+# 只读检查 APK；默认标准规则，不生成加固产物
+shield preflight -i input.apk
+
+# 只选择工控预检规则，不会切换实际加固资源
+shield preflight -i input.apk --runtime-profile android-api19
+```
+
+两条新命令默认输出单个版本化 JSON 对象，可显式传入 `--json`。`doctor` 可指定本次 `--apktool`、`--apksigner`、`--resources`；只检查本次操作相关工具，无关工具参数会被拒绝。`preflight` 可指定 `--apksigner`，也可用 `--expected-cert-sha256` 与计划签名证书完整指纹核对。未指定指纹不等于完成证书绑定检查。
+
+结果中的 `status` 为 `ready`、`warning` 或 `blocked`；前两者退出 `0`，阻断或检查执行错误退出 `1`。语法错误退出 `2`，提示写标准错误；帮助/版本不是 JSON 结果。依赖存在不等于 JAR/资源协议已验证，预检通过不等于能在全部设备运行；警告不构成自动排除 ABI 的授权。检查输出不含原始工具日志、输入路径或密码。
+
+本阶段不接受全局 `--config`，请显式传入检查参数；不会忽略配置后假装按配置检查。旧 `protect/sign --json` 等命令继续使用原协议，不能与新增检查响应混为一谈。现有 Java 子进程尚无统一超时/取消机制，不应在检查状态未知时无限重试；相关任务见阶段计划。
+
+### Agent 执行前计划（开发分支，未发布）
+
+在本地 `shield-cli.toml` 的 `[sign]` 中配置 keystore、Alias 和证书类型，由宿主在启动 CLI 前注入既有签名密码环境变量，再调用：
+
+```bash
+shield --config shield-cli.toml plan-protect -i input.apk -o protected-signed.apk
+```
+
+此命令不接受密码参数，也不读 GUI 数据库。它复用本地配置的工具、签名版本和环境策略，显式输入/输出覆盖配置中的默认值；核对原 APK 与计划证书、检查输出是否冲突，并对输入、配置、证书材料及选定工具/资源做摘要。旧 ABI 必须逐次显式指定 `--exclude-abis`，警告不构成排除授权。
+
+计划默认标准模式；需要规划工控兼容时显式指定 `--runtime-profile android-api19`。预检和资源必须匹配同一模式，无显式资源覆盖时会选择配套 `resources-api19.zip`，缺失不回退标准包；本地资源覆盖也须通过共享核心校验。工控 Native APK 仍须保留 v7a，其他主流架构只供 5.0+ 使用，不扩大原有支持边界。
+
+结果包含内部计划版本 `plan_schema_version: 2`、`plan_digest`、`input_sha256` 和资源实际校验状态，不包含真实路径、Alias、密码或原始日志；摘要不是授权凭证，也不是全部依赖的可信来源证明。资源只读准入检查协议/策略、规范壳条目、路径和 CRC，采用有界 ZIP32 资源布局；不是 ELF/DEX 全面验证或设备运行验收，具体范围见[接入设计](design/agent-integration.md)。
+
+即使 `status` 为 `ready` 或 `warning`，`execution_ready` 仍为 `false`：本命令只规划，不生成 APK、不创建输出目录、不覆盖已有文件。macOS 已通过默认关闭的开发特性验证内部加固/签名/无覆盖交付，维护者入口及限制见[受控执行器设计](design/agent-executor.md#macos-开发验证入口)；正式写命令、跨平台及 Agent 客户端验收尚未交付，不要将旧 `protect/sign` 拼接后宣称受此计划保护。开发分支的核心证书读取和签名已改用本次子进程环境引用传递密码；这避免密码出现在工具参数中，但不防止同权限或高权限进程读取环境。
+
+### 受控自动化任务（macOS 开发特性，未发布）
+
+官方 Skill 的独立安装、升级与命令定位见 [Agent 接入说明](ops/agent-setup.md)。源码位于根目录 `skills/mocika-shield/`，不随 App 打包；CLI 仍随 GUI 交付。用户按所用 Agent 选择安装位置，不会自动写入全局或项目技能目录，现有公开安装包未改变。
+
+须先按[源码编译说明](ops/build.md)准备壳资源与 JAR，再在当前开发分支显式构建 `cargo build -p shield-cli --features agent-executor`；裸二进制不是完整交付包。公开 `1.4.3` 安装包不包含该能力，Linux/Windows 尚未启用。不需要更改系统 Java、GUI 配置或证书库；宿主仍须预先注入签名密码环境变量，不要把密码放入对话或参数。
+
+当前开发分支也可通过 `make build-gui` 构建带独立 CLI 的 macOS `.app`。使用完整应用包内的 `Contents/MacOS/shield`，无需打开 GUI；不要只把该文件提取到其他目录。工具及标准/工控资源共享，应用内默认资源缺失会明确失败，不从开发目录补齐。CLI 配置仍放调用者选定的外部 `shield-cli.toml`，与 GUI 的配置和证书库分开；输入、配置及输出都应选在应用包之外，不把安装目录作为工作目录。工具不自动修改 PATH。示例（请将路径替换为实际放置位置，当前公开版尚不可用）：
+
+```bash
+SHIELD_CLI='/你的实际路径/MocikaShield.app/Contents/MacOS/shield'
+"$SHIELD_CLI" doctor --operation protect
+"$SHIELD_CLI" --config /你的配置目录/shield-cli.toml agent plan \
+  -i /你的输入目录/input.apk -o /你的输出目录/protected-signed.apk
+```
+
+```bash
+shield --config shield-cli.toml agent plan -i input.apk -o protected-signed.apk
+# 读取最后一条 result 中 plan.sha256，取得本次明确授权后再执行
+shield --config shield-cli.toml agent protect -i input.apk -o protected-signed.apk \
+  --expect-plan-sha256 <刚才的完整计划摘要>
+```
+
+默认逐行输出 JSON；必须读取完整终态，不能凭进度、文件存在或进程退出推断成功。规划、执行参数和材料必须一致，变化时重新规划并确认，不抓取失败结果中的摘要自动重试。输出已有则拒绝覆盖；资源模式和单次 ABI 排除需两次一致传入，仅 V1–V3，不自动降级 V4。
+
+共同参数 `--timeout-seconds` 默认 1200 秒（1–3600）；Ctrl+C/SIGTERM 通过受控停止收尾。默认不读取标准输入；显式 `--control-stdin` 才接受一行 `{"type":"cancel"}`，EOF 也请求取消。已发布后才到达的取消不能撤回产物；没有终态或状态未知时不要自动重跑。字段、退出码、输出阻塞与取消边界见[命令契约](design/agent-cli-contract.md)。
+
 ### 基础用法
 
 ```bash
@@ -183,7 +250,7 @@ shield --config shield-cli.toml protect -i another.apk -o another-protected.apk
 `protect`、`sign` 增加 `--json` 后，每行输出一个独立 JSON 事件，事件类型固定为 `progress`、`done` 或 `error`。原有 `--json-progress` 继续作为 `protect --json` 的兼容别名。
 
 - 成功退出码为 `0`，并以 `done` 事件结束。
-- 参数、配置、加固、对齐或签名失败的退出码为 `1`。
+- 配置、生效参数校验、加固、对齐或签名执行失败的退出码为 `1`；命令行语法解析失败由 clap 输出到标准错误并退出 `2`。
 - JSON 模式下错误写入标准输出的 `error` 事件；普通模式错误写入标准错误。
 - 调试日志不会混入 JSON 标准输出。
 

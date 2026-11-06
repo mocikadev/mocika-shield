@@ -11,6 +11,7 @@ pub mod keytool;
 mod preflight;
 mod protect;
 mod protect_api;
+mod runtime_resources;
 pub mod signing;
 mod tool_evidence;
 pub mod utils;
@@ -28,6 +29,7 @@ pub use preflight::{
 pub use protect_api::{
     protect_apk, EnvironmentPolicy, ProgressEvent, ProgressStep, ProtectOptions,
 };
+pub use runtime_resources::validate_runtime_resources;
 pub use signing::{
     check_apksigner, find_apksigner, sign_apk, sign_apk_with_progress, KeystoreType, SignOptions,
     SigningProgressStep, SigningVersions,
