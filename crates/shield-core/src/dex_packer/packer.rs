@@ -40,10 +40,12 @@ impl DexPacker {
         self.total_compressed_size += compressed_size;
 
         let ratio = 100.0 * compressed_size as f32 / file_size as f32;
-        println!(
-            "  ✓ {}: {} -> {} bytes ({:.1}%)",
-            name, file_size, compressed_size, ratio
-        );
+        if !crate::utils::is_json_mode() {
+            println!(
+                "  ✓ {}: {} -> {} bytes ({:.1}%)",
+                name, file_size, compressed_size, ratio
+            );
+        }
 
         self.dex_files.push(DexMeta {
             name: name.to_string(),

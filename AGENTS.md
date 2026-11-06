@@ -91,6 +91,9 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 ### GUI 维护策略
 正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
 
+### 对外 Agent 集成资产
+对外 Skill 唯一源码放根目录 `skills/mocika-shield/`，由用户独立安装、升级，不随 App 打包；CLI 仍随 GUI 共包。用户安装、设计与验收资料分别留在 `docs/ops/`、`docs/design/` 与 `docs/process/`，见 [Agent 接入说明](docs/ops/agent-setup.md)。Skill 不复制核心执行逻辑，不保存本机路径或凭据，不放进本仓库自动激活的隐藏技能目录。
+
 ### 本机测试交付规则
 凡是面向用户本机直接测试 GUI 效果、交互、签名、加固流程的构建，默认必须提供 **macOS `.app` 应用包**（如当前在 macOS 环境）。不要只交付裸二进制 `target/release/mocika-shield`，因为其运行时资源不完整，不能代表真实桌面应用形态。
 
@@ -165,6 +168,7 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/ops/environment.md](docs/ops/environment.md) | 环境要求与 NDK 配置（含 Windows Scoop 一键配置） |
 | [docs/ops/project-statistics.md](docs/ops/project-statistics.md) | 维护统计口径、自动化流程与数据边界 |
 | [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
+| [docs/ops/agent-setup.md](docs/ops/agent-setup.md) | Agent 本地接入：共包目录、Skill 安装、配置与客户端验收 |
 | [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
 | [docs/design/native-library-packaging.md](docs/design/native-library-packaging.md) | Native 库打包：`extractNativeLibs`、ZIP 压缩/对齐与 ELF 页大小兼容方案 |
 | [docs/design/native-library-alias.md](docs/design/native-library-alias.md) | Native 库名去品牌化：任务别名、DEX 联动改写、冲突规避与兼容回归方案 |
@@ -173,6 +177,10 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/memory-dex-production.md](docs/design/memory-dex-production.md) | API 29 以上内存 DEX 正式接入：资源隔离、状态协议、迁移与回滚边界 |
 | [docs/design/dex-code-separation.md](docs/design/dex-code-separation.md) | DEX 代码保护研究：结构/方法代码分离、内存重建、分片恢复与停止条件 |
 | [docs/design/toolchain-modernization.md](docs/design/toolchain-modernization.md) | 工具链轻量化与自动化：CLI 契约、CI/Gradle 集成、局部原生重写与回退边界 |
+| [docs/design/agent-integration.md](docs/design/agent-integration.md) | Agent 本地接入：CLI、Skill、MCP 分工、凭据与执行安全边界 |
+| [docs/design/agent-executor.md](docs/design/agent-executor.md) | Agent 受控执行：工作子进程、任务停止、暂存与原子无覆盖提交 |
+| [docs/design/agent-cli-contract.md](docs/design/agent-cli-contract.md) | 自动化命令契约：受控规划、摘要绑定、逐行结果及取消/断开 |
+| [docs/process/agent-integration-plan.md](docs/process/agent-integration-plan.md) | Agent 接入的阶段任务、验收门槛与执行记录 |
 | [docs/design/asset-protection.md](docs/design/asset-protection.md) | 可选资源保护：显式资源清单、应用侧读取接口、性能与兼容边界 |
 | [docs/design/android-4.4-compatibility.md](docs/design/android-4.4-compatibility.md) | Android 4.4 工控兼容：双 NDK、ABI、运行时分流与验证方案 |
 | [docs/design/architecture.md](docs/design/architecture.md) | 完整目录结构、工具路径检测逻辑、构建产物路径 |

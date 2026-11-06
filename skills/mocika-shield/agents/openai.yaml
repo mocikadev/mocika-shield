@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mocika Shield 本地加固"
+  short_description: "检查本机加固环境与签名计划，按明确授权执行并核验受控任务结果"
+  default_prompt: "使用 $mocika-shield 检查我指定的本地应用与 APK，先给出加固签名计划，不执行加固。"

@@ -190,12 +190,7 @@ pub(crate) fn read_runtime_selection(
     let content = read_archive_text(&mut archive, "metadata.json")?;
 
     let metadata = RuntimeMetadata::parse(&content)?;
-    if environment_policy == EnvironmentPolicy::Strict && !metadata.environment_policy {
-        anyhow::bail!("所选 Runtime 资源不支持严格环境策略，请更新资源包或改用兼容模式");
-    }
-    if metadata.memory_dex && !allow_memory_candidate {
-        anyhow::bail!("内存 DEX 候选资源只能通过显式资源路径用于内部回归");
-    }
+    metadata.validate_policy(environment_policy, allow_memory_candidate)?;
     Ok(RuntimeSelection {
         stub_application: metadata.stub_application,
         stub_component_factory: metadata.stub_component_factory,

@@ -33,6 +33,21 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    /// 受控本地自动化（开发特性）：逐行 JSON，保留旧命令行为。
+    Agent(crate::automation::execution::AgentArgs),
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[command(name = "__agent-probe", hide = true)]
+    AgentProbe(crate::automation::execution::ProbeArgs),
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[command(name = "__agent-worker", hide = true)]
+    AgentWorker(crate::automation::execution::WorkerArgs),
+    /// 只读检查指定操作的本机依赖，输出版本化 JSON。
+    Doctor(crate::automation::DoctorArgs),
+    /// 只读预检 APK，不执行加固、签名或资源切换，输出版本化 JSON。
+    Preflight(crate::automation::PreflightArgs),
+    /// 只读规划加固后签名：核对本地签名配置、输出位置和文件身份，不执行加固。
+    PlanProtect(crate::automation::PlanProtectArgs),
     Protect(ProtectArgs),
     Sign(SignArgs),
     CheckApk {
@@ -51,6 +66,9 @@ pub(crate) enum Commands {
 impl Commands {
     pub(crate) fn machine_output(&self) -> bool {
         match self {
+            #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+            Self::Agent(_) | Self::AgentProbe(_) | Self::AgentWorker(_) => true,
+            Self::Doctor(_) | Self::Preflight(_) | Self::PlanProtect(_) => true,
             Self::Protect(args) => args.json,
             Self::Sign(args) => args.json,
             Self::CheckApk { .. } | Self::CheckKeystore { .. } => true,

@@ -5,6 +5,10 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::process::Command;
 
+// 仅供本次工具子进程读取，不修改父进程环境，不得记录 Command 的环境明文。
+pub(crate) const KS_PASS_ENV: &str = "MOCIKA_SHIELD_TOOL_KS_PASS";
+pub(crate) const KEY_PASS_ENV: &str = "MOCIKA_SHIELD_TOOL_KEY_PASS";
+
 const TEXT_PROPERTIES: &[&str] = &[
     "-Dfile.encoding=UTF-8",
     "-Dsun.stdout.encoding=UTF-8",

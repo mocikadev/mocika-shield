@@ -113,9 +113,13 @@ mocika-shield/
 │   ├── apktool_3.0.1.jar
 │   └── apksigner.jar
 │
+├── skills/                           # 面向使用者 Agent 的技能源码，独立安装升级，不随 App 打包
+│   └── mocika-shield/                # SKILL.md、包内参考、客户端元数据与只定位路径的小脚本
+│
 └── scripts/                          # 构建与发布脚本
     ├── build-stub.sh                 # Linux/macOS：shield-stub 构建脚本
     ├── build-stub.ps1                # Windows：shield-stub 构建脚本
+    ├── build-macos-app.sh            # macOS：GUI 与独立 CLI 共包、资源/架构检查和最终签名
     ├── setup-windows-dev.ps1         # Windows 开发环境一键配置（Scoop）
     ├── release-cli.sh                # CLI 发布打包（Linux/macOS）
     ├── release-linux.sh              # Linux 本地发布（默认 GUI + CLI；CI 只上传 GUI）
@@ -130,6 +134,10 @@ mocika-shield/
 ## 工具路径自动检测逻辑
 
 `shield-core` 的 `find_apktool()` / `find_apksigner()` / `find_runtime_resources()` 按以下优先级查找：
+
+macOS 新应用内入口先识别 `.app/Contents/MacOS`，只定位同包 `Contents/Resources/tools/` 和 `Contents/Resources/resources/`，目录名大小写明确；缺失则报错，不借用户、系统或开发目录回退。该规则不改变普通 CLI 包布局；显式工具覆盖仍由调用者配置并参与任务摘要，不等于自动回退。GUI 的独立定位策略不变。
+
+非应用内 CLI 保留以下查找顺序：
 
 1. **发布包路径**：`bin/../lib/apktool.jar`、`bin/../resources/resources.zip`
 2. **用户数据目录**（`directories::ProjectDirs`）：`~/.local/share/mocika-shield/`（Linux）等

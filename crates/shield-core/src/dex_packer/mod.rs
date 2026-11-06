@@ -28,7 +28,9 @@ pub fn pack_dex_files(
         dex_natural_key(&name_a).cmp(&dex_natural_key(&name_b))
     });
 
-    println!("✓ 找到 {} 个DEX文件", dex_files.len());
+    if !crate::utils::is_json_mode() {
+        println!("✓ 找到 {} 个DEX文件", dex_files.len());
+    }
 
     let mut packer = packer::DexPacker::new();
 
