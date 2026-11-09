@@ -1,16 +1,16 @@
 //! 显式运行的本机真实闭环；只使用自有 APK、临时证书及隔离应用目录。
 use serde_json::{json, Value};
-use shield_app::{
+use shield_core::{
+    check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint,
+    normalize_fingerprint, KeystoreType, SignOptions, SigningVersions,
+};
+use shield_services::{
     certificates::{
         create_managed_certificate, save_certificate_profile, CertificateStoreState,
         CertificateUpsertInput, CreateManagedCertificateInput,
     },
     config::ConfigStore,
     paths::ApplicationPaths,
-};
-use shield_core::{
-    check_apk, extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint,
-    normalize_fingerprint, KeystoreType, SignOptions, SigningVersions,
 };
 use std::{
     fs,

@@ -3,8 +3,8 @@ use tauri::Manager;
 
 pub(crate) fn application_paths(
     app: &tauri::AppHandle,
-) -> Result<shield_app::paths::ApplicationPaths, String> {
-    let actual = shield_app::paths::ApplicationPaths::from_directories(
+) -> Result<shield_services::paths::ApplicationPaths, String> {
+    let actual = shield_services::paths::ApplicationPaths::from_directories(
         app.path()
             .app_config_dir()
             .map_err(|_| "无法定位应用配置目录".to_string())?,
@@ -13,7 +13,7 @@ pub(crate) fn application_paths(
             .map_err(|_| "无法定位应用数据目录".to_string())?,
     )
     .map_err(str::to_owned)?;
-    let shared = shield_app::paths::ApplicationPaths::current_user().map_err(str::to_owned)?;
+    let shared = shield_services::paths::ApplicationPaths::current_user().map_err(str::to_owned)?;
     if actual != shared {
         return Err("共享应用目录与桌面配置不一致，请检查应用标识".into());
     }

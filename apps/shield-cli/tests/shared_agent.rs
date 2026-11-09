@@ -1,7 +1,7 @@
 //! 共享受控命令专项；使用隔离资料，不读取或写入维护者配置。
 #![cfg(all(feature = "agent-executor", target_os = "macos"))]
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput},
     config::ConfigStore,
     paths::ApplicationPaths,

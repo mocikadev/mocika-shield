@@ -1,6 +1,6 @@
 //! 宿主固定上下文与会话证书范围；只接收已确认的新编号，不读取数据库或秘密。
 use super::{Result, Root};
-use shield_app::paths::ApplicationPaths;
+use shield_services::paths::ApplicationPaths;
 use std::{
     collections::BTreeSet,
     ffi::OsString,

@@ -15,7 +15,7 @@ Android APK 加固工具。`crates/shield-core` 提供共享核心能力，`apps
 ## 技术栈
 
 - `crates/shield-core`：Rust 共享核心库，加固、签名、对齐、环境探测
-- `crates/shield-app`：多入口共享应用库，承载配置、证书管理与签名身份；GUI／CLI 共用，MCP 按宿主白名单通过 CLI 接入
+- `crates/shield-services`：多入口共享的本地应用服务库，承载配置、证书管理与签名身份；不是后台服务，GUI／CLI 共用，MCP 按宿主范围通过 CLI 接入
 - `apps/shield-cli`：Rust + clap，单一二进制 `shield`，仅承担命令行入口与输出适配
 - `shield-stub`：Android（Java 壳 + Rust Native JNI，`libmocikashield.so`）
 - `apps/shield-gui`：Tauri v2，唯一正式桌面 GUI，目标三平台（Linux/macOS/Windows）
@@ -34,7 +34,7 @@ make build-all              # build-stub + build-cli + build-gui
 make release VERSION=x.y.z  # CLI-only 发布包（维护者本地使用）
 VERSION=x.y.z make release-linux        # Linux Tauri 发布包
 VERSION=x.y.z make release-macos        # macOS Tauri 发布包
-make test                   # 运行 shield-app + shield-core + shield-cli 单元测试
+make test                   # 运行 shield-services + shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 
@@ -63,7 +63,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`crates/shield-app/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml` 及其独立 `Cargo.lock`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。API 19 发布构建使用 `--locked`，不得只修改兼容清单而遗漏独立锁文件。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`crates/shield-services/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml` 及其独立 `Cargo.lock`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。API 19 发布构建使用 `--locked`，不得只修改兼容清单而遗漏独立锁文件。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。

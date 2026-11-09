@@ -2212,8 +2212,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "shield-app",
  "shield-core",
+ "shield-services",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -3577,25 +3577,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shield-app"
-version = "1.4.3"
-dependencies = [
- "chacha20poly1305",
- "dirs",
- "dunce",
- "libc",
- "rand 0.9.4",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "shield-core",
- "tempfile",
- "toml 0.8.2",
- "uuid",
-]
-
-[[package]]
 name = "shield-cli"
 version = "1.4.3"
 dependencies = [
@@ -3610,8 +3591,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "shield-app",
  "shield-core",
+ "shield-services",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -3641,6 +3622,25 @@ dependencies = [
  "which",
  "zip",
  "zstd",
+]
+
+[[package]]
+name = "shield-services"
+version = "1.4.3"
+dependencies = [
+ "chacha20poly1305",
+ "dirs",
+ "dunce",
+ "libc",
+ "rand 0.9.4",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "shield-core",
+ "tempfile",
+ "toml 0.8.2",
+ "uuid",
 ]
 
 [[package]]

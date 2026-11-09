@@ -25,7 +25,7 @@ make build-stub             # ① 构建 Android 壳（必须最先执行）
 make build-cli              # ② 编译 shield 命令行工具
 make build-gui              # ③ 构建桌面 GUI Tauri 版（需先 build-stub）
 make build-all              # build-stub + build-cli + build-gui（Tauri）
-make test                   # 运行 shield-app + shield-core + shield-cli 单元测试
+make test                   # 运行 shield-services + shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 

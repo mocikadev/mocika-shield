@@ -33,7 +33,7 @@ fn request(fixture: &Fixture, timeout_seconds: u64) -> Request {
 #[test]
 #[ignore = "需要显式开发 CLI、真实 JDK 和自有 APK，验证共享提交检查，不纳入日常 CI"]
 fn 共享材料在最终提交前变化必须拒绝交付() {
-    use shield_app::{
+    use shield_services::{
         certificates::{
             CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput,
         },

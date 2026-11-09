@@ -1,6 +1,6 @@
 //! 用户名变量有无的真实进程交叉读取；只有合成口令和临时库，不更改测试进程环境。
 #![cfg(unix)]
-use shield_app::{
+use shield_services::{
     certificates::{CertificateSelection, CertificateStoreState, CertificateUpsertInput},
     paths::ApplicationPaths,
 };

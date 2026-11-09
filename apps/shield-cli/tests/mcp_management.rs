@@ -1,7 +1,7 @@
 //! 共享管理的真实标准流验收；仅使用合成资料，不接触业务库、密码或系统 Java。
 #![cfg(all(feature = "mcp-server", target_os = "macos"))]
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     config::ConfigStore,
     paths::ApplicationPaths,

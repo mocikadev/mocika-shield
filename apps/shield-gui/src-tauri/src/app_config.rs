@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
-use shield_app::config::{ConfigError, ConfigStore, ProtectDefaultsPatch, Setting};
+use shield_services::config::{ConfigError, ConfigStore, ProtectDefaultsPatch, Setting};
 #[cfg(test)]
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
-pub(crate) use shield_app::config::{normalize_protect_defaults, ProtectDefaults};
+pub(crate) use shield_services::config::{normalize_protect_defaults, ProtectDefaults};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -281,7 +281,7 @@ pub(crate) fn normalize_theme_mode(value: &str) -> String {
     }
 }
 
-pub(crate) use shield_app::certificates::normalize_keystore_type;
+pub(crate) use shield_services::certificates::normalize_keystore_type;
 
 pub(crate) fn load_app_config(app: &tauri::AppHandle) -> Result<LoadedAppConfig, String> {
     let path = crate::app_paths::application_paths(app)?.config_file();

@@ -6,12 +6,12 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use shield_app::{
-    certificates::{CertificateBinding, CertificateSelection, CertificateStoreState},
-    paths::ApplicationPaths,
-};
 use shield_core::{
     extract_keystore_cert_fingerprint, inspect_signing_input, normalize_fingerprint,
+};
+use shield_services::{
+    certificates::{CertificateBinding, CertificateSelection, CertificateStoreState},
+    paths::ApplicationPaths,
 };
 use std::path::{Path, PathBuf};
 

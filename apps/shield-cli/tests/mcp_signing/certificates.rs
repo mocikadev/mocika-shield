@@ -190,7 +190,7 @@ fn check_apk(
     path: &Path,
     signer: &Path,
     align: &Path,
-    record: &shield_app::certificates::CertificateRecord,
+    record: &shield_services::certificates::CertificateRecord,
 ) {
     let output = shield_core::utils::java_command(shield_core::utils::find_java().unwrap())
         .args(["-jar"])

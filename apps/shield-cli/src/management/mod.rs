@@ -7,7 +7,7 @@ pub(crate) mod signing;
 
 pub(crate) use args::{CertificateArgs, ConfigArgs};
 use serde_json::{json, Value};
-use shield_app::{certificates::CertificateStoreState, paths::ApplicationPaths};
+use shield_services::{certificates::CertificateStoreState, paths::ApplicationPaths};
 use std::{io::Write, path::Path};
 
 struct ManagementError {

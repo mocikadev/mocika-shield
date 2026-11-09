@@ -17,7 +17,7 @@
 
 ## 职责与数据流
 
-架构为既有 MCP 入口内的局部扩展：工具参数模块映射固定 CLI，协议模块投影有限响应，运行模块管理调用与不确定状态。仍由现有 CLI `config show/set`、`cert edit/set-default` 和 `shield-app` 负责存储、锁及字段规则，不在 MCP 读取数据库或复制 SQL。保留原工具协议与加固计划绑定。
+架构为既有 MCP 入口内的局部扩展：工具参数模块映射固定 CLI，协议模块投影有限响应，运行模块管理调用与不确定状态。仍由现有 CLI `config show/set`、`cert edit/set-default` 和 `shield-services` 负责存储、锁及字段规则，不在 MCP 读取数据库或复制 SQL。保留原工具协议与加固计划绑定。
 
 参数只接受有限类型；设置字段区分省略、设置、显式 `null`。`sign_after_protect:null` 恢复继承默认签名偏好，`certificate_id:null` 清除加固页专用选择，均不删除证书。模式使用保存值 `standard/android_api19`，策略为 `compatible/strict`。空补丁或未知字段直接拒绝，不隐式重置。证书文本有界并拒绝 NUL；所有字符串绑定为独立参数，编号可在 `--` 后传递，不能成为命令选项。
 

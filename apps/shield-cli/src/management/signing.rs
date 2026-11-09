@@ -5,7 +5,7 @@ use crate::{
     config::{CliConfig, ResolvedSignArgs},
 };
 use anyhow::{anyhow, Result};
-use shield_app::certificates::{
+use shield_services::certificates::{
     resolve_signing_certificate, CertificateSelection, CertificateStoreState,
 };
 use std::path::Path;

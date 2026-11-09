@@ -277,7 +277,7 @@ fn 受控规划超时不会遗留工作进程或最终文件() {
 
 #[test]
 fn 共享规划取消断开及超时同样停止后代且不交付() {
-    use shield_app::{
+    use shield_services::{
         certificates::{CertificateStoreState, CertificateUpsertInput},
         paths::ApplicationPaths,
     };

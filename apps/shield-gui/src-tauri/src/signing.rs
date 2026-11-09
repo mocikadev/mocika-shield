@@ -71,6 +71,6 @@ pub(crate) fn query_keystore_aliases(
     ks_pass: String,
     ks_type: Option<String>,
 ) -> Result<Vec<String>, ExecutionFailure> {
-    shield_app::certificates::query_keystore_aliases(keystore_path, ks_pass, ks_type)
+    shield_services::certificates::query_keystore_aliases(keystore_path, ks_pass, ks_type)
         .map_err(Into::into)
 }

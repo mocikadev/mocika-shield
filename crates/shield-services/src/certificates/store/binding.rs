@@ -53,11 +53,11 @@ impl CertificateBinding {
 /// 内部材料与记录承诺来自同一个 SQLite 读快照；不能通用序列化或调试。
 ///
 /// ```compile_fail
-/// use shield_app::certificates::BoundSigningIdentity;
+/// use shield_services::certificates::BoundSigningIdentity;
 /// fn 输出(value: &BoundSigningIdentity) { serde_json::to_string(value).unwrap(); }
 /// ```
 /// ```compile_fail
-/// use shield_app::certificates::BoundSigningIdentity;
+/// use shield_services::certificates::BoundSigningIdentity;
 /// fn 输出(value: &BoundSigningIdentity) { format!("{value:?}"); }
 /// ```
 pub struct BoundSigningIdentity {

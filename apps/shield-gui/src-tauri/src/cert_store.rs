@@ -1,5 +1,5 @@
 //! GUI 只负责从 Tauri 定位目录，证书库与密文逻辑由共享应用层维护。
-pub(crate) use shield_app::certificates::{
+pub(crate) use shield_services::certificates::{
     CertificateRecord, CertificateStoreState, CertificateSummary, CertificateUpsertInput,
     CertificateValidationInput, CertificateValidationResult, CreateManagedCertificateInput,
 };

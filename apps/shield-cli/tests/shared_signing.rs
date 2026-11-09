@@ -1,6 +1,6 @@
 //! 共享身份签名保持原命令事件格式；不代表受控 Agent／MCP 已接入共享库。
 use serde_json::Value;
-use shield_app::{
+use shield_services::{
     certificates::{
         create_managed_certificate, CertificateStoreState, CreateManagedCertificateInput,
     },

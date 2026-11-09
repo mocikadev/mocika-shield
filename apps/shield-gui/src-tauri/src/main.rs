@@ -238,7 +238,7 @@ async fn save_app_config(app: tauri::AppHandle, config: AppConfigUpdate) -> Resu
 #[tauri::command]
 async fn save_protect_defaults(
     app: tauri::AppHandle,
-    defaults: shield_app::config::ProtectDefaultsPatch,
+    defaults: shield_services::config::ProtectDefaultsPatch,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         app.state::<AppConfigState>()

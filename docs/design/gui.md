@@ -10,7 +10,7 @@
 维护约束只有两条：
 
 - 正式版本只维护这一套 Tauri GUI，不再保留第二套桌面实现
-- GUI 后端链接 `shield-app` 的共享应用能力及 `shield-core` 的 APK 核心，不通过额外 CLI／MCP 子进程包装业务逻辑；共享迁移实际状态见[专项计划](../process/shared-application-plan.md)
+- GUI 后端链接 `shield-services` 的共享应用能力及 `shield-core` 的 APK 核心，不通过额外 CLI／MCP 子进程包装业务逻辑；共享迁移实际状态见[专项计划](../process/shared-application-plan.md)
 - 标准模式与 Android 4.4 兼容模式使用固定枚举映射到应用内置资源，前端不得提交任意资源路径；缺省值保持标准模式
 - 运行环境保护使用 `compatible/strict` 固定枚举；缺省值保持 `compatible`，用户界面显示“标准保护（推荐）”，不得使用含义模糊的“兼容模式”作为展示名称
 

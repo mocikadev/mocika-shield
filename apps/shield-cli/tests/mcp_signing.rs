@@ -1,7 +1,7 @@
 //! MCP 单次独立签名；所有资料隔离，不修改真实宿主配置或证书库。
 #![cfg(all(feature = "mcp-server", target_os = "macos"))]
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     paths::ApplicationPaths,
 };

@@ -1,6 +1,6 @@
 //! 普通加固的共享来源与产物回归；不等同于受控 Agent 或跨平台设备验收。
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     config::ConfigStore,
     paths::ApplicationPaths,

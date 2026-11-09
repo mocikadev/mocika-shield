@@ -21,11 +21,11 @@ pub struct CertificatePreferencesPatch {
 /// 仅供本机执行使用的签名材料；不提供序列化或调试输出。
 ///
 /// ```compile_fail
-/// use shield_app::certificates::CertificateRecord;
+/// use shield_services::certificates::CertificateRecord;
 /// fn 输出材料(value: &CertificateRecord) -> String { format!("{value:?}") }
 /// ```
 /// ```compile_fail
-/// use shield_app::certificates::CertificateRecord;
+/// use shield_services::certificates::CertificateRecord;
 /// fn 输出材料(value: &CertificateRecord) { serde_json::to_string(value).unwrap(); }
 /// ```
 #[derive(Clone)]
