@@ -107,6 +107,9 @@ impl Fixture {
             .arg(timeout.to_string())
             .env("MOCIKA_SHIELD_KS_PASS", "inherited-not-a-credential")
             .env("MOCIKA_SHIELD_KEY_PASS", "inherited-key-not-a-credential")
+            // 模拟当前 Agent 的精简环境：能查询证书不代表能够解密签名资料。
+            .env_remove("USER")
+            .env_remove("USERNAME")
             .env_remove("JAVA_TOOL_OPTIONS")
             .env_remove("_JAVA_OPTIONS")
             .env_remove("JDK_JAVA_OPTIONS");

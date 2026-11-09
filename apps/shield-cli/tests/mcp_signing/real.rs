@@ -133,6 +133,8 @@ fn 单次真实签名覆盖默认显式唯一范围换证书和错误后继续�
         .stdin(std::process::Stdio::null())
         .env_remove("MOCIKA_SHIELD_KS_PASS")
         .env_remove("MOCIKA_SHIELD_KEY_PASS")
+        .env_remove("USER")
+        .env_remove("USERNAME")
         .env_remove("JAVA_TOOL_OPTIONS")
         .env_remove("_JAVA_OPTIONS")
         .env_remove("JDK_JAVA_OPTIONS")
