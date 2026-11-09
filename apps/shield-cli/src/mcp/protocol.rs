@@ -1,8 +1,10 @@
 //! CLI 到 MCP 的结果白名单；不转发自由文本、路径或原始 stderr。
 use super::policy::Result;
 use serde_json::{json, Value};
+mod management;
+pub(super) use management::{decode_management, Management};
 
-pub(super) fn decode(bytes: &[u8], operation: &str, exit: i32) -> Result<Value> {
+fn events(bytes: &[u8], operation: &str) -> Result<Vec<Value>> {
     if bytes.is_empty() || !bytes.ends_with(b"\n") {
         return Err("CLI_PROTOCOL_INVALID");
     }
@@ -20,6 +22,10 @@ pub(super) fn decode(bytes: &[u8], operation: &str, exit: i32) -> Result<Value> 
         }
         events.push(value);
     }
+    Ok(events)
+}
+pub(super) fn decode(bytes: &[u8], operation: &str, exit: i32) -> Result<Value> {
+    let events = events(bytes, operation)?;
     if matches!(operation, "agent_plan" | "agent_protect" | "agent_sign") {
         return controlled(&events, operation, exit);
     }

@@ -212,7 +212,7 @@ fn private(value: &Value, fixture: &Fixture) {
 #[test]
 fn 只在既有共享执行模式注册一个签名工具而无额外前置参数() {
     let fixture = Fixture::new();
-    for (execute, shared, expected) in [(false, true, 4), (true, false, 5), (true, true, 7)] {
+    for (execute, shared, expected) in [(false, true, 5), (true, false, 5), (true, true, 11)] {
         let mut session = Session::start(fixture.command(&["allowed"], execute, shared, 20));
         session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
         let tools = session.receive(2)["result"]["tools"]

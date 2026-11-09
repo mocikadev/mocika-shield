@@ -220,6 +220,18 @@ fn 单次真实签名覆盖默认显式唯一范围换证书和错误后继续�
         json!({"input":"应用.apk","output":"编号签名.apk","certificate_id":first.id}),
     );
     verified(&fixture, &result, "编号签名.apk", &signer, &first_fp);
+    let selected = session.call(
+        12,
+        "shield_set_default_certificate",
+        json!({"certificate_id":first.id}),
+    );
+    assert_eq!(selected["change_state"], "confirmed");
+    let selected = sign(
+        &mut session,
+        13,
+        json!({"input":"应用.apk","output":"切换默认签名.apk"}),
+    );
+    verified(&fixture, &selected, "切换默认签名.apk", &signer, &first_fp);
     fs::copy(
         fixture.root.path().join("输出/默认签名.apk"),
         fixture.root.path().join("输入/已签名.apk"),
@@ -348,6 +360,13 @@ exec "$SHIELD_SIGN_REAL_JAVA" "$@"
             "SERVER_BUSY"
         );
         let status = session.call(5, "shield_execution_status", json!({"plan_id":id}));
+        let busy = session.call(
+            7,
+            "shield_update_settings",
+            json!({"environment_policy":"strict"}),
+        );
+        assert_eq!(busy["code"], "SERVER_BUSY");
+        assert_eq!(busy["change_state"], "not_attempted");
         assert_eq!(status["state"], "running");
         assert_eq!(status["operation"], "agent_sign");
         private(&status, &fixture);
