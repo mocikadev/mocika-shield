@@ -61,6 +61,16 @@ shield cert create --name '新发布证书' --file-name release.p12 \
 
 ## 使用已保存证书独立签名
 
+开发版 macOS 共包 CLI 优先使用单次受控入口：
+
+```bash
+shield agent sign -i input.apk -o signed.apk --certificate-id <证书编号>
+# 省略编号则使用共享全局默认证书，不要求前置计划或手工摘要
+shield agent sign -i input.apk -o signed.apk
+```
+
+内部自动规划、固定材料、签名和验签，父进程无覆盖交付；首版仅 V1–V3。`agent sign-plan` 仅用于预览，不是执行前置。仅需已有共享证书和包内签名工具，不需要 apktool 或壳资源；不接受加固模式、ABI 排除或临时密码。缺资料直接返回有限错误，不修改证书偏好或交互索取密码。详细边界见[独立签名设计](../design/controlled-signing.md)。普通入口继续保留，下面的普通签名说明不代表受控入口具有相同限制：
+
 ```bash
 shield sign -i input.apk -o signed.apk --certificate-id <证书编号>
 shield sign -i input.apk -o signed.apk --use-default-certificate
@@ -127,4 +137,4 @@ macOS `agent-executor` 开发特性和当前本机构建共包 CLI 已接入共�
 
 写操作报错可能发生在保存后的回读阶段。`change_state: unconfirmed` 表示不能确认修改结果，不表示回滚；没有收到完整响应时同样须先查询本机状态，不自动重试导入、创建或删除。查询失败不换库、不输出工具原始日志。
 
-独立 Skill 0.2.0 已按实际命令扩展共享资料与签名指引。MCP 可由宿主开启[白名单共享模式](../design/shared-mcp.md)，仅脱敏查询和受控加固；独立签名与管理写操作尚未开放。原外置配置模式保留，允许加固不自动允许删除证书。
+独立 Skill 0.3.0 已按实际命令扩展单次受控独立签名指引。MCP 可由宿主开启[白名单共享模式](../design/shared-mcp.md)，提供脱敏查询、受控加固，以及沿用原执行许可的单次独立签名；管理写工具仍未开放。原外置配置模式保留，允许加固或签名不自动允许删除证书。当前 Mac 完整包已验，公开安装包和实际宿主注册不据此推定已更新。

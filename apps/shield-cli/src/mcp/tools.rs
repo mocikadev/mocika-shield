@@ -66,6 +66,13 @@ struct Plan {
     #[serde(default)]
     exclude_abis: Vec<String>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Sign {
+    pub input: String,
+    pub output: String,
+    pub certificate_id: Option<String>,
+}
 
 pub(super) fn list(allow_execution: bool, shared: bool) -> Vec<Tool> {
     let relative = json!({"type":"string","minLength":1,"maxLength":2048,"description":"启动时授权根目录内的相对路径，不接受链接或父级跳转"});
@@ -122,6 +129,18 @@ pub(super) fn list(allow_execution: bool, shared: bool) -> Vec<Tool> {
                 .open_world(false),
         );
         tools.push(protect);
+        if shared {
+            let mut sign = tool("shield_sign", "使用共享证书独立签名，一次调用自动规划和交付，不加固、不覆盖、不安装。省略编号时使用范围内默认项或唯一允许项，无额外确认。返回的 plan_id 仅供原状态工具查询，不是签名前置计划。",
+                json!({"input":relative,"output":relative,"certificate_id":{"type":"string","minLength":1,"maxLength":128}}), &["input","output"]);
+            sign.annotations = Some(
+                ToolAnnotations::new()
+                    .read_only(false)
+                    .destructive(false)
+                    .idempotent(false)
+                    .open_world(false),
+            );
+            tools.push(sign);
+        }
         tools.push(tool(
             "shield_execution_status",
             "只读查询本会话计划的执行阶段与终态证据；不重新检查环境、不启动或恢复任务。",
@@ -295,6 +314,43 @@ fn plan_call(
     })
 }
 
+pub(super) fn sign_arguments(arguments: Value, policy: &Policy) -> Result<Sign> {
+    if !policy.is_shared() {
+        return Err("TOOL_NOT_AVAILABLE");
+    }
+    let args: Sign = serde_json::from_value(arguments).map_err(|_| "ARGUMENT_INVALID")?;
+    policy.input(&args.input)?;
+    policy.output(&args.output)?;
+    if let Some(id) = &args.certificate_id {
+        policy.certificate(id)?;
+    }
+    Ok(args)
+}
+pub(super) fn sign_call(args: &Sign, policy: &Policy, certificate: &str) -> Result<Invocation> {
+    policy.certificate(certificate)?;
+    let mut command = policy.shared_arguments()?;
+    if let Some(config) = policy.project_config() {
+        command.extend(["--config".into(), config.into()]);
+    }
+    command.extend([
+        "agent".into(),
+        "sign".into(),
+        "--input".into(),
+        policy.input(&args.input)?.into_os_string(),
+        "--output".into(),
+        policy.output(&args.output)?.into_os_string(),
+        "--control-stdin".into(),
+        "--timeout-seconds".into(),
+        policy.timeout_seconds.to_string().into(),
+        format!("--certificate-id={certificate}").into(),
+    ]);
+    Ok(Invocation {
+        arguments: command,
+        operation: "agent_sign",
+        controlled: true,
+    })
+}
+
 pub(super) fn protect(
     arguments: Value,
     policy: &Policy,
@@ -379,6 +435,24 @@ mod tests {
             .arguments
             .contains(&OsString::from("--certificate-id=--help")));
         assert!(!call.arguments.contains(&OsString::from("--help")));
+        let sign_args = sign_arguments(
+            json!({"input":"a.apk","output":"b.apk","certificate_id":"--help"}),
+            &policy,
+        )
+        .unwrap();
+        let signing = sign_call(&sign_args, &policy, "--help").unwrap();
+        assert_eq!(signing.operation, "agent_sign");
+        assert!(signing
+            .arguments
+            .contains(&OsString::from("--certificate-id=--help")));
+        for forbidden in [
+            "--help",
+            "--shared-binding",
+            "--expect-plan-sha256",
+            "--runtime-profile",
+        ] {
+            assert!(!signing.arguments.contains(&OsString::from(forbidden)));
+        }
         assert!(
             !call.arguments.contains(&OsString::from("standard")),
             "缺省不能覆盖 GUI 共享模式"

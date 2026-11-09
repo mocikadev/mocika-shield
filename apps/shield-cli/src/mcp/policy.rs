@@ -277,6 +277,13 @@ impl Policy {
             .ok_or("SHARED_SOURCE_NOT_ENABLED")?
             .arguments())
     }
+    pub fn sole_certificate(&self) -> Result<Option<&str>> {
+        Ok(self
+            .shared
+            .as_ref()
+            .ok_or("SHARED_SOURCE_NOT_ENABLED")?
+            .sole_certificate())
+    }
     pub fn project_config(&self) -> Option<&Path> {
         self.config.as_ref().map(|file| file.path.as_path())
     }

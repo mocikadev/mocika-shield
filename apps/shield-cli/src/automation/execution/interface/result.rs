@@ -59,6 +59,8 @@ struct Raw {
     artifact: Option<Artifact>,
     directory_synced: Option<bool>,
     shared_binding: Option<String>,
+    signing_warning: Option<bool>,
+    task_kind: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -76,6 +78,8 @@ pub(super) struct Terminal {
     artifact: Option<Artifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cancel_source: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<&'static str>,
 }
 impl Terminal {
     pub fn before_start(code: &str) -> Self {
@@ -90,12 +94,17 @@ impl Terminal {
             plan: None,
             artifact: None,
             cancel_source: None,
+            warnings: vec![],
         }
     }
 
     fn error(err: CheckError) -> Self {
         let mut result = Self::before_start(err.code);
-        result.cleanup_state = Cleanup::Unconfirmed;
+        result.cleanup_state = match err.cleanup_complete {
+            Some(true) => Cleanup::Complete,
+            Some(false) => Cleanup::Incomplete,
+            None => Cleanup::Unconfirmed,
+        };
         result.status = match err.code {
             "TASK_CANCELLED" => Status::Cancelled,
             "TASK_TIMEOUT" => Status::TimedOut,
@@ -118,7 +127,11 @@ impl Terminal {
         result
     }
 
+    #[cfg(test)]
     pub fn from_run(run: Result<Value, CheckError>, plan_only: bool) -> Self {
+        Self::from_operation(run, plan_only, false)
+    }
+    pub fn from_operation(run: Result<Value, CheckError>, plan_only: bool, signing: bool) -> Self {
         let raw = match run {
             Err(err) => return Self::error(err),
             Ok(value) => match serde_json::from_value::<Raw>(value) {
@@ -131,6 +144,12 @@ impl Terminal {
             .as_ref()
             .is_none_or(|artifact| artifact.bytes > 0 && parse_hex::<32>(&artifact.sha256).is_ok());
         let invalid = raw.kind != "result"
+            || !matches!(
+                (signing, raw.task_kind.as_deref()),
+                (true, Some("sign")) | (false, None)
+            )
+            || (signing && raw.shared_binding.is_some())
+            || (!signing && raw.signing_warning.is_some())
             || raw.shared_binding.as_deref().is_some_and(|binding| {
                 crate::automation::shared_plan::Binding::decode(binding).is_err()
             })
@@ -179,6 +198,13 @@ impl Terminal {
             }
             .to_owned()
         });
+        let warnings = if raw.signing_warning == Some(true)
+            || (signing && matches!(raw.status, Status::Warning))
+        {
+            vec!["SIGNING_CERTIFICATE_CHANGED"]
+        } else {
+            vec![]
+        };
         Self {
             status: raw.status,
             code,
@@ -188,13 +214,20 @@ impl Terminal {
             retryable: false,
             elapsed_ms: raw.elapsed_ms,
             plan: Some(Plan {
-                schema_version: if raw.shared_binding.is_some() { 3 } else { 2 },
+                schema_version: if signing {
+                    4
+                } else if raw.shared_binding.is_some() {
+                    3
+                } else {
+                    2
+                },
                 sha256: raw.plan_digest,
                 private_key_access_checked: !plan_only && raw.artifact.is_some(),
                 shared_binding: raw.shared_binding,
             }),
             artifact: raw.artifact,
             cancel_source: None,
+            warnings,
         }
     }
 
@@ -240,6 +273,38 @@ impl Terminal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn 规划错误只在持有实际清场证据时才确认清理() {
+        for (proof, expected) in [
+            (None, "unconfirmed"),
+            (Some(false), "incomplete"),
+            (Some(true), "complete"),
+        ] {
+            let mut error = error("SIGNING_V4_NOT_SUPPORTED");
+            error.cleanup_complete = proof;
+            let value = serde_json::to_value(Terminal::error(error)).unwrap();
+            assert_eq!(value["cleanup_state"], expected);
+            assert_eq!(value["output_state"], "not_published");
+        }
+        let value = serde_json::to_value(Terminal::error(
+            error("STOP_UNCONFIRMED").with_cleanup(true),
+        ))
+        .unwrap();
+        assert_eq!(value["cleanup_state"], "retained");
+        assert_eq!(value["status"], "unknown");
+    }
+    #[test]
+    fn 签名结果有独立种类且不能被加固结果解析器接受() {
+        let sign = serde_json::json!({"type":"result","task_kind":"sign","status":"ready","output_state":"not_published", "cleanup_complete":true,
+            "retryable":false,"elapsed_ms":1,"plan_digest":"a".repeat(64)});
+        assert_eq!(Terminal::from_run(Ok(sign.clone()), true).exit(), 3);
+        let value =
+            serde_json::to_value(Terminal::from_operation(Ok(sign.clone()), true, true)).unwrap();
+        assert_eq!(value["plan"]["schema_version"], 4);
+        let mut old = sign;
+        old.as_object_mut().unwrap().remove("task_kind");
+        assert_eq!(Terminal::from_operation(Ok(old), true, true).exit(), 3);
+    }
     #[test]
     fn 矛盾终态和缺失失败码必须失败关闭() {
         let base = serde_json::json!({"type":"result","status":"failed","output_state":"not_published","cleanup_complete":true,

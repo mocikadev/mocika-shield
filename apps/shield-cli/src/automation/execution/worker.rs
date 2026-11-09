@@ -17,6 +17,7 @@ use shield_core::{
 };
 use std::sync::Mutex;
 use std::time::Duration;
+mod signing;
 
 type Writer = Arc<Mutex<FrameWriter<std::io::Stdout>>>;
 
@@ -38,6 +39,10 @@ impl From<CheckError> for WorkerError {
             "SHARED_BINDING_INVALID" | "SHARED_CREDENTIAL_CONFLICT" => Rejection::InvalidRequest,
             "EXECUTABLE_CHANGED" | "EXECUTOR_CHANGED" => Rejection::ExecutorChanged,
             "TOOLCHAIN_CHANGED" => Rejection::ToolchainChanged,
+            "CERTIFICATE_MISMATCH" => Rejection::CertificateMismatch,
+            "SIGNING_INPUT_INVALID" => Rejection::SigningInputInvalid,
+            "SIGNING_CONFIG_INVALID" => Rejection::SigningConfigInvalid,
+            "SIGNING_VERSIONS_INVALID" => Rejection::SigningVersionsInvalid,
             _ => {
                 return Self::Core(
                     serde_json::from_value(serde_json::json!(error.code))
@@ -80,13 +85,7 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
             .wait_start(Duration::from_secs(3600))
             .map_err(|_| WorkerError::Policy(Rejection::InvalidRequest))?;
         let (bootstrap, _) = read_json::<Bootstrap>(&args.root.join("bootstrap.json"), 65536)?;
-        if bootstrap.format_version
-            != if bootstrap.request.shared.is_some() {
-                3
-            } else {
-                2
-            }
-        {
+        if bootstrap.format_version != bootstrap.request.bootstrap_version() {
             return Err(WorkerError::Policy(Rejection::InvalidRequest));
         }
         bootstrap.executor.worker()?;
@@ -95,7 +94,7 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
             (Mode::Execute, Some(tools)) => tools.recheck(&mut || Ok(()))?,
             _ => return Err(WorkerError::Policy(Rejection::InvalidRequest)),
         }
-        let mut request = bootstrap.request;
+        let mut request = bootstrap.request.clone();
         request.validate()?;
         send(
             &writer,
@@ -103,6 +102,9 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
                 stage: Stage::Prepare,
             },
         )?;
+        if request.sign.is_some() {
+            return signing::run(&request, &bootstrap, start, &args.root, &writer);
+        }
         let assessment = match &request.shared {
             Some(shared) => crate::automation::shared_plan::prepare(
                 request.plan_args(),
@@ -120,7 +122,7 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
                 let proof = PlanProof {
                     format_version: if plan.sources.shared.is_some() { 2 } else { 1 },
                     warning: plan.result.status == crate::automation::Status::Warning,
-                    sources: plan.sources,
+                    sources: sources::Sources::Protect(Box::new(plan.sources)),
                 };
                 let sources_sha256 = write_json(&args.root.join("sources.json"), &proof)?;
                 send(
@@ -329,6 +331,7 @@ fn execute(
                 signature_checked: true,
                 protection_checked: true,
                 alignment_checked: true,
+                content_sha256: None,
             },
         },
     )

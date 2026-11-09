@@ -1,4 +1,4 @@
-//! 默认关闭的 macOS 开发验证入口，不是正式 Agent 命令或稳定协议。
+//! macOS 开发特性的受控自动化入口；内部工作消息不是跨版本服务协议。
 use super::args::Profile;
 use super::{CheckError, PlanProtectArgs};
 use clap::Args;
@@ -19,6 +19,7 @@ mod controller;
 mod identity;
 mod interface;
 mod launch;
+mod sources;
 mod worker;
 pub(crate) use interface::{run_agent, AgentArgs};
 
@@ -47,7 +48,7 @@ enum Notice {
 #[serde(deny_unknown_fields)]
 struct PlanProof {
     format_version: u32,
-    sources: crate::automation::plan::Sources,
+    sources: sources::Sources,
     warning: bool,
 }
 
@@ -70,6 +71,8 @@ struct Request {
     config: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     shared: Option<super::shared_plan::SharedRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sign: Option<super::sign_plan::Request>,
     input: PathBuf,
     output: PathBuf,
     runtime_profile: Profile,
@@ -95,13 +98,40 @@ impl Request {
                 *path = current.join(&*path);
             }
         }
-        if self.config.is_none() && self.shared.is_none() {
+        if self.config.is_none() && self.shared.is_none() && self.sign.is_none() {
             return Err(error("SIGNING_CONFIG_REQUIRED"));
         }
         if let Some(shared) = &self.shared {
             shared.validate()?;
         }
+        if let Some(sign) = &self.sign {
+            if self.shared.is_some()
+                || !self.exclude_abis.is_empty()
+                || self.runtime_profile != Profile::Standard
+            {
+                return Err(error("INVALID_REQUEST"));
+            }
+            sign.validate()?;
+        }
         Ok(())
+    }
+    fn bootstrap_version(&self) -> u32 {
+        if self.sign.is_some() {
+            4
+        } else if self.shared.is_some() {
+            3
+        } else {
+            2
+        }
+    }
+    fn proof_version(&self) -> u32 {
+        if self.sign.is_some() {
+            3
+        } else if self.shared.is_some() {
+            2
+        } else {
+            1
+        }
     }
     fn plan_args(&self) -> PlanProtectArgs {
         PlanProtectArgs {

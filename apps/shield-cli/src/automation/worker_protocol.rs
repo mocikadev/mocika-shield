@@ -62,6 +62,9 @@ pub(super) enum Rejection {
     MaterialInvalid,
     ExecutorChanged,
     ToolchainChanged,
+    SigningInputInvalid,
+    SigningVersionsInvalid,
+    SigningConfigInvalid,
 }
 
 impl Message {

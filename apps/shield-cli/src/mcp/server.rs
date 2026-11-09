@@ -23,7 +23,7 @@ impl ServerHandler for Server {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("mocika-shield", env!("CARGO_PKG_VERSION")))
             .with_protocol_version(ProtocolVersion::V_2025_11_25)
-            .with_instructions("只处理宿主固定目录与配置。执行需用户授权、本会话计划和匹配摘要；计划一次消费。禁止自动重试、任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
+            .with_instructions("只处理宿主固定目录与配置。已开启执行时，加固使用本会话计划及匹配摘要，计划一次消费；共享独立签名一次调用完成，不需要先规划或额外确认。禁止自动重试、任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
     }
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
         Cow::Owned(vec![ProtocolVersion::V_2025_11_25])
@@ -63,6 +63,7 @@ impl ServerHandler for Server {
             request.name.as_ref(),
             "shield_doctor" | "shield_preflight" | "shield_plan"
         ) || self.allow_execution && request.name == "shield_protect"
+            || self.allow_execution && self.policy.is_shared() && request.name == "shield_sign"
             || self.policy.is_shared() && request.name == "shield_certificates";
         if !available {
             return Ok(error("TOOL_NOT_AVAILABLE").into());
@@ -79,6 +80,13 @@ impl ServerHandler for Server {
             cancelled: cancelled.clone(),
             shutdown: self.shutdown.clone(),
             progress,
+            deadline: tokio::time::Instant::now()
+                + Duration::from_secs(self.policy.timeout_seconds),
+        };
+        let operation = if request.name == "shield_sign" {
+            "agent_sign"
+        } else {
+            "agent_protect"
         };
         // 后台调用持有许可和收尾责任；SDK 取消原响应不能丢掉正在执行的任务。
         let mut work = tokio::spawn(async move {
@@ -88,9 +96,14 @@ impl ServerHandler for Server {
         let mut token = context.meta.get_progress_token();
         let value = loop {
             tokio::select! {
-                result = &mut work => break result.unwrap_or_else(|_| session::unknown("TASK_STATE_UNKNOWN")),
+                result = &mut work => break result.unwrap_or_else(|_| session::unknown_for("TASK_STATE_UNKNOWN", operation)),
                 Some(update) = updates.recv(), if token.is_some() && !cancelled.is_cancelled() => {
-                    let notification = ProgressNotificationParam::new(token.clone().unwrap(),f64::from(update.index)+1.0).with_message(update.stage);
+                    let mut notification = ProgressNotificationParam::new(token.clone().unwrap(),f64::from(update.index)+1.0).with_message(update.stage);
+                    if let Some(id) = update.plan_id {
+                        let mut meta = NotificationMetaObject::new();
+                        meta.insert("mocika-shield/plan_id".into(), Value::String(id));
+                        notification.meta = Some(meta);
+                    }
                     if !matches!(tokio::time::timeout(Duration::from_secs(1),context.peer.notify_progress(notification)).await,Ok(Ok(()))) {
                         cancelled.cancel(); token=None;
                     }

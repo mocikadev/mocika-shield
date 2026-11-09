@@ -26,7 +26,7 @@
 
 共享计划 `plan.schema_version=3`，绑定为受限小写十六进制文本，不含密码、路径或 Alias。仅原样回传 `plan.shared_binding`，不构造、修改或从失败响应取替代值。执行不重复传证书选择、模式或策略。ABI 排除如经授权，两次仍须显式相同；可选项目 `--config` 和隔离 `--app-home` 如有，也须保持一致。
 
-绑定固定所选记录及有效模式、策略和签名版本；更改备注、默认项或 GUI 模式不会换证书。相关材料／签名偏好／文件变化会阻断，不能回退另一来源。共享来源不接受外部密码环境或项目中的临时 keystore／Alias／类型；由宿主明确为本次进程移除不需要的密码注入，不读取值或改系统全局环境。项目文件如有，只作允许的覆盖，不是密码文件。受控命令始终是加固并签名，不由 GUI 自动签名开关改为未签名交付。
+绑定固定所选记录及有效模式、策略和签名版本；更改备注、默认项或 GUI 模式不会换证书。相关材料／签名偏好／文件变化会阻断，不能回退另一来源。共享来源不接受外部密码环境或项目中的临时 keystore／Alias／类型；由宿主明确为本次进程移除不需要的密码注入，不读取值或改系统全局环境。项目文件如有，只作允许的覆盖，不是密码文件。受控加固始终是加固并签名，不由 GUI 自动签名开关改为未签名交付。
 
 ## 兼容的外部配置流程
 
@@ -81,7 +81,7 @@ v4 = false
 
 ## 受控任务结果
 
-`agent plan/protect` 的标准输出为 UTF-8 逐行 JSON，解析每一行并持续排空。信封含 `schema_version`、`experimental`、`tool_version`、`operation`、`task_id`、递增 `sequence` 和 `type`。正常流以 `started` 开始，进度可稀疏，以唯一 `result` 结束；早期初始化失败可能只有一条结果且 `task_id=null`。`operation` 应为本次 `agent_plan` 或 `agent_protect`。未知协议不猜测、不退回普通日志。
+`agent plan/protect/sign-plan/sign` 的标准输出为 UTF-8 逐行 JSON，解析每一行并持续排空。信封含 `schema_version`、`experimental`、`tool_version`、`operation`、`task_id`、递增 `sequence` 和 `type`。正常流以 `started` 开始，进度可稀疏，以唯一 `result` 结束；早期初始化失败可能只有一条结果且 `task_id=null`。`operation` 应分别为 `agent_plan`、`agent_protect`、`agent_sign_plan` 或 `agent_sign`。未知协议不猜测、不退回普通日志。
 
 | 终态事实 | 应如何处理 |
 |---|---|
@@ -92,9 +92,9 @@ v4 = false
 | 退出 `124`/`130`，匹配 `timed_out/cancelled` 终态 | 已确认停止的超时/取消；仍按清理状态说明，不推定材料都已删除 |
 | 退出 `3`、终态缺失/截断、字段矛盾或陌生状态 | 结果未知，可能已经交付；核对已有输出，不自动重试或删除 |
 
-`cleanup_state` 为 `not_needed/complete/incomplete/retained/unconfirmed`；只在 `complete` 时称回收完成。`retryable` 当前固定 `false`，不得据计数或错误码自动重试。`plan.schema_version` 是计划身份版本，不是公共信封版本；本技能识别外部配置的版本 `2` 和共享来源的版本 `3`。允许兼容追加字段，但未知版本或未知终态不能当成功；共享流程须同时有原样绑定，不按缺字段响应执行。
+`cleanup_state` 为 `not_needed/complete/incomplete/retained/unconfirmed`；只在 `complete` 时称回收完成。`retryable` 当前固定 `false`，不得据计数或错误码自动重试。`plan.schema_version` 是计划身份版本，不是公共信封版本；本技能识别外部加固的版本 `2`、共享加固的版本 `3` 和独立签名的版本 `4`。允许兼容追加字段，但未知版本或未知终态不能当成功。只有共享加固执行要求原样绑定；独立签名没有需回传的摘要或绑定，不跨任务解释计划。
 
-输出会有界收尾，不能无限等待客户端读取；外层读取超时不能冒充 CLI 超时。通过进程会话持续读取，不用 `head` 提前断开，也不暂停读取去等待用户确认；完整规划结束后再确认执行。
+输出会有界收尾，不能无限等待客户端读取；外层读取超时不能冒充 CLI 超时。通过进程会话持续读取，不用 `head` 提前断开，也不暂停读取去等待用户确认；只有明确要求的规划才在完整结束后停下，已授权签名不新增前置确认。
 
 ## 取消与故障
 

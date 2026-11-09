@@ -1,4 +1,4 @@
-//! 自动化适配：默认只有只读入口；隔离执行须显式启用开发特性，不读取 GUI 数据。
+//! 自动化入口适配：默认只读；macOS 开发特性复用共享资料与受控执行，不复制存储规则。
 mod args;
 mod doctor;
 mod plan;
@@ -9,6 +9,8 @@ mod publication;
 mod resources;
 #[cfg(all(feature = "agent-executor", target_os = "macos"))]
 mod shared_plan;
+#[cfg(all(feature = "agent-executor", target_os = "macos"))]
+mod sign_plan;
 mod snapshot;
 // 协议与生命周期保持私有，正常构建不开放工作进程入口。
 #[cfg(all(test, unix))]
@@ -49,11 +51,23 @@ struct CheckResult {
 struct CheckError {
     code: &'static str,
     message: &'static str,
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    cleanup_complete: Option<bool>,
 }
 
 impl CheckError {
     fn new(code: &'static str, message: &'static str) -> Self {
-        Self { code, message }
+        Self {
+            code,
+            message,
+            #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+            cleanup_complete: None,
+        }
+    }
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    fn with_cleanup(mut self, complete: bool) -> Self {
+        self.cleanup_complete = Some(complete);
+        self
     }
 
     fn from_core(error: anyhow::Error) -> Self {

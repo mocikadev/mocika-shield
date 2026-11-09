@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
+mod signing;
 
 pub(super) struct Runner {
     pub policy: Arc<Policy>,
@@ -16,6 +17,7 @@ pub(super) struct Runner {
     pub cancelled: CancellationToken,
     pub shutdown: CancellationToken,
     pub progress: Sender<Progress>,
+    pub deadline: tokio::time::Instant,
 }
 impl Runner {
     pub async fn run(self, name: &str, arguments: Value) -> Value {
@@ -24,6 +26,9 @@ impl Runner {
         }
         if name == "shield_protect" {
             return self.protect(arguments).await;
+        }
+        if name == "shield_sign" {
+            return self.sign(arguments).await;
         }
         self.read(name, arguments).await.unwrap_or_else(failure)
     }
@@ -35,16 +40,26 @@ impl Runner {
         Ok(())
     }
     async fn cli(&self, call: bridge::Invocation, id: Option<&str>) -> Result<Value> {
+        self.cli_until(call, id, None).await
+    }
+    async fn cli_until(
+        &self,
+        call: bridge::Invocation,
+        id: Option<&str>,
+        deadline: Option<tokio::time::Instant>,
+    ) -> Result<Value> {
         let operation = call.operation;
         let controlled = call.controlled;
         let outcome = match bridge::run(
             &self.policy,
             call,
+            deadline,
             self.cancelled.clone(),
             self.shutdown.clone(),
-            |update| {
+            |mut update| {
                 if let Some(id) = id {
                     session::lock(&self.session).progress(id, update.stage);
+                    update.plan_id = Some(id.to_owned());
                 }
                 if self.progress.try_send(update).is_err() {
                     self.cancelled.cancel();
@@ -56,7 +71,7 @@ impl Runner {
             Ok(outcome) => outcome,
             Err(code) => {
                 // 受控桥接仅在启动子进程前返回此取消码；它不是清场未知。
-                if controlled && code != "TASK_CANCELLED"
+                if controlled && !matches!(code, "TASK_CANCELLED" | "TASK_TIMEOUT")
                     || matches!(code, "STOP_UNCONFIRMED" | "CLI_EXIT_UNKNOWN")
                 {
                     session::lock(&self.session).block_execution();
@@ -74,7 +89,9 @@ impl Runner {
             }
         };
         if controlled && !value["plan"].is_null() {
-            let valid = if self.policy.is_shared() {
+            let valid = if operation == "agent_sign" {
+                self.policy.is_shared() && value["plan"]["schema_version"] == 4
+            } else if self.policy.is_shared() {
                 value["plan"]["schema_version"] == 3
                     && value["plan"]["shared_binding"]
                         .as_str()
@@ -190,8 +207,8 @@ impl Runner {
             }
             Ok(call) => match self.cli(call, Some(&id)).await {
                 Ok(value) => value,
-                Err("TASK_CANCELLED") => {
-                    let mut result = failure("TASK_CANCELLED");
+                Err(code @ ("TASK_CANCELLED" | "TASK_TIMEOUT")) => {
+                    let mut result = failure(code);
                     result["cleanup_state"] = json!("not_needed");
                     result
                 }
@@ -212,6 +229,14 @@ impl Runner {
             result = session::unknown("CLI_PROTOCOL_INVALID");
         }
         // 执行后不能复用“输出不得存在”的规划检查，否则会把正常产物误报为冲突。
+        self.postcheck(&original, &mut result, attempted_cli);
+        result["plan_id"] = json!(id);
+        attempt.finish(result.clone());
+        result["session_execution_blocked"] =
+            json!(session::lock(&self.session).execution_blocked());
+        result
+    }
+    fn postcheck(&self, original: &Value, result: &mut Value, attempted_cli: bool) {
         let postcheck = if !attempted_cli {
             Ok(())
         } else {
@@ -237,14 +262,9 @@ impl Runner {
             } else if result["output_state"] == "uncertain" {
                 result["code"] = json!(code);
             } else {
-                result = failure(code);
+                *result = failure(code);
             }
         }
-        result["plan_id"] = json!(id);
-        attempt.finish(result.clone());
-        result["session_execution_blocked"] =
-            json!(session::lock(&self.session).execution_blocked());
-        result
     }
 }
 
@@ -306,6 +326,7 @@ mod tests {
             cancelled: CancellationToken::new(),
             shutdown: CancellationToken::new(),
             progress,
+            deadline: tokio::time::Instant::now() + std::time::Duration::from_secs(5),
         };
         runner.cancelled.cancel();
         let cancelled = runner
