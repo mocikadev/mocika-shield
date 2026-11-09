@@ -1,6 +1,6 @@
 //! 普通加固的项目／命令适配；合并规则由应用库提供，旧受控命令不走此入口。
 use super::*;
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateSummary},
     config::{ConfigStore, ProtectDefaults},
     paths::ApplicationPaths,

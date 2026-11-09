@@ -2,7 +2,7 @@
 use super::test_fixture as fixture;
 use super::*;
 use fixture::Fixture;
-use shield_app::{
+use shield_services::{
     certificates::{CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput},
     paths::ApplicationPaths,
 };

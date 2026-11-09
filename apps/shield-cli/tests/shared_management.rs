@@ -1,6 +1,6 @@
 //! 本地资料管理的真实命令回归；所有上下文均为显式隔离目录。
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput},
     paths::ApplicationPaths,
 };

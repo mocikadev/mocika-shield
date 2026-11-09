@@ -53,8 +53,10 @@ struct SignConfig {
 
 impl CliConfig {
     #[cfg(all(feature = "agent-executor", target_os = "macos"))]
-    pub(crate) fn shared_agent_overrides(&self) -> Result<shield_app::protect::ProtectOverrides> {
-        use shield_app::protect::{ProtectCertificateSource, ProtectOverrides};
+    pub(crate) fn shared_agent_overrides(
+        &self,
+    ) -> Result<shield_services::protect::ProtectOverrides> {
+        use shield_services::protect::{ProtectCertificateSource, ProtectOverrides};
         if self.protect.use_shared_settings == Some(false)
             || self.protect.sign_after_protect == Some(false)
             || (self.protect.certificate_id.is_some()
@@ -90,7 +92,7 @@ impl CliConfig {
     pub(crate) fn merge_shared_sign(
         &self,
         args: SignArgs,
-        certificate: shield_app::certificates::CertificateRecord,
+        certificate: shield_services::certificates::CertificateRecord,
     ) -> Result<ResolvedSignArgs> {
         self.require_shared_sign_source(&args)?;
         Ok(ResolvedSignArgs {

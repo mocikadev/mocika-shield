@@ -21,7 +21,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 semver = "1"
 shield-core = { path = "../../../crates/shield-core" }
-shield-app = { path = "../../../crates/shield-app" }
+shield-services = { path = "../../../crates/shield-services" }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 which = "8"
 dunce = "1"

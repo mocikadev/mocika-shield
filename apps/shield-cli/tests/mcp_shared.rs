@@ -1,7 +1,7 @@
 //! MCP 共享来源的协议、权限与真实执行验收；只操作自有隔离资料。
 #![cfg(all(feature = "mcp-server", target_os = "macos"))]
 use serde_json::{json, Value};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     config::ConfigStore,
     paths::ApplicationPaths,

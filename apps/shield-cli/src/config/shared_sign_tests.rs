@@ -1,5 +1,5 @@
 use super::*;
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     paths::ApplicationPaths,
 };

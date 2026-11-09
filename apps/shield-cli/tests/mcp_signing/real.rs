@@ -1,6 +1,6 @@
 //! 标准流真实专项；可显式选完整本地应用包，不等于实际 Agent 宿主注册或公开安装包验收。
 use super::*;
-use shield_app::certificates::{
+use shield_services::certificates::{
     create_managed_certificate, CertificatePreferencesPatch, CreateManagedCertificateInput,
 };
 use std::{
@@ -26,7 +26,7 @@ fn setup(fixture: &Fixture) -> (PathBuf, Vec<u8>) {
 fn certificate(
     store: &CertificateStoreState,
     kind: &str,
-) -> shield_app::certificates::CertificateRecord {
+) -> shield_services::certificates::CertificateRecord {
     create_managed_certificate(
         store,
         CreateManagedCertificateInput {
@@ -108,7 +108,7 @@ fn 单次真实签名覆盖默认显式唯一范围换证书和错误后继续�
     let store = fixture.store();
     let first = certificate(&store, "JKS");
     let second = certificate(&store, "PKCS12");
-    let expected = |cert: &shield_app::certificates::CertificateRecord| {
+    let expected = |cert: &shield_services::certificates::CertificateRecord| {
         shield_core::extract_keystore_cert_fingerprint(
             Path::new(&cert.keystore_path),
             &cert.key_alias,

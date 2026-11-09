@@ -6,12 +6,12 @@
 
 ```
 mocika-shield/
-├── Cargo.toml                        # Rust workspace 根（shield-core + shield-app + CLI + GUI + Android Native）
+├── Cargo.toml                        # Rust workspace 根（shield-core + shield-services + CLI + GUI + Android Native）
 ├── Cargo.lock
 ├── Makefile                          # 统一构建入口
 │
 ├── crates/
-│   ├── shield-app/                   # 证书、目录、配置和签名身份；GUI／CLI 共用，受控来源已接
+│   ├── shield-services/                   # 证书、目录、配置和签名身份；GUI／CLI 共用，受控来源已接
 │   │   ├── Cargo.toml
 │   │   └── src/                     # 不依赖 Tauri/clap/rmcp
 │   │       ├── certificates/        # 用例、无秘密摘要、SQLite、密文及托管文件

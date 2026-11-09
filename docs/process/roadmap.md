@@ -21,7 +21,7 @@
 
 ## 当前维护重点
 
-当前新增优先事项：按维护者确认的“一套业务、多种入口”原则统一 GUI／CLI／Skill／MCP 与未来 TUI 的业务能力和本地资料，见[共享应用设计](../design/shared-application.md)与[阶段任务](shared-application-plan.md)。采用已确认的 `shield-app` 应用库承载证书、配置及参数解析，`shield-core` 保持 APK 核心职责；保留原数据目录与密文兼容，不新增常驻服务。GUI 回接、跨进程配置、CLI 管理及已批准的受控 Agent 共享范围已实现，当前集中审查与交付，不据此宣称公开安装包或全部入口写能力已更新。
+当前新增优先事项：按维护者确认的“一套业务、多种入口”原则统一 GUI／CLI／Skill／MCP 与未来 TUI 的业务能力和本地资料，见[共享应用设计](../design/shared-application.md)与[阶段任务](shared-application-plan.md)。采用已确认的 `shield-services` 应用库承载证书、配置及参数解析，`shield-core` 保持 APK 核心职责；保留原数据目录与密文兼容，不新增常驻服务。GUI 回接、跨进程配置、CLI 管理及已批准的受控 Agent 共享范围已实现，当前集中审查与交付，不据此宣称公开安装包或全部入口写能力已更新。
 
 共享应用及独立签名基线已合入，GUI／CLI 共用资料与配置，Skill 为 0.3.0；MCP 已接通脱敏查询、共享受控加固及单次签名。[资料管理首批](../design/shared-mcp-management.md)已通过 PR #157 合并，新增业务设置查询／保存、证书偏好和默认切换，本机完整包与当前 Agent 闭环已验。当前分支的[证书生命周期](../design/mcp-certificate-lifecycle.md)已完成校验、导入、创建及删除记录，复用原开关和共享服务，不改原目录／密文；完整包和当前 Agent 的签名、删除保留文件闭环通过，进入集中审查，见[任务记录](mcp-certificate-lifecycle-plan.md)。公开安装包及宿主原生注册不据此推定已更新。
 

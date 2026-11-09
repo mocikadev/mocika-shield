@@ -5,7 +5,7 @@ use crate::{
     config::CliConfig,
 };
 use serde::{Deserialize, Serialize};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateBinding, CertificateSelection, CertificateStoreState},
     config::ConfigStore,
     paths::ApplicationPaths,

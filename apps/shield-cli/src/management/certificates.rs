@@ -1,6 +1,6 @@
 use super::{args::*, credentials, initialize_store, writable_store, ManagementError, Response};
 use serde_json::json;
-use shield_app::{
+use shield_services::{
     certificates::{
         create_managed_certificate, save_certificate_profile, verify_saved_certificate,
         CertificateError, CertificatePreferencesPatch, CertificateStoreState, CertificateSummary,

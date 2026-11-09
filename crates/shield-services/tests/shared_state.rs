@@ -1,6 +1,6 @@
 //! 真实子进程验证配置锁与 SQLite 一致性；仅操作本次私有临时目录，不调用 Java。
 use serde::{Deserialize, Serialize};
-use shield_app::{
+use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
     config::{ConfigStore, ProtectDefaultsPatch},
     paths::ApplicationPaths,
@@ -250,7 +250,7 @@ fn 多进程证书写入及默认项事务不会互相丢失() {
 
 #[test]
 fn 其他进程增添证书和切换默认项不会作废所选绑定() {
-    use shield_app::certificates::CertificateSelection;
+    use shield_services::certificates::CertificateSelection;
     let temp = temp();
     let paths = ApplicationPaths::isolated(temp.path()).unwrap();
     let store =

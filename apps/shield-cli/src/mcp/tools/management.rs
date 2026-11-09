@@ -1,7 +1,7 @@
 //! 共享管理的参数与固定命令映射；不包含存储、默认项解析或密码规则。
 use super::super::protocol::Management;
 use super::*;
-use shield_app::config::Setting;
+use shield_services::config::Setting;
 #[cfg(test)]
 #[path = "management_tests.rs"]
 mod tests;

@@ -8,7 +8,7 @@
 #
 # 修改的文件（统一同步）:
 #   crates/shield-core/Cargo.toml
-#   crates/shield-app/Cargo.toml
+#   crates/shield-services/Cargo.toml
 #   apps/shield-cli/Cargo.toml
 #   apps/shield-gui/src-tauri/Cargo.toml
 #   shield-stub/src/main/rust/Cargo.toml
@@ -50,8 +50,8 @@ echo "==> 同步版本号到 $VERSION"
 si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/crates/shield-core/Cargo.toml"
 echo "  ✓ crates/shield-core/Cargo.toml"
 
-si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/crates/shield-app/Cargo.toml"
-echo "  ✓ crates/shield-app/Cargo.toml"
+si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/crates/shield-services/Cargo.toml"
+echo "  ✓ crates/shield-services/Cargo.toml"
 
 si "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/apps/shield-cli/Cargo.toml"
 echo "  ✓ apps/shield-cli/Cargo.toml"
@@ -88,7 +88,7 @@ echo "  ✓ apps/shield-gui/src/hooks/use-about-page.ts"
 echo ""
 echo "验证结果："
 grep '^version'   "$ROOT/crates/shield-core/Cargo.toml"        | head -1 | sed 's/^/    crates\/shield-core\/Cargo.toml : /'
-grep '^version'   "$ROOT/crates/shield-app/Cargo.toml"         | head -1 | sed 's/^/    crates\/shield-app\/Cargo.toml  : /'
+grep '^version'   "$ROOT/crates/shield-services/Cargo.toml"         | head -1 | sed 's/^/    crates\/shield-services\/Cargo.toml  : /'
 grep '^version'   "$ROOT/apps/shield-cli/Cargo.toml"           | head -1 | sed 's/^/    apps\/shield-cli\/Cargo.toml     : /'
 grep '^version'   "$ROOT/apps/shield-gui/src-tauri/Cargo.toml" | head -1 | sed 's/^/    apps\/shield-gui\/Cargo.toml     : /'
 grep '^version'   "$ROOT/shield-stub/src/main/rust/Cargo.toml" | head -1 | sed 's/^/    shield-stub\/Cargo.toml         : /'

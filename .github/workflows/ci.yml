@@ -114,12 +114,12 @@ jobs:
           cache-dependency-path: apps/shield-gui/package-lock.json
 
       - name: 检查 Rust Clippy
-        run: cargo clippy -p shield-core -p shield-app --all-targets -- -D warnings
+        run: cargo clippy -p shield-core -p shield-services --all-targets -- -D warnings
 
       - name: 运行 Rust 单元测试
         run: |
           cargo test -p shield-core
-          cargo test -p shield-app
+          cargo test -p shield-services
           cargo test --manifest-path shield-stub/src/main/rust/Cargo.toml
 
       - name: 安装 GUI 前端依赖

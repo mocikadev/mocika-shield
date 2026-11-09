@@ -62,8 +62,8 @@ impl From<String> for ExecutionFailure {
         }
     }
 }
-impl From<shield_app::certificates::CertificateError> for ExecutionFailure {
-    fn from(error: shield_app::certificates::CertificateError) -> Self {
+impl From<shield_services::certificates::CertificateError> for ExecutionFailure {
+    fn from(error: shield_services::certificates::CertificateError) -> Self {
         Self {
             message: error.message,
             diagnostic: error.diagnostic,
@@ -255,7 +255,7 @@ mod tests {
     use super::*;
     #[test]
     fn 共享证书错误适配保留执行状态与诊断() {
-        use shield_app::certificates::CertificateError;
+        use shield_services::certificates::CertificateError;
         let preflight = ExecutionFailure::from(CertificateError::preflight(
             "输入待补齐".into(),
             Diagnostic::new(FailureCode::KeyAliasNotFound),

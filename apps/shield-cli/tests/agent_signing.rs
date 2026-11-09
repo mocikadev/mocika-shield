@@ -1,7 +1,7 @@
 //! 单次受控独立签名：只使用隔离资料，标准输入关闭也无需密码或确认交互。
 #![cfg(all(feature = "agent-executor", target_os = "macos"))]
 use serde_json::Value;
-use shield_app::{
+use shield_services::{
     certificates::{
         create_managed_certificate, CertificateStoreState, CertificateUpsertInput,
         CreateManagedCertificateInput,

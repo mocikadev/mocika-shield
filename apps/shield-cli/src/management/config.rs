@@ -1,6 +1,6 @@
 use super::{args::ConfigCommand, ManagementError, Response};
 use serde_json::{json, Map, Value};
-use shield_app::{
+use shield_services::{
     config::{ConfigStore, ProtectDefaultsPatch},
     paths::ApplicationPaths,
 };
@@ -49,8 +49,8 @@ pub(super) fn run(command: ConfigCommand, paths: &ApplicationPaths) -> Response 
     };
     Ok(json!({"protect_defaults": value}))
 }
-fn failure(error: shield_app::config::ConfigError) -> ManagementError {
-    use shield_app::config::ConfigError;
+fn failure(error: shield_services::config::ConfigError) -> ManagementError {
+    use shield_services::config::ConfigError;
     let code = match error {
         ConfigError::LockBusy => "CONFIG_BUSY",
         ConfigError::InvalidValue => "ARGUMENT_INVALID",
