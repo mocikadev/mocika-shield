@@ -1,5 +1,5 @@
 //! 单一 SQLite 证书库；连接、SQL 和密文处理不暴露给各入口。
-use super::crypto::{decrypt_record_secrets, derive_crypto_key, encrypt_secret};
+use super::crypto::{decrypt_record_secrets, derive_secret_keys, encrypt_secret, SecretKeys};
 use super::{
     normalize_keystore_type, CertificatePreferencesPatch, CertificateRecord, CertificateSummary,
     CertificateUpsertInput,
@@ -19,7 +19,7 @@ pub use binding::{BoundSigningIdentity, CertificateBinding, CertificateBindingEr
 pub struct CertificateStoreState {
     db_path: PathBuf,
     keystore_dir: PathBuf,
-    crypto_key: [u8; 32],
+    crypto_key: SecretKeys,
     read_only: bool,
 }
 
@@ -41,7 +41,7 @@ impl CertificateStoreState {
         Ok(state)
     }
     fn new(db_path: PathBuf, keystore_dir: PathBuf) -> Self {
-        let crypto_key = derive_crypto_key(&db_path, &keystore_dir);
+        let crypto_key = derive_secret_keys(&db_path, &keystore_dir);
         Self {
             db_path,
             keystore_dir,

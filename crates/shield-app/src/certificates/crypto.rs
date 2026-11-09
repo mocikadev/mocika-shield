@@ -1,4 +1,4 @@
-//! 保持既有 enc:v1 格式和派生上下文；模块迁移不改变旧记录的解密条件。
+//! 保持既有 enc:v1 写入与原上下文，只读兼容用户名变量缺失；不迁移或重写记录。
 use super::CertificateRecord;
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
@@ -6,25 +6,68 @@ use chacha20poly1305::{
 };
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use std::{env, path::Path};
+use std::{env, ffi::OsStr, path::Path};
 const SECRET_PREFIX: &str = "enc:v1:";
+mod account;
+#[cfg(test)]
+mod tests;
 
-pub(super) fn derive_crypto_key(db_path: &Path, keystore_dir: &Path) -> [u8; 32] {
+/// 写入身份不变；只读兼容候选不序列化、不调试输出，也不暴露给入口层。
+pub(super) struct SecretKeys {
+    primary: [u8; 32],
+    fallback: Option<[u8; 32]>,
+}
+
+pub(super) fn derive_secret_keys(db_path: &Path, keystore_dir: &Path) -> SecretKeys {
+    let home = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"));
+    let user = env::var_os("USER").or_else(|| env::var_os("USERNAME"));
+    let account = user.is_none().then(account::current_name).flatten();
+    keys_for(
+        db_path,
+        keystore_dir,
+        home.as_deref(),
+        user.as_deref(),
+        account.as_deref(),
+    )
+}
+
+fn keys_for(
+    db_path: &Path,
+    keystore_dir: &Path,
+    home: Option<&OsStr>,
+    user: Option<&OsStr>,
+    account: Option<&OsStr>,
+) -> SecretKeys {
+    let primary = derive_key(db_path, keystore_dir, home, user);
+    let candidate = if user.is_some() { None } else { account };
+    let fallback = derive_key(db_path, keystore_dir, home, candidate);
+    SecretKeys {
+        primary,
+        fallback: (fallback != primary).then_some(fallback),
+    }
+}
+
+fn derive_key(
+    db_path: &Path,
+    keystore_dir: &Path,
+    home: Option<&OsStr>,
+    user: Option<&OsStr>,
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"mocika-shield-gui-cert-store-v1");
     hasher.update(db_path.to_string_lossy().as_bytes());
     hasher.update(keystore_dir.to_string_lossy().as_bytes());
-    if let Some(home) = env::var_os("HOME").or_else(|| env::var_os("USERPROFILE")) {
+    if let Some(home) = home {
         hasher.update(home.to_string_lossy().as_bytes());
     }
-    if let Some(user) = env::var_os("USER").or_else(|| env::var_os("USERNAME")) {
+    if let Some(user) = user {
         hasher.update(user.to_string_lossy().as_bytes());
     }
     hasher.finalize().into()
 }
 
-pub(super) fn encrypt_secret(key: &[u8; 32], value: &str) -> Result<String, String> {
-    let cipher = ChaCha20Poly1305::new_from_slice(key)
+pub(super) fn encrypt_secret(keys: &SecretKeys, value: &str) -> Result<String, String> {
+    let cipher = ChaCha20Poly1305::new_from_slice(&keys.primary)
         .map_err(|_| "初始化证书密码加密器失败".to_string())?;
     let mut nonce = [0u8; 12];
     rand::rng().fill_bytes(&mut nonce);
@@ -60,11 +103,20 @@ fn decrypt_secret(key: &[u8; 32], value: &str) -> Result<String, String> {
 }
 
 pub(super) fn decrypt_record_secrets(
-    key: &[u8; 32],
+    keys: &SecretKeys,
     item: &mut CertificateRecord,
 ) -> Result<(), String> {
-    item.keystore_password = decrypt_secret(key, &item.keystore_password)?;
-    item.key_password = decrypt_secret(key, &item.key_password)?;
+    let decode = |key: &[u8; 32]| -> Result<(String, String), String> {
+        Ok((
+            decrypt_secret(key, &item.keystore_password)?,
+            decrypt_secret(key, &item.key_password)?,
+        ))
+    };
+    let (keystore_password, key_password) =
+        decode(&keys.primary).or_else(|error| keys.fallback.as_ref().map_or(Err(error), decode))?;
+    // 两个字段必须在同一个上下文下成功，不逐字段拼接，也不留下半解密状态。
+    item.keystore_password = keystore_password;
+    item.key_password = key_password;
     Ok(())
 }
 
