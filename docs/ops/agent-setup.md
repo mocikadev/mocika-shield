@@ -1,6 +1,6 @@
 # 本地 Agent 接入与 Skill 安装
 
-> 当前调整：CLI 已有[共享管理、签名、普通及受控加固](shared-data-cli.md)，独立 Skill 0.3.0 增加单次受控独立签名指引；MCP 已接入[共享来源与证书白名单](../design/shared-mcp.md)，当前功能分支的单次独立签名已通过本机完整应用包验证，管理写工具未开放。下文原外置配置流程继续兼容；公开安装包、实际宿主注册及未完成验收不得据此推定已更新，见[共享任务](../process/shared-application-plan.md)与[签名任务](../process/controlled-signing-plan.md)。
+> 当前调整：CLI 已有[共享管理、签名、普通及受控加固](shared-data-cli.md)，独立 Skill 0.3.0 提供单次受控独立签名指引；MCP 已接入[共享来源与证书白名单](../design/shared-mcp.md)。单次签名及缺用户名兼容已通过本机完整包和当前 Agent 实调；当前功能分支另接入设置／证书偏好及默认切换，实际进度见[管理任务](../process/shared-mcp-management-plan.md)。下文原外置配置流程继续兼容；公开安装包、宿主原生注册及未完成验收不得据此推定已更新。
 
 CLI 与 Skill 已随 PR #152 合并主干，仍是尚未发布的实验接入；公开 1.4.3 安装包不包含 `agent plan/protect`。首轮执行仅限 macOS；其他平台和额外客户端分别验收，不根据安装包或版本号推定已经支持。完整契约见[命令设计](../design/agent-cli-contract.md)，实际进展见[验收记录](../process/agent-integration-plan.md)。本地 MCP 按[专项计划](../process/local-mcp-plan.md)开发，尚不作为可安装能力。
 
@@ -139,4 +139,18 @@ shield mcp serve --use-shared-settings --allow-execution --input-root /授权输
 
 返回的 `plan_id` 只是本会话任务查询引用，不能提交给 `shield_protect`。若客户端需要运行中或取消后查询，在同一次签名请求提供 `_meta.progressToken`，保存阶段通知 `_meta["mocika-shield/plan_id"]` 后，用原状态工具查询；不为取得引用增加前置调用。未请求进度也能正常完成签名，并在结果中取得引用。
 
-共享执行模式现为 7 项工具，默认共享只读仍为 4 项。默认项查询与签名共用一次总期限。缺信息／版本不支持等普通错误，在 CLI 有实际清场证据时不会锁死会话；错误修正后的下一次明确请求可以继续处理，不允许自动重试、绕过未知锁定或自动重启服务。
+独立签名基线为共享执行 7 项、共享只读 4 项工具；当前管理扩展另见下节。默认项查询与签名共用一次总期限。缺信息／版本不支持等普通错误，在 CLI 有实际清场证据时不会锁死会话；错误修正后的下一次明确请求可以继续处理，不允许自动重试、绕过未知锁定或自动重启服务。
+
+### 开发分支的共享资料管理
+
+当前功能分支新增 `shield_settings` 查询业务设置；共享模式启用原 `--allow-execution` 后，还提供 `shield_update_settings`、`shield_update_certificate`、`shield_set_default_certificate`。无需新的启动开关、前置计划或逐次确认；服务只在明确保存／管理意图下执行，宿主原有审批策略不变。共享只读为 5 项、共享执行为 11 项，原外置模式仍为 3／5 项。公开安装包尚未包含，能力以命令及工具发现为准。
+
+设置只包括模式、策略、自动签名意图及加固页专用证书，省略保持；两个可空字段的 `null` 分别恢复继承与清除专用选择，不删除证书。示例参数：
+
+```json
+{"runtime_mode":"android_api19","environment_policy":"compatible","sign_after_protect":null,"certificate_id":null}
+```
+
+证书修改只接 `certificate_id` 及可选 `name`、`note`、`v1/v2/v3/v4`、`auto_sign`；全局默认切换只接允许范围内的明确编号，不修改加固页专用选择。不接受路径、Alias、密码、导入／创建／校验／删除，不回显名称、备注或材料。设置中的范围外证书编号会隐藏并标记 `outside_scope`，不是自动改为默认项。
+
+成功写入回执为 `change_state:confirmed`；`not_attempted` 表示明确未尝试。`unconfirmed` 表示可能已保存，不能认为回滚、自动重试或开新连接绕过；可查询实际偏好，当前会话继续停写。管理命令不使用项目 `--config`，不会把临时覆盖保存成默认；已固定的加固计划仍使用原身份。设计及实际验收见[首批管理方案](../design/shared-mcp-management.md)与[任务记录](../process/shared-mcp-management-plan.md)。

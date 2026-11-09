@@ -2,7 +2,7 @@
 #![cfg(all(feature = "mcp-server", target_os = "macos"))]
 use serde_json::{json, Value};
 use shield_app::{
-    certificates::{CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput},
+    certificates::{CertificateStoreState, CertificateUpsertInput},
     config::ConfigStore,
     paths::ApplicationPaths,
 };
@@ -230,7 +230,7 @@ fn 共享查询只见白名单且没有写权限或任意资料入口() {
         .as_array()
         .unwrap()
         .clone();
-    assert_eq!(tools.len(), 4);
+    assert_eq!(tools.len(), 5);
     assert!(tools
         .iter()
         .all(|tool| tool["annotations"]["readOnlyHint"] == true));
@@ -438,21 +438,22 @@ fn 真实共享协议双模式签名一次消费与材料阻断() {
     ));
     let api19 = plan(&mut session, 2, &cert.id, "工控.apk");
     assert_private(&api19, real.root());
-    config
-        .update_protect_defaults(
-            serde_json::from_value(json!({"runtime_mode":"standard"})).unwrap(),
-        )
-        .unwrap();
-    store
-        .patch_certificate_preferences(
-            &cert.id,
-            CertificatePreferencesPatch {
-                name: Some("改名不换材料".into()),
-                ..Default::default()
-            },
-            false,
-        )
-        .unwrap();
+    assert_eq!(
+        session.call(
+            200,
+            "shield_update_settings",
+            json!({"runtime_mode":"standard"})
+        )["status"],
+        "ready"
+    );
+    assert_eq!(
+        session.call(
+            201,
+            "shield_update_certificate",
+            json!({"certificate_id":cert.id,"name":"改名不换材料"})
+        )["status"],
+        "ready"
+    );
     let unused = real.root().join("不会使用.p12");
     fs::write(&unused, b"not-keystore").unwrap();
     store

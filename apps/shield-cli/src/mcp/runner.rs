@@ -9,7 +9,9 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
+mod management;
 mod signing;
+pub(super) use management::management_failure;
 
 pub(super) struct Runner {
     pub policy: Arc<Policy>,
@@ -22,6 +24,9 @@ pub(super) struct Runner {
 impl Runner {
     pub async fn run(self, name: &str, arguments: Value) -> Value {
         if self.cancelled.is_cancelled() || self.shutdown.is_cancelled() {
+            if let Some(kind) = tools::management_tool(name) {
+                return management_failure("TASK_CANCELLED", false, kind.operation());
+            }
             return failure("TASK_CANCELLED");
         }
         if name == "shield_protect" {
@@ -29,6 +34,9 @@ impl Runner {
         }
         if name == "shield_sign" {
             return self.sign(arguments).await;
+        }
+        if tools::management_tool(name).is_some() {
+            return self.manage(name, arguments).await;
         }
         self.read(name, arguments).await.unwrap_or_else(failure)
     }
@@ -50,7 +58,26 @@ impl Runner {
     ) -> Result<Value> {
         let operation = call.operation;
         let controlled = call.controlled;
-        let outcome = match bridge::run(
+        let outcome = match self.outcome(call, id, deadline).await {
+            Ok(outcome) => outcome,
+            Err(code) => {
+                if controlled && !matches!(code, "TASK_CANCELLED" | "TASK_TIMEOUT")
+                    || matches!(code, "STOP_UNCONFIRMED" | "CLI_EXIT_UNKNOWN")
+                {
+                    session::lock(&self.session).block_execution();
+                }
+                return Err(code);
+            }
+        };
+        self.decode_outcome(outcome, operation, controlled)
+    }
+    async fn outcome(
+        &self,
+        call: bridge::Invocation,
+        id: Option<&str>,
+        deadline: Option<tokio::time::Instant>,
+    ) -> Result<bridge::Outcome> {
+        bridge::run(
             &self.policy,
             call,
             deadline,
@@ -67,18 +94,13 @@ impl Runner {
             },
         )
         .await
-        {
-            Ok(outcome) => outcome,
-            Err(code) => {
-                // 受控桥接仅在启动子进程前返回此取消码；它不是清场未知。
-                if controlled && !matches!(code, "TASK_CANCELLED" | "TASK_TIMEOUT")
-                    || matches!(code, "STOP_UNCONFIRMED" | "CLI_EXIT_UNKNOWN")
-                {
-                    session::lock(&self.session).block_execution();
-                }
-                return Err(code);
-            }
-        };
+    }
+    fn decode_outcome(
+        &self,
+        outcome: bridge::Outcome,
+        operation: &str,
+        controlled: bool,
+    ) -> Result<Value> {
         let mut value = match protocol::decode(&outcome.bytes, operation, outcome.exit) {
             Ok(value) => value,
             Err(code) => {
@@ -288,7 +310,7 @@ pub(super) fn failure(code: &'static str) -> Value {
         _ => "blocked",
     };
     let message = if code == "SESSION_RECOVERY_REQUIRED" {
-        "上一任务的提交或清理未确认，已停止新的规划和执行；请人工检查本机进程与产物，禁止自动重试、重连或重启服务。"
+        "上一任务的提交、资料修改或清理未确认，已停止新的规划和写入；请人工检查本机状态，禁止自动重试、重连或重启服务。"
     } else {
         "本次调用未取得可用结果；不会自动重试，请检查本机授权范围与工具状态。"
     };

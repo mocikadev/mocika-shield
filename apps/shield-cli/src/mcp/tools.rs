@@ -8,6 +8,8 @@ use rmcp::model::{Tool, ToolAnnotations};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::ffi::OsString;
+mod management;
+pub(super) use management::{management_call, management_tool};
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -148,6 +150,7 @@ pub(super) fn list(allow_execution: bool, shared: bool) -> Vec<Tool> {
             &["plan_id"],
         ));
     }
+    tools.extend(management::list(allow_execution, shared));
     tools
 }
 fn tool(

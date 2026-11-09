@@ -23,7 +23,7 @@ impl ServerHandler for Server {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("mocika-shield", env!("CARGO_PKG_VERSION")))
             .with_protocol_version(ProtocolVersion::V_2025_11_25)
-            .with_instructions("只处理宿主固定目录与配置。已开启执行时，加固使用本会话计划及匹配摘要，计划一次消费；共享独立签名一次调用完成，不需要先规划或额外确认。禁止自动重试、任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
+            .with_instructions("只处理宿主固定目录与配置。已开启执行时，加固使用本会话计划及匹配摘要，计划一次消费；共享独立签名及资料偏好修改一次调用完成，无额外计划或重复确认。只在用户明确要求保存或切换默认时修改资料，修改结果未确认不得称回滚或自动重试。禁止任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
     }
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
         Cow::Owned(vec![ProtocolVersion::V_2025_11_25])
@@ -46,8 +46,9 @@ impl ServerHandler for Server {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        let management = tools::management_tool(&request.name);
         if request.input_responses.is_some() || request.request_state.is_some() {
-            return Ok(error("EXTENSION_NOT_SUPPORTED").into());
+            return Ok(error_for("EXTENSION_NOT_SUPPORTED", management).into());
         }
         let arguments = Value::Object(request.arguments.unwrap_or_default());
         if request.name == "shield_execution_status" && self.allow_execution {
@@ -64,13 +65,16 @@ impl ServerHandler for Server {
             "shield_doctor" | "shield_preflight" | "shield_plan"
         ) || self.allow_execution && request.name == "shield_protect"
             || self.allow_execution && self.policy.is_shared() && request.name == "shield_sign"
-            || self.policy.is_shared() && request.name == "shield_certificates";
+            || self.policy.is_shared() && request.name == "shield_certificates"
+            || self.policy.is_shared()
+                && tools::management_tool(&request.name)
+                    .is_some_and(|kind| !kind.writes() || self.allow_execution);
         if !available {
-            return Ok(error("TOOL_NOT_AVAILABLE").into());
+            return Ok(error_for("TOOL_NOT_AVAILABLE", management).into());
         }
         let permit = match self.gate.clone().try_acquire_owned() {
             Ok(value) => value,
-            Err(_) => return Ok(error("SERVER_BUSY").into()),
+            Err(_) => return Ok(error_for("SERVER_BUSY", management).into()),
         };
         let (progress, mut updates) = tokio::sync::mpsc::channel::<Progress>(16);
         let cancelled = context.ct.clone();
@@ -96,7 +100,10 @@ impl ServerHandler for Server {
         let mut token = context.meta.get_progress_token();
         let value = loop {
             tokio::select! {
-                result = &mut work => break result.unwrap_or_else(|_| session::unknown_for("TASK_STATE_UNKNOWN", operation)),
+                result = &mut work => break result.unwrap_or_else(|_| match management {
+                    Some(kind)=>runner::management_failure("TASK_STATE_UNKNOWN",kind.writes(),kind.operation()),
+                    None=>session::unknown_for("TASK_STATE_UNKNOWN", operation),
+                }),
                 Some(update) = updates.recv(), if token.is_some() && !cancelled.is_cancelled() => {
                     let mut notification = ProgressNotificationParam::new(token.clone().unwrap(),f64::from(update.index)+1.0).with_message(update.stage);
                     if let Some(id) = update.plan_id {
@@ -124,4 +131,14 @@ impl ServerHandler for Server {
 }
 fn error(code: &'static str) -> CallToolResult {
     CallToolResult::structured_error(runner::failure(code))
+}
+fn error_for(code: &'static str, kind: Option<super::protocol::Management>) -> CallToolResult {
+    match kind {
+        Some(kind) => CallToolResult::structured_error(runner::management_failure(
+            code,
+            false,
+            kind.operation(),
+        )),
+        None => error(code),
+    }
 }
