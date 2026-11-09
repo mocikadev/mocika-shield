@@ -40,6 +40,8 @@ struct Plan {
     schema_version: u32,
     sha256: String,
     private_key_access_checked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shared_binding: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +58,7 @@ struct Raw {
     code: Option<String>,
     artifact: Option<Artifact>,
     directory_synced: Option<bool>,
+    shared_binding: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -97,9 +100,11 @@ impl Terminal {
             "TASK_CANCELLED" => Status::Cancelled,
             "TASK_TIMEOUT" => Status::TimedOut,
             "STOP_UNCONFIRMED" | "COMMIT_UNCONFIRMED" | "TASK_STATE_UNKNOWN" => Status::Unknown,
-            "PLAN_BLOCKED" | "PLAN_MISMATCH" | "SIGNING_V4_NOT_SUPPORTED" | "OUTPUT_EXISTS" => {
-                Status::Blocked
-            }
+            "PLAN_BLOCKED"
+            | "PLAN_MISMATCH"
+            | "SIGNING_V4_NOT_SUPPORTED"
+            | "OUTPUT_EXISTS"
+            | "SHARED_BINDING_INVALID" => Status::Blocked,
             _ => Status::Failed,
         };
         match err.code {
@@ -126,6 +131,9 @@ impl Terminal {
             .as_ref()
             .is_none_or(|artifact| artifact.bytes > 0 && parse_hex::<32>(&artifact.sha256).is_ok());
         let invalid = raw.kind != "result"
+            || raw.shared_binding.as_deref().is_some_and(|binding| {
+                crate::automation::shared_plan::Binding::decode(binding).is_err()
+            })
             || raw.retryable
             || parse_hex::<32>(&raw.plan_digest).is_err()
             || !artifact_valid
@@ -180,9 +188,10 @@ impl Terminal {
             retryable: false,
             elapsed_ms: raw.elapsed_ms,
             plan: Some(Plan {
-                schema_version: 2,
+                schema_version: if raw.shared_binding.is_some() { 3 } else { 2 },
                 sha256: raw.plan_digest,
                 private_key_access_checked: !plan_only && raw.artifact.is_some(),
+                shared_binding: raw.shared_binding,
             }),
             artifact: raw.artifact,
             cancel_source: None,

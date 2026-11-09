@@ -96,7 +96,7 @@ impl<F: FnMut() -> Command> Launcher<F> {
         write_json(
             &root.join("bootstrap.json"),
             &Bootstrap {
-                format_version: 2,
+                format_version: if request.shared.is_some() { 3 } else { 2 },
                 mode,
                 request: request.clone(),
                 executor: selected,

@@ -34,7 +34,7 @@ done
 TAURI_ARGS=(--bundles app)
 if [[ "$BUILD_UNIVERSAL" == universal ]]; then
   for target in aarch64-apple-darwin x86_64-apple-darwin; do
-    cargo build --locked --release -p shield-cli --features agent-executor --target "$target"
+    cargo build --locked --release -p shield-cli --features mcp-server --target "$target"
   done
   mkdir -p "$ROOT/target/universal/release"
   lipo -create "$ROOT/target/aarch64-apple-darwin/release/shield" \
@@ -45,7 +45,7 @@ if [[ "$BUILD_UNIVERSAL" == universal ]]; then
   TAURI_ARGS+=(--target universal-apple-darwin)
   ARCHES=(arm64 x86_64)
 else
-  cargo build --locked --release -p shield-cli --features agent-executor
+  cargo build --locked --release -p shield-cli --features mcp-server
   CLI_BIN="$ROOT/target/release/shield"
   BUNDLE_BASE="$ROOT/target/release/bundle"
   ARCHES=("$(uname -m)")
@@ -79,4 +79,5 @@ codesign --force --deep --sign - "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 "$APP_DIR/Contents/MacOS/shield" --version
 "$APP_DIR/Contents/MacOS/shield" agent --help >/dev/null
+"$APP_DIR/Contents/MacOS/shield" mcp serve --help >/dev/null
 echo "已完成 GUI 与独立 CLI 共包：$APP_DIR"

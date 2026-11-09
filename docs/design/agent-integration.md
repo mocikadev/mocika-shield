@@ -1,8 +1,12 @@
 # Agent 本地自动化接入设计
 
+> 2026-11-09 调整：维护者已要求不同入口共用业务能力、配置和证书库，后续目标以[共享应用设计](shared-application.md)为准。下文关于强制外置配置、禁止访问 GUI 证书库及暂不管理证书的条款描述早期实现，不再作为长期架构约束；代码尚按[新任务计划](../process/shared-application-plan.md)分阶段迁移，不可据目标宣称已支持。
+
 ## 定位与当前状态
 
-最后更新：2026-11-06。维护者已确认按“CLI → Skill → 本地 MCP”的顺序推进，先使 Mocika Shield 可被其他 Agent 可靠调用，不在 GUI 中内置模型或聊天界面。
+最后更新：2026-11-09。维护者已确认按“CLI → Skill → 本地 MCP”的顺序推进，先使 Mocika Shield 可被其他 Agent 可靠调用，不在 GUI 中内置模型或聊天界面。
+
+CLI、独立 Skill 和 macOS 共包已随 PR #152 合并主干，公开 1.4.3 安装包尚未包含。维护者已确认先以当前 Mac 验收为准推进本地 MCP，同二进制可选特性、启动权限和两阶段任务见[专项设计](local-mcp.md)与[专项计划](../process/local-mcp-plan.md)。以下保留各子阶段设计依据，不能将其早期“未开放”状态理解为最新实现状态。
 
 这是新批准的开发方向，不代表现有 Release 已支持官方 Skill/MCP。当前正式交付仍为桌面 GUI，CLI 仍为源码构建与本地回归入口；本方案不自动恢复 CLI 发布、增加 CI 打包、预占版本或更改已公开标签。阶段进展以[实施计划](../process/agent-integration-plan.md)为准。
 
@@ -86,7 +90,9 @@ shield preflight -i input.apk --runtime-profile android-api19
 
 维护者后续已确认独立的 `shield agent plan/protect` 契约，源码开发特性接入受控规划、显式计划摘要、统一逐行 JSON、信号和可选标准输入取消；详见[单任务命令契约](agent-cli-contract.md)。旧 `plan-protect` 保留兼容，不混用响应或继承新入口的生命周期承诺；现有公开 Release 仍不包含新接口，正式分发和 Agent 客户端验收继续后置。
 
-### 当前推进：签名资料引用与只读执行前计划
+### 初期设计记录：签名资料引用与只读执行前计划
+
+本节保留原外置配置阶段依据，`plan-protect` 仍保持该只读契约；后续 `agent plan/protect` 已新增显式共享来源，见[共享绑定设计](shared-agent-binding.md)。以下不读取 GUI 库的约束仅适用于原外置流程，不代表当前所有入口都隔离资料。
 
 本轮先实现 `plan-protect`，只规划“加固后用指定证书签名”的单任务，不开放执行器，也不把前次只读阶段改写为已经支持写操作：
 
@@ -170,9 +176,9 @@ CLI 接入：仅为 `plan-protect` 增加显式 `--runtime-profile standard|andr
 
 Skill 不应要求普通用户自行安装 Rust/NDK、构建壳或搜索不明来源二进制。首轮开发验证可从源码构建，但在正式对外宣称即装即用前，必须解决匹配的 CLI、标准/兼容资源、JAR、Java 要求、校验和及三平台安装路径。
 
-维护者已于 2026-11-06 确认先采用“桌面安装包附带独立无头 CLI”，不另增 CLI Release 资产。首轮只接 macOS：`MocikaShield.app/Contents/MacOS/shield` 与 GUI 同包、同版本，共用 `Contents/Resources/tools/` 与 `Contents/Resources/resources/` 中的 JAR、标准和工控资源。CLI 不启动 GUI，不读取 GUI 配置或证书库，仍使用外置 `shield-cli.toml` 和宿主注入凭据；不自动修改 PATH、创建系统链接或要求管理员权限。
+维护者已于 2026-11-06 确认先采用“桌面安装包附带独立无头 CLI”，不另增 CLI Release 资产。首轮只接 macOS：`MocikaShield.app/Contents/MacOS/shield` 与 GUI 同包、同版本，共用 `Contents/Resources/tools/` 与 `Contents/Resources/resources/` 中的 JAR、标准和工控资源。CLI 不启动 GUI；原外置来源继续使用 `shield-cli.toml` 与宿主注入凭据，后续已新增显式读取同一应用资料的[共享来源](shared-application.md)，不要求 GUI 常驻。不自动修改 PATH、创建系统链接或要求管理员权限。
 
-共包构建由独立的 macOS 构建脚本负责：先检查既有资源及版本，启用 `agent-executor` 构建 CLI，构建 Tauri `.app`，核对两者架构和资源，再装入 CLI、完成最终签名与验签。现有 macOS 发布脚本复用该入口后生成 DMG；`SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不跳过应用内 CLI。其他平台保持原状，默认 CLI 源码构建仍不启用执行特性；不因共包提前宣称跨平台 Agent 支持。
+共包构建由独立的 macOS 构建脚本负责：先检查既有资源及版本，显式启用 `mcp-server` 构建 CLI（包含原 `agent-executor`），构建 Tauri `.app`，核对两者架构和资源，再装入 CLI、完成最终签名与验签。MCP 不随 GUI 启动，宿主按需启动服务时默认只读。现有 macOS 发布脚本复用该入口后生成 DMG；`SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不跳过应用内 CLI。其他平台保持原状，默认 CLI 源码构建仍不启用执行/MCP 特性；不因共包提前宣称跨平台 Agent 支持。
 
 当前不修改 GitHub 工作流、不增加独立 CLI 任务。打包验证只放阶段或发布流程，不增加每次提交的重型任务。须把真实 `.app` 复制到源码目录以外，在 GUI 关闭时用其内置资源完成规划、加固、签名、验签和独立对齐核对，并验证缺资源时不借源码目录或用户目录补齐。调用者应按只读方式使用应用包，把配置、输入和输出放在包外授权目录；CLI 不自动向安装目录保存应用级状态，但不把这一使用约定说成对任意显式输出路径的系统写保护。不能随意提取裸二进制并假定资源完整。实际 Agent 客户端、跨平台原生控制和对外发布仍各设门槛。
 

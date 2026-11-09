@@ -8,6 +8,14 @@ fn command() -> Command {
     command
 }
 
+#[test]
+#[cfg(not(feature = "mcp-server"))]
+fn 默认构建不开放本地协议服务() {
+    let output = command().args(["mcp", "serve"]).output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+}
+
 fn response(output: &Output, exit: i32, operation: &str) -> Value {
     assert_eq!(output.status.code(), Some(exit), "{output:?}");
     assert!(output.stderr.is_empty(), "{output:?}");

@@ -36,9 +36,7 @@ export type CertificateRecord = {
   name: string;
   source_type: "managed" | "external" | string;
   keystore_path: string;
-  keystore_password: string;
   key_alias: string;
-  key_password: string;
   ks_type: "JKS" | "PKCS12" | string;
   sign_v1: boolean;
   sign_v2: boolean;
@@ -221,8 +219,8 @@ export const api = {
   showInFolder: (path: string) => invoke<void>("show_in_folder", { path }),
   deleteFile: (path: string) => invoke<void>("delete_file", { path }),
   getAppConfig: () => invoke<AppConfig>("get_app_config"),
-  saveAppConfig: (config: AppConfig) => invoke<void>("save_app_config", { config }),
-  saveProtectDefaults: (defaults: ProtectDefaults) => invoke<void>("save_protect_defaults", { defaults }),
+  saveAppConfig: (config: Partial<AppConfig>) => invoke<void>("save_app_config", { config }),
+  saveProtectDefaults: (defaults: Partial<ProtectDefaults>) => invoke<void>("save_protect_defaults", { defaults }),
   listCertificates: () => invoke<CertificateRecord[]>("list_certificates"),
   saveCertificate: (input: CertificateUpsertInput) =>
     invoke<CertificateRecord>("save_certificate", { input }),

@@ -15,6 +15,7 @@ Android APK 加固工具。`crates/shield-core` 提供共享核心能力，`apps
 ## 技术栈
 
 - `crates/shield-core`：Rust 共享核心库，加固、签名、对齐、环境探测
+- `crates/shield-app`：多入口共享应用库，承载配置、证书管理与签名身份；GUI／CLI 共用，MCP 按宿主白名单通过 CLI 接入
 - `apps/shield-cli`：Rust + clap，单一二进制 `shield`，仅承担命令行入口与输出适配
 - `shield-stub`：Android（Java 壳 + Rust Native JNI，`libmocikashield.so`）
 - `apps/shield-gui`：Tauri v2，唯一正式桌面 GUI，目标三平台（Linux/macOS/Windows）
@@ -33,7 +34,7 @@ make build-all              # build-stub + build-cli + build-gui
 make release VERSION=x.y.z  # CLI-only 发布包（维护者本地使用）
 VERSION=x.y.z make release-linux        # Linux Tauri 发布包
 VERSION=x.y.z make release-macos        # macOS Tauri 发布包
-make test                   # 运行 shield-core + shield-cli 单元测试
+make test                   # 运行 shield-app + shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 
@@ -62,7 +63,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 ### 版本号同步
-升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml` 及其独立 `Cargo.lock`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。API 19 发布构建使用 `--locked`，不得只修改兼容清单而遗漏独立锁文件。
+升级时优先使用 `scripts/bump-version.sh`，同步 `crates/shield-core/Cargo.toml`、`crates/shield-app/Cargo.toml`、`apps/shield-cli/Cargo.toml`、`shield-stub/src/main/rust/Cargo.toml`、`shield-stub/compat/api19-rust/Cargo.toml` 及其独立 `Cargo.lock`、`apps/shield-gui/src-tauri/Cargo.toml`、`apps/shield-gui/src-tauri/tauri.conf.json`、`apps/shield-gui/package.json` 和 `apps/shield-gui/package-lock.json`。API 19 发布构建使用 `--locked`，不得只修改兼容清单而遗漏独立锁文件。
 
 ### DEXB v5 格式
 加密 DEX 以 MSHD 块追加到 `classes.dex` 末尾（DEX `file_size` 之外，工具不可见）。
@@ -91,6 +92,9 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 ### GUI 维护策略
 正式开源版本只维护一份桌面 GUI：`apps/shield-gui`（Tauri + React）。
 
+### 多入口共享原则
+GUI、CLI、Skill、MCP 与未来 TUI 是同一工具的不同入口。加固、签名、证书管理及业务偏好必须复用共享应用能力和同一份本地数据，不复制规则、不让 CLI 依赖 GUI 或要求 GUI 常驻。Skill 只调用已实现的 CLI；MCP 可用操作受宿主授权限制，能力共享不等于密码对模型可见或权限默认全开。临时参数不隐式保存，活动任务使用固定快照。调整方案与实际进度见 [共享应用设计](docs/design/shared-application.md)及[实施计划](docs/process/shared-application-plan.md)，未完成阶段不得宣称已经支持。
+
 ### 对外 Agent 集成资产
 对外 Skill 唯一源码放根目录 `skills/mocika-shield/`，由用户独立安装、升级，不随 App 打包；CLI 仍随 GUI 共包。用户安装、设计与验收资料分别留在 `docs/ops/`、`docs/design/` 与 `docs/process/`，见 [Agent 接入说明](docs/ops/agent-setup.md)。Skill 不复制核心执行逻辑，不保存本机路径或凭据，不放进本仓库自动激活的隐藏技能目录。
 
@@ -98,10 +102,10 @@ Windows 下 `current_exe()`、`ProjectDirs`、Tauri `resource_dir()` 等接口�
 凡是面向用户本机直接测试 GUI 效果、交互、签名、加固流程的构建，默认必须提供 **macOS `.app` 应用包**（如当前在 macOS 环境）。不要只交付裸二进制 `target/release/mocika-shield`，因为其运行时资源不完整，不能代表真实桌面应用形态。
 
 ### 配置文件命名
-GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、默认证书与签名密码等结构化数据统一放到 GUI 本地 SQLite 数据库 `shield.db`。CLI 人工配置固定使用独立的 `shield-cli.toml`，不得复用 GUI 的 `config.toml`；CLI 配置不保存密码，自动化密码通过环境变量或当前命令参数提供。
+应用级配置固定使用 `config.toml`；证书列表、默认证书与签名密码统一归本地 SQLite 数据库 `shield.db`，目标为各入口共用，不再将它们视为 GUI 私有数据。保留原配置／数据目录、应用标识和密文兼容，不能在提取共享层时随意改名或移动。`shield-cli.toml` 保留为可选项目覆盖，不是第二套全局状态，不保存密码；显式共享证书由本机服务读取密码，外部临时材料仍可由宿主环境提供。共享接入按实施计划推进，未接入命令不得伪称已能读共享库。
 
 ### 证书与密码持久化策略
-本工具定位为**本地离线桌面工具**，证书管理以“省事、减少重复输入”为优先目标。GUI 允许在本机持久化保存签名证书相关数据，包括 `keystore_password` 与 `key_password`；默认不引入系统 Keychain 作为前置依赖。
+本工具定位为**本地离线工具**，证书管理以“省事、减少重复输入”为优先目标。允许在本机持久化保存并由不同入口复用签名证书相关数据，包括 `keystore_password` 与 `key_password`；默认不引入系统 Keychain 作为前置依赖。
 
 约束如下：
 
@@ -178,6 +182,8 @@ GUI 自动维护的应用级配置固定使用 `config.toml`。证书列表、�
 | [docs/design/dex-code-separation.md](docs/design/dex-code-separation.md) | DEX 代码保护研究：结构/方法代码分离、内存重建、分片恢复与停止条件 |
 | [docs/design/toolchain-modernization.md](docs/design/toolchain-modernization.md) | 工具链轻量化与自动化：CLI 契约、CI/Gradle 集成、局部原生重写与回退边界 |
 | [docs/design/agent-integration.md](docs/design/agent-integration.md) | Agent 本地接入：CLI、Skill、MCP 分工、凭据与执行安全边界 |
+| [docs/design/shared-application.md](docs/design/shared-application.md) | 多入口共用业务能力、配置和证书库的目标架构与迁移边界 |
+| [docs/process/shared-application-plan.md](docs/process/shared-application-plan.md) | 共享应用能力的阶段任务、验收与实际进度 |
 | [docs/design/agent-executor.md](docs/design/agent-executor.md) | Agent 受控执行：工作子进程、任务停止、暂存与原子无覆盖提交 |
 | [docs/design/agent-cli-contract.md](docs/design/agent-cli-contract.md) | 自动化命令契约：受控规划、摘要绑定、逐行结果及取消/断开 |
 | [docs/process/agent-integration-plan.md](docs/process/agent-integration-plan.md) | Agent 接入的阶段任务、验收门槛与执行记录 |

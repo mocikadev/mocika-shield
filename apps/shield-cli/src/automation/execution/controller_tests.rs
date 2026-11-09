@@ -20,13 +20,98 @@ fn program() -> PathBuf {
 
 fn request(fixture: &Fixture, timeout_seconds: u64) -> Request {
     Request {
-        config: fixture.config.clone(),
+        config: Some(fixture.config.clone()),
+        shared: None,
         input: fixture.input.clone(),
         output: fixture.output.clone(),
         runtime_profile: Profile::Standard,
         exclude_abis: vec![],
         timeout_seconds,
     }
+}
+
+#[test]
+#[ignore = "需要显式开发 CLI、真实 JDK 和自有 APK，验证共享提交检查，不纳入日常 CI"]
+fn 共享材料在最终提交前变化必须拒绝交付() {
+    use shield_app::{
+        certificates::{
+            CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput,
+        },
+        paths::ApplicationPaths,
+    };
+    let fixture = Fixture::new();
+    let program = program();
+    let home = fixture.root().join("共享提交校验");
+    let paths = ApplicationPaths::isolated(&home).unwrap();
+    let store =
+        CertificateStoreState::initialize(paths.certificate_database(), paths.keystore_dir())
+            .unwrap();
+    let input = CertificateUpsertInput {
+        id: None,
+        name: "提交检查夹具".into(),
+        source_type: "external".into(),
+        keystore_path: String::new(),
+        keystore_password: Fixture::password().into(),
+        key_alias: "agentfixture".into(),
+        key_password: String::new(),
+        ks_type: Some("PKCS12".into()),
+        sign_v1: true,
+        sign_v2: true,
+        sign_v3: true,
+        sign_v4: false,
+        auto_sign_enabled: true,
+        note: String::new(),
+        set_as_default: true,
+        copy_keystore_to_managed: false,
+        managed_file_name: None,
+    };
+    let record = store
+        .save_certificate(
+            &input,
+            fixture.root().join("临时测试证书.p12").to_str().unwrap(),
+            "agentfixture",
+            None,
+        )
+        .unwrap();
+    let mut request = request(&fixture, 120);
+    request.config = None;
+    request.shared = Some(crate::automation::shared_plan::SharedRequest {
+        app_home: Some(home),
+        certificate_id: None,
+        use_default_certificate: true,
+        runtime_profile: None,
+        environment_policy: None,
+        binding: None,
+    });
+    let mut reached = false;
+    let value = result(run_with_options(
+        request,
+        Arc::new(AtomicBool::new(false)),
+        || {
+            let mut command = fixture.command(&program);
+            command.env_remove("MOCIKA_SHIELD_KS_PASS");
+            command
+        },
+        RunMode::Probe,
+        |notice| {
+            if matches!(notice, Notice::Publishing) {
+                reached = true;
+                store
+                    .patch_certificate_preferences(
+                        &record.id,
+                        CertificatePreferencesPatch {
+                            sign_v3: Some(false),
+                            ..Default::default()
+                        },
+                        false,
+                    )
+                    .unwrap();
+            }
+        },
+    ));
+    assert!(reached, "须到达唯一提交者的最终提交门槛");
+    assert_finished(&fixture, &value, "failed");
+    assert_eq!(value["code"], "PLAN_SOURCE_CHANGED");
 }
 
 fn result(result: Result<Value, CheckError>) -> Value {
@@ -287,7 +372,8 @@ fn 真实工作入口保留计划运行时而不静默切换路径中的同名�
 fn 预先取消不创建任务或启动工作进程() {
     let root = tempfile::tempdir().unwrap();
     let request = Request {
-        config: root.path().join("none.toml"),
+        config: Some(root.path().join("none.toml")),
+        shared: None,
         input: root.path().join("none.apk"),
         output: root.path().join("output.apk"),
         runtime_profile: Profile::Standard,

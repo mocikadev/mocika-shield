@@ -8,7 +8,8 @@ description = "Mocika Shield APK 加固命令行工具"
 repository = "git@github.com:mocikadev/mocika-shield.git"
 
 [features]
-agent-executor = ["dep:tempfile", "dep:rustix", "dep:libc"]
+agent-executor = ["dep:rustix", "dep:libc"]
+mcp-server = ["agent-executor", "dep:rmcp", "dep:tokio", "dep:tokio-util"]
 
 [[bin]]
 name = "shield"
@@ -22,17 +23,21 @@ log = "0.4"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 colored = "3.1"
 shield-core = { path = "../../crates/shield-core" }
+shield-app = { path = "../../crates/shield-app" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
 sha2 = { workspace = true }
-tempfile = { version = "3.20", optional = true }
+tempfile = "3.20"
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1", features = ["fs", "process", "stdio"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = { version = "0.2", optional = true }
+rmcp = { version = "=3.9.0", default-features = false, features = ["server", "transport-io"], optional = true }
+tokio = { version = "1.52", features = ["rt", "macros", "process", "signal", "time", "sync", "io-util", "io-std"], optional = true }
+tokio-util = { version = "0.7", optional = true }
 
 [dev-dependencies]
 tempfile = "3.20"

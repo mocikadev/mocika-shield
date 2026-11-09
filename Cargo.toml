@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/shield-core",
+    "crates/shield-app",
     "apps/shield-cli",
     "apps/shield-gui/src-tauri",
     "shield-stub/src/main/rust",

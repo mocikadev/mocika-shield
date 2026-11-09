@@ -4,7 +4,7 @@
 
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
-| Rust | 1.70+ | 含 `rustup` |
+| Rust | 当前稳定版；桌面共享库声明至少 1.89 | 含 `rustup`；完整依赖图以锁定构建为准 |
 | Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均在 PATH |
 | Android SDK | Platform 35 | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
 | Android NDK | 29.0.14206865 + 25.2.9519653 | 标准模式使用 r29；Android 4.4 兼容模式的 ARMv7 使用 r25c |
@@ -13,6 +13,8 @@
 | Android build-tools | 35.0.0 | 用于 JAR→DEX 转换及发布构建 |
 | Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
 | Node.js / npm | Node.js 22+ | React 前端构建 |
+
+上述 Rust 要求针对源码桌面构建，不影响用户使用安装包。Android 4.4 壳兼容构建仍使用独立 Rust 1.77.2／NDK r25c，不随桌面配置文件锁的编译下限变更。
 
 ## 已发布桌面工具的 Java 环境
 

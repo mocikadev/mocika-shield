@@ -22,6 +22,14 @@ mod launch;
 mod worker;
 pub(crate) use interface::{run_agent, AgentArgs};
 
+/// MCP 只复用绑定的安全解析，不读取或公开材料。
+#[cfg(feature = "mcp-server")]
+pub(crate) fn shared_binding_certificate(value: &str) -> Result<String, &'static str> {
+    super::shared_plan::Binding::decode(value)
+        .map(|binding| binding.certificate_id().to_owned())
+        .map_err(|_| "CLI_PROTOCOL_INVALID")
+}
+
 #[derive(Clone, Copy)]
 enum RunMode {
     Probe,
@@ -59,7 +67,9 @@ pub(crate) struct WorkerArgs {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
-    config: PathBuf,
+    config: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shared: Option<super::shared_plan::SharedRequest>,
     input: PathBuf,
     output: PathBuf,
     runtime_profile: Profile,
@@ -76,10 +86,20 @@ impl Request {
             return Err(error("INVALID_REQUEST"));
         }
         let current = std::env::current_dir().map_err(|_| error("INVALID_REQUEST"))?;
-        for path in [&mut self.config, &mut self.input, &mut self.output] {
+        for path in self
+            .config
+            .iter_mut()
+            .chain([&mut self.input, &mut self.output])
+        {
             if path.is_relative() {
                 *path = current.join(&*path);
             }
+        }
+        if self.config.is_none() && self.shared.is_none() {
+            return Err(error("SIGNING_CONFIG_REQUIRED"));
+        }
+        if let Some(shared) = &self.shared {
+            shared.validate()?;
         }
         Ok(())
     }

@@ -6,11 +6,18 @@
 
 ```
 mocika-shield/
-├── Cargo.toml                        # Rust workspace 根（shield-core + apps/shield-cli + apps/shield-gui/src-tauri + shield-stub/rust）
+├── Cargo.toml                        # Rust workspace 根（shield-core + shield-app + CLI + GUI + Android Native）
 ├── Cargo.lock
 ├── Makefile                          # 统一构建入口
 │
 ├── crates/
+│   ├── shield-app/                   # 证书、目录、配置和签名身份；GUI／CLI 共用，受控来源已接
+│   │   ├── Cargo.toml
+│   │   └── src/                     # 不依赖 Tauri/clap/rmcp
+│   │       ├── certificates/        # 用例、无秘密摘要、SQLite、密文及托管文件
+│   │       ├── config/              # 业务偏好、字段补丁及跨进程文件更新
+│   │       ├── paths.rs             # 保留既有应用身份和路径上下文
+│   │       └── protect.rs           # 加固业务参数的纯合并，不管理任务进程
 │   └── shield-core/                  # Rust 共享核心库
 │       ├── Cargo.toml
 │       └── src/
@@ -47,12 +54,12 @@ mocika-shield/
 │       │   ├── tauri.conf.json       # Tauri 配置（窗口、bundle、资源嵌入）
 │       │   └── src/
 │       │       ├── main.rs           # Tauri 启动入口、state 注入、command 注册
-│       │       ├── app_config.rs     # config.toml 读写、应用级配置内存状态
+│       │       ├── app_config.rs     # GUI 配置模型与共享字段更新适配；缓存不作写入基线
 │       │       ├── app_paths.rs      # apktool/resources/apksigner 路径查找
 │       │       ├── apk_check.rs      # APK 预检、签名检测、证书指纹比对
-│       │       ├── cert_store.rs     # shield.db 初始化、schema 与迁移
-│       │       ├── cert_service.rs   # 证书增删改查、默认项、校验、创建/导入
-│       │       ├── signing.rs        # APK 签名、keystore alias 解析
+│       │       ├── cert_store.rs     # Tauri 数据目录定位与共享证书库适配
+│       │       ├── cert_service.rs   # 共享证书用例的 GUI 接入，不复制存储和管理规则
+│       │       ├── signing.rs        # APK 签名窗口适配与共享 Alias 服务调用
 │       │       ├── protect_runner.rs # 加固任务桥接、取消、进度事件
 │       │       ├── task_manager.rs   # 任务生命周期、快照、日志与统一事件
 │       │       ├── updates.rs        # GitHub Releases 更新检查与缓存
@@ -156,9 +163,9 @@ macOS 新应用内入口先识别 `.app/Contents/MacOS`，只定位同包 `Conte
 
 ---
 
-## GUI 本地数据目录
+## 共享应用本地数据目录
 
-GUI 本地数据建议拆分为三类：
+GUI 与开发分支 CLI 的资料管理、共享签名及受控加固使用同一应用上下文；MCP 按宿主白名单通过 CLI 使用，不复制数据库或解密实现。公开安装包尚未包含这些新入口，本地数据分三类：
 
 | 文件/目录 | 作用 |
 |-----------|------|

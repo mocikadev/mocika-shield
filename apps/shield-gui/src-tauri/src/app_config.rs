@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
+use shield_app::config::{ConfigError, ConfigStore, ProtectDefaultsPatch, Setting};
+#[cfg(test)]
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::Manager;
 
-const CONFIG_FILE: &str = "config.toml";
+pub(crate) use shield_app::config::{normalize_protect_defaults, ProtectDefaults};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -76,30 +78,6 @@ impl ApplicationSharingConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub(crate) struct ProtectDefaults {
-    pub runtime_mode: String,
-    pub environment_policy: String,
-    pub sign_after_protect: Option<bool>,
-    pub certificate_id: Option<String>,
-    pub output_directory_mode: String,
-    pub fixed_output_directory: String,
-}
-
-impl Default for ProtectDefaults {
-    fn default() -> Self {
-        Self {
-            runtime_mode: "standard".to_string(),
-            environment_policy: "compatible".to_string(),
-            sign_after_protect: None,
-            certificate_id: None,
-            output_directory_mode: "source".to_string(),
-            fixed_output_directory: String::new(),
-        }
-    }
-}
-
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -123,6 +101,15 @@ pub(crate) struct AppConfigPayload {
     pub protect_defaults: Option<ProtectDefaults>,
 }
 
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct AppConfigUpdate {
+    pub locale: Setting<String>,
+    pub theme_mode: Setting<String>,
+    pub telemetry_enabled: Setting<bool>,
+    pub protect_defaults: Setting<ProtectDefaultsPatch>,
+}
+
 impl From<&AppConfig> for AppConfigPayload {
     fn from(config: &AppConfig) -> Self {
         Self {
@@ -137,57 +124,123 @@ impl From<&AppConfig> for AppConfigPayload {
 pub(crate) struct AppConfigState {
     pub path: PathBuf,
     config: Mutex<AppConfig>,
+    persisted: AtomicBool,
     application_sharing_blocked: Mutex<std::collections::BTreeSet<String>>,
 }
 
 impl AppConfigState {
     pub(crate) fn new(path: PathBuf, config: AppConfig) -> Self {
+        let persisted = AtomicBool::new(path.is_file());
         Self {
             path,
             config: Mutex::new(config),
+            persisted,
             application_sharing_blocked: Mutex::new(std::collections::BTreeSet::new()),
         }
     }
 
+    fn store(&self) -> ConfigStore {
+        if self.persisted.load(Ordering::SeqCst) {
+            ConfigStore::existing(self.path.clone())
+        } else {
+            ConfigStore::new(self.path.clone())
+        }
+    }
+
     pub(crate) fn read(&self) -> Result<AppConfig, String> {
-        self.config
+        let initial = self
+            .config
             .lock()
-            .map(|cfg| cfg.clone())
-            .map_err(|_| "读取配置失败：配置状态锁已损坏".to_string())
+            .map_err(|_| "读取配置失败：配置状态锁已损坏".to_string())?
+            .clone();
+        let mut latest = self
+            .store()
+            .read(&initial)
+            .map_err(|error| error.to_string())?;
+        normalize_config(&mut latest);
+        if self.path.is_file() {
+            self.persisted.store(true, Ordering::SeqCst);
+        }
+        if let Ok(mut cached) = self.config.lock() {
+            *cached = latest.clone();
+        }
+        Ok(latest)
     }
 
     pub(crate) fn mutate<F>(&self, mutator: F) -> Result<(), String>
     where
         F: FnOnce(&mut AppConfig),
     {
-        let mut cfg = self
+        self.mutate_checked(|config| {
+            mutator(config);
+            Ok(())
+        })
+    }
+    fn mutate_checked(
+        &self,
+        mutator: impl FnOnce(&mut AppConfig) -> Result<(), ConfigError>,
+    ) -> Result<(), String> {
+        let initial = self
             .config
             .lock()
-            .map_err(|_| "写入配置失败：配置状态锁已损坏".to_string())?;
-        let original = cfg.clone();
-        mutator(&mut cfg);
-        cfg.locale = normalize_locale(&cfg.locale);
-        cfg.theme_mode = normalize_theme_mode(&cfg.theme_mode);
-        cfg.protect_defaults = normalize_protect_defaults(&cfg.protect_defaults);
-        cfg.dismissed_version = cfg
-            .dismissed_version
-            .take()
-            .filter(|value| !value.trim().is_empty());
-        // 写盘属于同一临界区，避免并发更新用旧快照覆盖较新的包名偏好。
-        if let Err(error) = save_app_config_file(&self.path, &cfg) {
-            *cfg = original;
-            return Err(error);
+            .map_err(|_| "写入配置失败：配置状态锁已损坏".to_string())?
+            .clone();
+        // 不持有内存缓存锁等待跨进程文件锁；磁盘是更新基线，缓存只为首次缺文件提供种子。
+        let latest = self
+            .store()
+            .update(&initial, |config| {
+                mutator(config)?;
+                normalize_config(config);
+                Ok(())
+            })
+            .map_err(|error| error.to_string())?;
+        self.persisted.store(true, Ordering::SeqCst);
+        if let Ok(mut cached) = self.config.lock() {
+            *cached = latest;
         }
         Ok(())
     }
+    pub(crate) fn update_protect_defaults(
+        &self,
+        patch: ProtectDefaultsPatch,
+    ) -> Result<(), String> {
+        self.mutate_checked(|config| patch.apply(&mut config.protect_defaults))
+    }
+    pub(crate) fn update_preferences(&self, patch: AppConfigUpdate) -> Result<(), String> {
+        self.mutate_checked(|config| {
+            if let Setting::Set(locale) = patch.locale {
+                if !["zh", "en"].contains(&locale.as_str()) {
+                    return Err(ConfigError::InvalidValue);
+                }
+                config.locale = locale;
+            }
+            if let Setting::Set(theme) = patch.theme_mode {
+                if !["light", "dark", "system"].contains(&theme.as_str()) {
+                    return Err(ConfigError::InvalidValue);
+                }
+                config.theme_mode = theme;
+            }
+            if let Setting::Set(enabled) = patch.telemetry_enabled {
+                config.telemetry.enabled = enabled;
+            }
+            if let Setting::Set(defaults) = patch.protect_defaults {
+                defaults.apply(&mut config.protect_defaults)?;
+            }
+            Ok(())
+        })
+    }
 
     pub(crate) fn application_sharing_enabled(&self, package_name: &str) -> Result<bool, String> {
-        let config = self.read()?;
-        let blocked = self
+        // 本次会话的失败关闭先于磁盘读取，坏配置不能重新授权分享。
+        if self
             .application_sharing_blocked
             .lock()
-            .map_err(|_| "读取应用分享状态失败：状态锁已损坏".to_string())?;
-        Ok(!blocked.contains(package_name) && config.application_sharing.enabled_for(package_name))
+            .map_err(|_| "读取应用分享状态失败：状态锁已损坏".to_string())?
+            .contains(package_name)
+        {
+            return Ok(false);
+        }
+        Ok(self.read()?.application_sharing.enabled_for(package_name))
     }
 
     pub(crate) fn block_application_sharing(&self, package_name: &str) -> Result<(), String> {
@@ -228,87 +281,149 @@ pub(crate) fn normalize_theme_mode(value: &str) -> String {
     }
 }
 
-pub(crate) fn normalize_protect_defaults(value: &ProtectDefaults) -> ProtectDefaults {
-    ProtectDefaults {
-        runtime_mode: match value.runtime_mode.as_str() {
-            "android_api19" => "android_api19",
-            _ => "standard",
-        }
-        .to_string(),
-        environment_policy: match value.environment_policy.as_str() {
-            "strict" => "strict",
-            _ => "compatible",
-        }
-        .to_string(),
-        sign_after_protect: value.sign_after_protect,
-        certificate_id: value
-            .certificate_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .map(str::to_string),
-        output_directory_mode: match value.output_directory_mode.as_str() {
-            "fixed" => "fixed",
-            _ => "source",
-        }
-        .to_string(),
-        fixed_output_directory: value.fixed_output_directory.trim().to_string(),
-    }
-}
-
-pub(crate) fn normalize_keystore_type(value: Option<&str>) -> Option<String> {
-    match value.map(|s| s.trim()).filter(|s| !s.is_empty()) {
-        Some(raw) if raw.eq_ignore_ascii_case("pkcs12") || raw.eq_ignore_ascii_case("p12") => {
-            Some("PKCS12".to_string())
-        }
-        Some(_) => Some("JKS".to_string()),
-        None => Some("JKS".to_string()),
-    }
-}
-
-fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("无法定位配置目录: {e}"))?;
-    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {e}"))?;
-    Ok(dir.join(CONFIG_FILE))
-}
+pub(crate) use shield_app::certificates::normalize_keystore_type;
 
 pub(crate) fn load_app_config(app: &tauri::AppHandle) -> Result<LoadedAppConfig, String> {
-    let path = config_file_path(app)?;
-    if path.exists() {
-        let raw = fs::read_to_string(&path).map_err(|e| format!("读取配置文件失败: {e}"))?;
-        let mut config: AppConfig =
-            toml::from_str(&raw).map_err(|e| format!("解析配置文件失败: {e}"))?;
-        config.locale = normalize_locale(&config.locale);
-        config.theme_mode = normalize_theme_mode(&config.theme_mode);
-        config.protect_defaults = normalize_protect_defaults(&config.protect_defaults);
-        config.dismissed_version = config
-            .dismissed_version
-            .take()
-            .filter(|value| !value.trim().is_empty());
-        return Ok(LoadedAppConfig { path, config });
-    }
-
-    Ok(LoadedAppConfig {
-        path,
-        config: AppConfig::default(),
-    })
+    let path = crate::app_paths::application_paths(app)?.config_file();
+    let config = ConfigStore::new(path.clone())
+        .initialize(&AppConfig::default(), |config| {
+            normalize_config(config);
+            Ok(())
+        })
+        .map_err(|error| error.to_string())?;
+    Ok(LoadedAppConfig { path, config })
 }
 
-pub(crate) fn save_app_config_file(path: &Path, config: &AppConfig) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {e}"))?;
-    }
-    let body = toml::to_string_pretty(config).map_err(|e| format!("序列化配置失败: {e}"))?;
-    fs::write(path, body).map_err(|e| format!("写入配置文件失败: {e}"))
+fn normalize_config(config: &mut AppConfig) {
+    config.locale = normalize_locale(&config.locale);
+    config.theme_mode = normalize_theme_mode(&config.theme_mode);
+    config.protect_defaults = normalize_protect_defaults(&config.protect_defaults);
+    config.dismissed_version = config
+        .dismissed_version
+        .take()
+        .filter(|value| !value.trim().is_empty());
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::{Arc, Barrier};
+
+    #[test]
+    fn 外部业务更新可见且旧缓存保存不会覆盖未知字段() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let gui = AppConfigState::new(path.clone(), AppConfig::default());
+        gui.mutate(|config| {
+            config.telemetry.enabled = false;
+            config
+                .application_sharing
+                .preferences
+                .insert("com.example.app".into(), false);
+        })
+        .unwrap();
+        // 模拟另一个入口已经写入新业务字段，GUI 仍持有旧缓存。
+        let shared = ConfigStore::existing(path.clone());
+        shared
+            .update_protect_defaults(
+                serde_json::from_str(
+                    r#"{"runtime_mode":"android_api19","certificate_id":"other"}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let mut doc: toml::Value = toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        doc.as_table_mut()
+            .unwrap()
+            .insert("future".into(), toml::Value::String("keep".into()));
+        fs::write(&path, toml::to_string(&doc).unwrap()).unwrap();
+        gui.update_preferences(serde_json::from_str(r#"{"locale":"en"}"#).unwrap())
+            .unwrap();
+        let current = gui.read().unwrap();
+        assert_eq!(current.protect_defaults.runtime_mode, "android_api19");
+        assert_eq!(
+            current.protect_defaults.certificate_id.as_deref(),
+            Some("other")
+        );
+        assert!(!current.telemetry.enabled);
+        assert!(!current.application_sharing.enabled_for("com.example.app"));
+        let doc: toml::Value = toml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(doc["future"].as_str(), Some("keep"));
+    }
+
+    #[test]
+    fn 配置损坏或已加载文件被删除时不能用缓存恢复() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let state = AppConfigState::new(path.clone(), AppConfig::default());
+        state
+            .mutate(|config| config.telemetry.enabled = false)
+            .unwrap();
+        fs::write(&path, "[broken").unwrap();
+        assert!(state.read().is_err());
+        assert!(state.mutate(|config| config.locale = "en".into()).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "[broken");
+        fs::remove_file(&path).unwrap();
+        assert!(state.read().is_err());
+        assert!(state.mutate(|config| config.locale = "en".into()).is_err());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn 空字段补齐不会重新同意统计或轮换已有匿名标识() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[telemetry]\nenabled=false\n[unknown]\nvalue='preserve'\n",
+        )
+        .unwrap();
+        let store = ConfigStore::new(path.clone());
+        let first = store
+            .initialize(&AppConfig::default(), |config| {
+                normalize_config(config);
+                Ok(())
+            })
+            .unwrap();
+        let before = fs::read(&path).unwrap();
+        let again = store
+            .initialize(&AppConfig::default(), |config| {
+                normalize_config(config);
+                Ok(())
+            })
+            .unwrap();
+        assert!(!first.telemetry.enabled && !again.telemetry.enabled);
+        assert_eq!(first.telemetry.anonymous_id, again.telemetry.anonymous_id);
+        assert_eq!(before, fs::read(&path).unwrap());
+    }
+
+    #[test]
+    fn 更新默认项不会改变已取得的业务快照且清除不会回填旧证书() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppConfigState::new(dir.path().join("config.toml"), AppConfig::default());
+        state
+            .update_protect_defaults(
+                serde_json::from_str(r#"{"certificate_id":"first","environment_policy":"strict"}"#)
+                    .unwrap(),
+            )
+            .unwrap();
+        let snapshot = state.read().unwrap().protect_defaults;
+        state
+            .update_protect_defaults(
+                serde_json::from_str(
+                    r#"{"certificate_id":null,"environment_policy":"compatible"}"#,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(snapshot.certificate_id.as_deref(), Some("first"));
+        assert_eq!(snapshot.environment_policy, "strict");
+        assert_eq!(state.read().unwrap().protect_defaults.certificate_id, None);
+        let patch: AppConfigUpdate =
+            serde_json::from_str(r#"{"locale":"en","theme_mode":"invalid"}"#).unwrap();
+        assert!(state.update_preferences(patch).is_err());
+        assert_eq!(state.read().unwrap().locale, "zh");
+    }
 
     #[test]
     fn application_旧配置缺少应用分享分区时保持兼容且新包名默认开启() {

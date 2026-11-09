@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FolderKey, Info, LoaderCircle, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { Toaster } from "sonner";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
@@ -35,19 +35,26 @@ export function App() {
   const [page, setPage] = useState<Page>("protect");
   const {
     locale,
-    setLocale,
     themeMode,
-    setThemeMode,
     configLoaded,
     telemetryEnabled,
-    setTelemetryEnabled,
     protectDefaults,
-    setProtectDefaults,
+    savePreferences,
+    saveProtectDefaults,
+    refresh: refreshConfig,
   } = useAppConfigState();
   const certificatesState = useCertificatesState();
   const { updateInfo, setUpdateInfo, majorDialogOpen, setMajorDialogOpen } = useAutoUpdateNotice();
   const { buildInfo, runtimeInfoLoaded, runtimeInfoRefreshing, refreshRuntimeInfo } = useRuntimeInfo();
   const [runningTasks, setRunningTasks] = useState<Partial<Record<TaskKind, boolean>>>({});
+  const previousPage = useRef(page);
+  const refreshCertificates = certificatesState.refresh;
+  useEffect(() => {
+    if (previousPage.current === page) return;
+    previousPage.current = page;
+    void refreshConfig();
+    void refreshCertificates(true);
+  }, [page, refreshConfig, refreshCertificates]);
 
   useEffect(() => {
     const unlisten = onTauriEvent<TaskSnapshot>("task-state", (task) => {
@@ -140,9 +147,8 @@ export function App() {
                 runtimeInfoLoaded={runtimeInfoLoaded}
                 configLoaded={configLoaded}
                 protectDefaults={protectDefaults}
-                onProtectDefaultsChange={(defaults) => {
-                  setProtectDefaults(defaults);
-                  void api.saveProtectDefaults(defaults).catch(() => notifyError(t(locale, "protectSettingsSaveFailed")));
+                onProtectDefaultsChange={(patch) => {
+                  void saveProtectDefaults(patch).catch(() => notifyError(t(locale, "protectSettingsSaveFailed")));
                 }}
                 onOpenCertificates={() => setPage("certificates")}
               />
@@ -168,11 +174,9 @@ export function App() {
             {page === "settings" && (
               <SettingsPage
                 locale={locale}
-                setLocale={setLocale}
                 themeMode={themeMode}
-                setThemeMode={setThemeMode}
                 telemetryEnabled={telemetryEnabled}
-                setTelemetryEnabled={setTelemetryEnabled}
+                onSave={savePreferences}
               />
             )}
             {page === "about" && (

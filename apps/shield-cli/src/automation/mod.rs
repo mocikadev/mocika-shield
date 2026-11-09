@@ -7,6 +7,8 @@ mod preflight;
 #[cfg(all(unix, any(test, all(feature = "agent-executor", target_os = "macos"))))]
 mod publication;
 mod resources;
+#[cfg(all(feature = "agent-executor", target_os = "macos"))]
+mod shared_plan;
 mod snapshot;
 // 协议与生命周期保持私有，正常构建不开放工作进程入口。
 #[cfg(all(test, unix))]

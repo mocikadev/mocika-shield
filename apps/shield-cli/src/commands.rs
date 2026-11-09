@@ -15,8 +15,12 @@ use crate::args::{EnvironmentPolicyArg, KeystoreTypeArg};
 use crate::config::{ResolvedProtectArgs, ResolvedSignArgs};
 
 use crate::cli_json::{apk_check_json, done_event_json, keystore_check_json, progress_event_json};
+mod protect_execution;
 
 pub(crate) fn run_protect(args: ResolvedProtectArgs) -> Result<()> {
+    if args.signing.is_some() && args.runtime_profile.is_none() {
+        anyhow::bail!("签名任务缺少明确运行模式，不能退回旧的纯加固流程");
+    }
     if args.json {
         set_json_mode(true);
     } else {
@@ -28,6 +32,17 @@ pub(crate) fn run_protect(args: ResolvedProtectArgs) -> Result<()> {
         env_logger::Builder::from_default_env()
             .filter_level(level)
             .init();
+    }
+
+    if args.runtime_profile.is_some() {
+        let json = args.json;
+        protect_execution::run(args)?;
+        if json {
+            println!("{}", done_event_json());
+        } else {
+            println!("{}", "✓ 完成".green().bold());
+        }
+        return Ok(());
     }
 
     let opts = ProtectOptions {
@@ -65,7 +80,28 @@ pub(crate) fn run_protect(args: ResolvedProtectArgs) -> Result<()> {
 }
 
 pub(crate) fn run_sign(args: ResolvedSignArgs) -> Result<()> {
-    let options = SignOptions {
+    let json = args.json;
+    let options = sign_options(args);
+    sign_apk_with_progress(&options, |step| {
+        if json {
+            println!(
+                "{}",
+                progress_event_json(signing_step_name(step), signing_step_message(step))
+            );
+            let _ = std::io::stdout().flush();
+        }
+        Ok(())
+    })?;
+    if json {
+        println!("{}", done_event_json());
+    } else {
+        println!("{}", "✓ 签名完成".green().bold());
+    }
+    Ok(())
+}
+
+fn sign_options(args: ResolvedSignArgs) -> SignOptions {
+    SignOptions {
         apk_path: args.input,
         output_path: Some(args.output),
         keystore_path: args.keystore,
@@ -83,23 +119,7 @@ pub(crate) fn run_sign(args: ResolvedSignArgs) -> Result<()> {
             v3: args.v3,
             v4: args.v4,
         },
-    };
-    sign_apk_with_progress(&options, |step| {
-        if args.json {
-            println!(
-                "{}",
-                progress_event_json(signing_step_name(step), signing_step_message(step))
-            );
-            let _ = std::io::stdout().flush();
-        }
-        Ok(())
-    })?;
-    if args.json {
-        println!("{}", done_event_json());
-    } else {
-        println!("{}", "✓ 签名完成".green().bold());
     }
-    Ok(())
 }
 
 fn signing_step_name(step: SigningProgressStep) -> &'static str {

@@ -21,10 +21,7 @@ mod telemetry;
 mod updates;
 
 use apk_check::{do_check_apk, do_compare_cert_fingerprints, ApkCheckResult, CertCompareResult};
-use app_config::{
-    load_app_config, normalize_locale, normalize_theme_mode, save_app_config_file,
-    AppConfigPayload, AppConfigState, ProtectDefaults,
-};
+use app_config::{load_app_config, AppConfigPayload, AppConfigState, AppConfigUpdate};
 use app_paths::find_apksigner_path;
 use build_info::{
     get_app_info as get_app_info_impl, get_build_info as get_build_info_impl,
@@ -35,8 +32,9 @@ use cert_service::{
     verify_saved_certificate,
 };
 use cert_store::{
-    initialize_certificate_store, CertificateRecord, CertificateStoreState, CertificateUpsertInput,
-    CertificateValidationInput, CertificateValidationResult, CreateManagedCertificateInput,
+    initialize_certificate_store, CertificateRecord, CertificateStoreState, CertificateSummary,
+    CertificateUpsertInput, CertificateValidationInput, CertificateValidationResult,
+    CreateManagedCertificateInput,
 };
 use failure_diagnostic::ExecutionFailure;
 use file_ops::{
@@ -221,34 +219,33 @@ async fn check_apk(
 }
 
 #[tauri::command]
-fn get_app_config(state: tauri::State<'_, AppConfigState>) -> Result<AppConfigPayload, String> {
-    let config = state.read()?;
-    Ok(AppConfigPayload::from(&config))
+async fn get_app_config(app: tauri::AppHandle) -> Result<AppConfigPayload, String> {
+    tokio::task::spawn_blocking(move || {
+        let config = app.state::<AppConfigState>().read()?;
+        Ok(AppConfigPayload::from(&config))
+    })
+    .await
+    .map_err(|_| "后台配置读取失败".to_string())?
 }
 
 #[tauri::command]
-fn save_app_config(
-    state: tauri::State<'_, AppConfigState>,
-    config: AppConfigPayload,
-) -> Result<(), String> {
-    state.mutate(move |current| {
-        current.locale = normalize_locale(&config.locale);
-        current.theme_mode = normalize_theme_mode(&config.theme_mode);
-        current.telemetry.enabled = config.telemetry_enabled;
-        if let Some(defaults) = config.protect_defaults {
-            current.protect_defaults = defaults;
-        }
-    })
+async fn save_app_config(app: tauri::AppHandle, config: AppConfigUpdate) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || app.state::<AppConfigState>().update_preferences(config))
+        .await
+        .map_err(|_| "后台配置保存失败".to_string())?
 }
 
 #[tauri::command]
-fn save_protect_defaults(
-    state: tauri::State<'_, AppConfigState>,
-    defaults: ProtectDefaults,
+async fn save_protect_defaults(
+    app: tauri::AppHandle,
+    defaults: shield_app::config::ProtectDefaultsPatch,
 ) -> Result<(), String> {
-    state.mutate(move |current| {
-        current.protect_defaults = defaults;
+    tokio::task::spawn_blocking(move || {
+        app.state::<AppConfigState>()
+            .update_protect_defaults(defaults)
     })
+    .await
+    .map_err(|_| "后台配置保存失败".to_string())?
 }
 
 #[tauri::command]
@@ -345,10 +342,8 @@ async fn list_keystore_aliases(
 #[tauri::command]
 fn list_certificates(
     state: tauri::State<'_, CertificateStoreState>,
-) -> Result<Vec<CertificateRecord>, String> {
-    state
-        .list_certificates()
-        .map(|items| items.into_iter().map(redact_certificate).collect())
+) -> Result<Vec<CertificateSummary>, String> {
+    state.list_certificates()
 }
 
 #[tauri::command]
@@ -356,9 +351,12 @@ fn save_certificate(
     app: tauri::AppHandle,
     state: tauri::State<'_, CertificateStoreState>,
     input: CertificateUpsertInput,
-) -> Result<CertificateRecord, String> {
-    task_completion::certificate_result(&app, save_certificate_profile(&state, input))
-        .map(redact_certificate)
+) -> Result<CertificateSummary, String> {
+    task_completion::certificate_result(
+        &app,
+        save_certificate_profile(&state, input).map_err(Into::into),
+    )
+    .map(redact_certificate)
 }
 
 #[tauri::command]
@@ -366,7 +364,10 @@ fn validate_certificate(
     app: tauri::AppHandle,
     input: CertificateValidationInput,
 ) -> Result<CertificateValidationResult, String> {
-    task_completion::certificate_outcome(&app, validate_certificate_input(input))
+    task_completion::certificate_outcome(
+        &app,
+        validate_certificate_input(input).map_err(Into::into),
+    )
 }
 
 #[tauri::command]
@@ -382,11 +383,9 @@ fn delete_certificate(
     state: tauri::State<'_, CertificateStoreState>,
     id: String,
     remove_keystore_file: bool,
-) -> Result<Vec<CertificateRecord>, String> {
+) -> Result<Vec<CertificateSummary>, String> {
     state.delete_certificate(&id, remove_keystore_file)?;
-    state
-        .list_certificates()
-        .map(|items| items.into_iter().map(redact_certificate).collect())
+    state.list_certificates()
 }
 
 #[tauri::command]
@@ -394,9 +393,12 @@ fn verify_certificate(
     app: tauri::AppHandle,
     state: tauri::State<'_, CertificateStoreState>,
     id: String,
-) -> Result<CertificateRecord, String> {
-    task_completion::certificate_outcome(&app, verify_saved_certificate(&state, &id))
-        .map(redact_certificate)
+) -> Result<CertificateSummary, String> {
+    task_completion::certificate_outcome(
+        &app,
+        verify_saved_certificate(&state, &id).map_err(Into::into),
+    )
+    .map(redact_certificate)
 }
 
 #[tauri::command]
@@ -404,15 +406,16 @@ fn create_managed_certificate_command(
     app: tauri::AppHandle,
     state: tauri::State<'_, CertificateStoreState>,
     input: CreateManagedCertificateInput,
-) -> Result<CertificateRecord, String> {
-    task_completion::certificate_result(&app, create_managed_certificate(&state, input))
-        .map(redact_certificate)
+) -> Result<CertificateSummary, String> {
+    task_completion::certificate_result(
+        &app,
+        create_managed_certificate(&state, input).map_err(Into::into),
+    )
+    .map(redact_certificate)
 }
 
-fn redact_certificate(mut record: CertificateRecord) -> CertificateRecord {
-    record.keystore_password.clear();
-    record.key_password.clear();
-    record
+fn redact_certificate(record: CertificateRecord) -> CertificateSummary {
+    record.into()
 }
 
 #[tauri::command]
@@ -435,21 +438,25 @@ fn open_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn dismiss_update(state: tauri::State<'_, AppConfigState>, version: String) -> Result<(), String> {
-    state.mutate(move |config| {
-        config.dismissed_version = if version.trim().is_empty() {
-            None
-        } else {
-            Some(version)
-        };
+async fn dismiss_update(app: tauri::AppHandle, version: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        app.state::<AppConfigState>().mutate(move |config| {
+            config.dismissed_version = if version.trim().is_empty() {
+                None
+            } else {
+                Some(version)
+            };
+        })
     })
+    .await
+    .map_err(|_| "后台配置保存失败".to_string())?
 }
 
 #[tauri::command]
-fn get_dismissed_version(
-    state: tauri::State<'_, AppConfigState>,
-) -> Result<Option<String>, String> {
-    Ok(state.read()?.dismissed_version)
+async fn get_dismissed_version(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || Ok(app.state::<AppConfigState>().read()?.dismissed_version))
+        .await
+        .map_err(|_| "后台配置读取失败".to_string())?
 }
 
 #[tauri::command]
@@ -477,7 +484,6 @@ fn main() {
         .manage(application_sharing::SharingState::default())
         .setup(|app| {
             let loaded = load_app_config(app.handle())?;
-            save_app_config_file(&loaded.path, &loaded.config)?;
             let cert_store = initialize_certificate_store(app.handle())?;
             let config_state = AppConfigState::new(loaded.path, loaded.config);
             telemetry::record_app_start(&config_state);

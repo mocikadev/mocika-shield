@@ -32,7 +32,7 @@ help:
 	@echo "  release-macos-universal  macOS Tauri universal binary 发布包（ARM64 + x86_64）"
 	@echo "  release VERSION=x.y.z  CLI-only 发布包（维护者本地使用）"
 	@echo "  bump-version V=x.y.z   同步版本号到所有配置文件"
-	@echo "  test                   运行 shield-core + shield-cli 单元测试"
+	@echo "  test                   运行 shield-app + shield-core + shield-cli 单元测试"
 	@echo "  clean                  清理所有构建产物"
 
 build-cli:
@@ -102,6 +102,7 @@ release: build-all
 
 test:
 	@echo "🧪 运行测试..."
+	cargo test -p shield-app
 	cargo test -p shield-core
 	cargo test -p shield-cli
 

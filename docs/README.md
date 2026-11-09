@@ -11,6 +11,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 模块 | 说明 |
 |------|------|
 | `crates/shield-core/` | Rust 共享核心库，承载 APK 加固、签名、ZIP 对齐、Java/工具探测等共用能力 |
+| `crates/shield-app/` | 多入口共享应用库，承载证书、目录、配置和身份；GUI／CLI 共用，MCP 通过 CLI 在白名单内使用 |
 | `apps/shield-cli/` | Rust CLI，负责参数解析、终端输出与 JSON 进度协议 |
 | `shield-stub/` | Android 壳模块，包含 Java 壳层和 Rust JNI native 库 |
 | `apps/shield-gui/` | Tauri v2 + React 桌面 GUI，唯一正式 GUI，目标覆盖 Linux / macOS / Windows |
@@ -48,8 +49,13 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 了解 DEX 结构与方法代码分离研究 | [design/dex-code-separation.md](design/dex-code-separation.md) |
 | 了解工具链轻量化、CI 与 Gradle 集成规划 | [design/toolchain-modernization.md](design/toolchain-modernization.md) |
 | 了解 Agent、Skill、本地 MCP 接入与安全边界 | [design/agent-integration.md](design/agent-integration.md)、[阶段任务与验收记录](process/agent-integration-plan.md) |
+| 了解 GUI／CLI／MCP／未来 TUI 共用配置、证书与业务能力的调整 | [design/shared-application.md](design/shared-application.md)、[实施计划](process/shared-application-plan.md) |
+| 了解受控共享身份、记录级绑定及跨调用无状态传输设计 | [design/shared-agent-binding.md](design/shared-agent-binding.md) |
+| 了解 MCP 共享模式、证书白名单和会话私有绑定 | [design/shared-mcp.md](design/shared-mcp.md) |
+| 使用开发分支 CLI 管理共享资料、独立签名与加固后签名 | [ops/shared-data-cli.md](ops/shared-data-cli.md) |
 | 了解 Agent 工作子进程、取消与原子无覆盖提交 | [design/agent-executor.md](design/agent-executor.md) |
 | 了解自动化命令、结果协议与取消/断开语义 | [design/agent-cli-contract.md](design/agent-cli-contract.md) |
+| 了解 macOS 本地 MCP、启动权限与实施任务 | [design/local-mcp.md](design/local-mcp.md)、[process/local-mcp-plan.md](process/local-mcp-plan.md) |
 | 查看中文路径、Java 工具输出编码修复与验证边界 | [design/chinese-toolchain-compatibility.md](design/chinese-toolchain-compatibility.md) |
 | 了解可选资源文件保护边界 | [design/asset-protection.md](design/asset-protection.md) |
 | 了解 Android 4.4 工控兼容方案 | [design/android-4.4-compatibility.md](design/android-4.4-compatibility.md) |

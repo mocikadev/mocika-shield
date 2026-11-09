@@ -38,7 +38,7 @@ class AgentSkillTests(unittest.TestCase):
             copied = Path(directory) / "Android 工程/.agents/skills/mocika-shield"
             shutil.copytree(SKILL, copied)
             files = {path.relative_to(copied) for path in copied.rglob("*") if path.is_file()}
-            self.assertEqual(files, {Path("SKILL.md"), Path("references/cli.md"), Path("agents/openai.yaml"), Path("scripts/resolve-cli.sh")})
+            self.assertEqual(files, {Path("SKILL.md"), Path("references/cli.md"), Path("references/shared-data.md"), Path("agents/openai.yaml"), Path("scripts/resolve-cli.sh")})
             self.assertTrue(local_targets(copied))
             for name in files:
                 self.assertEqual((copied / name).read_bytes(), (SKILL / name).read_bytes())
@@ -51,13 +51,16 @@ class AgentSkillTests(unittest.TestCase):
             (installed / "SKILL.md").write_text("旧技能副本", encoding="utf-8")
             settings = project / "agent-local.env"
             config = project / "shield-cli.toml"
+            database = project / "app-data/shield.db"
+            database.parent.mkdir()
+            database.write_bytes(b"host-data-placeholder-not-real-database")
             settings.write_text("MOCIKA_SHIELD_CLI=/local/app/Contents/MacOS/shield\n", encoding="utf-8")
             config.write_text("schema_version=1\n", encoding="utf-8")
-            before = (settings.read_bytes(), config.read_bytes())
+            before = (settings.read_bytes(), config.read_bytes(), database.read_bytes())
             shutil.copytree(SKILL, installed, dirs_exist_ok=True)
             self.assertTrue(local_targets(installed))
             self.assertEqual((installed / "SKILL.md").read_bytes(), (SKILL / "SKILL.md").read_bytes())
-            self.assertEqual(before, (settings.read_bytes(), config.read_bytes()))
+            self.assertEqual(before, (settings.read_bytes(), config.read_bytes(), database.read_bytes()))
 
     def test_缺失或越界引用不能被搬迁检查放行(self):
         for defect in ("missing.md", "../../outside.md", "https://example.invalid/setup"):

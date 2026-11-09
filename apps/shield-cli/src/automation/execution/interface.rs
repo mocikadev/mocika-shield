@@ -1,4 +1,4 @@
-//! 单任务自动化入口：适配参数与安全结果，不复制执行规则或读取 GUI 数据。
+//! 单任务自动化入口：适配参数与安全结果，不复制执行规则或存储实现。
 use super::*;
 use clap::Subcommand;
 use serde_json::Value;
@@ -37,8 +37,21 @@ struct Common {
     input: PathBuf,
     #[arg(short, long, value_name = "APK")]
     output: PathBuf,
-    #[arg(long, value_enum, default_value = "standard")]
-    runtime_profile: Profile,
+    #[arg(long, value_enum)]
+    runtime_profile: Option<Profile>,
+    /// 显式使用同一应用的本地共享偏好和证书。
+    #[arg(long)]
+    use_shared_settings: bool,
+    #[arg(long, conflicts_with = "use_default_certificate")]
+    certificate_id: Option<String>,
+    #[arg(long)]
+    use_default_certificate: bool,
+    /// 仅共享规划可覆盖；执行时由绑定参数固定。
+    #[arg(long)]
+    environment_policy: Option<String>,
+    /// 共享规划返回的原样绑定参数，不是授权凭据。
+    #[arg(long)]
+    shared_binding: Option<String>,
     /// 仅对本次授权有效，不从警告自动推定。
     #[arg(long, value_delimiter = ',')]
     exclude_abis: Vec<String>,
@@ -53,7 +66,7 @@ fn digest(value: &str) -> Result<[u8; 32], String> {
     parse_hex(value).map_err(|_| "计划摘要必须是完整的 64 位十六进制 SHA-256".to_owned())
 }
 
-pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>) -> i32 {
+pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Path>) -> i32 {
     let (common, mode, operation) = match args.command {
         AgentCommand::Plan(common) => (common, RunMode::Plan, "agent_plan"),
         AgentCommand::Protect {
@@ -81,25 +94,50 @@ pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>) -> i32 {
         return 3;
     };
     events.started();
-    let mut terminal = match config {
-        None => Terminal::before_start("SIGNING_CONFIG_REQUIRED"),
-        Some(config) => {
-            let mut request = Request {
-                config: config.to_owned(),
-                input: common.input,
-                output: common.output,
-                runtime_profile: common.runtime_profile,
-                exclude_abis: common.exclude_abis,
-                timeout_seconds: common.timeout_seconds,
-            };
-            match request.validate() {
-                Err(err) => Terminal::before_start(err.code),
-                Ok(()) => Terminal::from_run(
-                    controller::run_controlled(request, controls.cancel(), mode, |notice| {
-                        events.progress(notice)
+    let shared = common.use_shared_settings
+        || home.is_some()
+        || common.certificate_id.is_some()
+        || common.use_default_certificate
+        || common.shared_binding.is_some();
+    let mut terminal = if (matches!(mode, RunMode::Plan) && common.shared_binding.is_some())
+        || (matches!(mode, RunMode::Protect(_)) && shared && common.shared_binding.is_none())
+        || (!shared && common.environment_policy.is_some())
+    {
+        Terminal::before_start("SHARED_BINDING_INVALID")
+    } else {
+        let binding = common
+            .shared_binding
+            .as_deref()
+            .map(crate::automation::shared_plan::Binding::decode)
+            .transpose();
+        match binding {
+            Err(err) => Terminal::before_start(err.code),
+            Ok(binding) => {
+                let mut request = Request {
+                    config: config.map(Path::to_owned),
+                    shared: shared.then_some(crate::automation::shared_plan::SharedRequest {
+                        app_home: home.map(Path::to_owned),
+                        certificate_id: common.certificate_id,
+                        use_default_certificate: common.use_default_certificate,
+                        runtime_profile: common.runtime_profile,
+                        environment_policy: common.environment_policy,
+                        binding,
                     }),
-                    matches!(mode, RunMode::Plan),
-                ),
+                    input: common.input,
+                    output: common.output,
+                    runtime_profile: common.runtime_profile.unwrap_or_default(),
+                    exclude_abis: common.exclude_abis,
+                    timeout_seconds: common.timeout_seconds,
+                };
+                match request.validate() {
+                    Err(err) => Terminal::before_start(err.code),
+                    Ok(()) => Terminal::from_run(
+                        controller::run_controlled(request, controls.cancel(), mode, |notice| {
+                            events.progress(notice)
+                        }),
+                        matches!(mode, RunMode::Plan),
+                    ),
+                }
             }
         }
     };

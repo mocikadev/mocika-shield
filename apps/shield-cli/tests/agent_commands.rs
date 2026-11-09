@@ -276,6 +276,76 @@ fn 受控规划超时不会遗留工作进程或最终文件() {
 }
 
 #[test]
+fn 共享规划取消断开及超时同样停止后代且不交付() {
+    use shield_app::{
+        certificates::{CertificateStoreState, CertificateUpsertInput},
+        paths::ApplicationPaths,
+    };
+    for mode in ["cancel", "eof", "timeout"] {
+        let mut fixture = Fixture::new();
+        let home = fixture.root().join("共享上下文");
+        let paths = ApplicationPaths::isolated(&home).unwrap();
+        let store =
+            CertificateStoreState::initialize(paths.certificate_database(), paths.keystore_dir())
+                .unwrap();
+        let input = CertificateUpsertInput {
+            id: None,
+            name: "挂起夹具".into(),
+            source_type: "external".into(),
+            keystore_path: String::new(),
+            keystore_password: "synthetic-shared-gate-password".into(),
+            key_alias: "fixture".into(),
+            key_password: String::new(),
+            ks_type: Some("PKCS12".into()),
+            sign_v1: true,
+            sign_v2: true,
+            sign_v3: true,
+            sign_v4: false,
+            auto_sign_enabled: true,
+            note: String::new(),
+            set_as_default: true,
+            copy_keystore_to_managed: false,
+            managed_file_name: None,
+        };
+        store
+            .save_certificate(
+                &input,
+                fixture.root().join("fixture.p12").to_str().unwrap(),
+                "fixture",
+                None,
+            )
+            .unwrap();
+        fs::write(fixture.root().join("shield-cli.toml"),"schema_version=1\n[protect]\napktool='tool.jar'\napksigner='tool.jar'\nresources='resources.zip'\n").unwrap();
+        let before = fs::read(paths.certificate_database()).unwrap();
+        let mut command = fixture.command_with_timeout(if mode == "timeout" { "3" } else { "10" });
+        command
+            .env_remove("MOCIKA_SHIELD_KS_PASS")
+            .env_remove("MOCIKA_SHIELD_KEY_PASS")
+            .arg("--app-home")
+            .arg(&home)
+            .arg("--use-default-certificate");
+        let output = if mode == "timeout" {
+            command.output().unwrap()
+        } else {
+            command.arg("--control-stdin").stdin(Stdio::piped());
+            let mut running = Running::spawn(&mut command);
+            fixture.ready();
+            let mut input = running.child().stdin.take().unwrap();
+            if mode == "cancel" {
+                input.write_all(b"{\"type\":\"cancel\"}\n").unwrap();
+            }
+            drop(input);
+            running.finish()
+        };
+        let values = frames(&output, if mode == "timeout" { 124 } else { 130 });
+        assert_eq!(values.last().unwrap()["output_state"], "not_published");
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("synthetic-shared-gate-password"));
+        assert_eq!(fs::read(paths.certificate_database()).unwrap(), before);
+        fixture.assert_clean();
+    }
+}
+
+#[test]
 fn 关闭结果读端会停止任务而不是继续在后台运行() {
     let mut fixture = Fixture::new();
     let mut running = Running::spawn(&mut fixture.command());

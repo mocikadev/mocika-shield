@@ -2,22 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { PillSegment, SettingsFieldRow, SettingsGroup, StatusMessage } from "@/components/app/common";
 import { t, type Locale } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
-import { api, type ThemeMode } from "@/lib/tauri";
+import { type AppConfig, type ThemeMode } from "@/lib/tauri";
 
 export function SettingsPage({
   locale,
-  setLocale,
   themeMode,
-  setThemeMode,
   telemetryEnabled,
-  setTelemetryEnabled,
+  onSave,
 }: {
   locale: Locale;
-  setLocale: (locale: Locale) => void;
   themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode) => void;
   telemetryEnabled: boolean;
-  setTelemetryEnabled: (enabled: boolean) => void;
+  onSave: (patch: Partial<AppConfig>) => Promise<void>;
 }) {
   const [selectedLocale, setSelectedLocale] = useState<Locale>(locale);
   const [selectedThemeMode, setSelectedThemeMode] = useState<ThemeMode>(themeMode);
@@ -40,18 +36,11 @@ export function SettingsPage({
     }
   }, []);
 
-  async function persist(nextLocale: Locale, nextThemeMode: ThemeMode, nextTelemetry = telemetryEnabled) {
+  async function persist(patch: { locale?: Locale; theme_mode?: ThemeMode; telemetry_enabled?: boolean }) {
     setSaving(true);
     setError("");
     try {
-      await api.saveAppConfig({
-        locale: nextLocale,
-        theme_mode: nextThemeMode,
-        telemetry_enabled: nextTelemetry,
-      });
-      setLocale(nextLocale);
-      setThemeMode(nextThemeMode);
-      setTelemetryEnabled(nextTelemetry);
+      await onSave(patch);
       setStatus("saved");
       if (timerRef.current) {
         window.clearTimeout(timerRef.current);
@@ -61,6 +50,8 @@ export function SettingsPage({
         timerRef.current = null;
       }, 1400);
     } catch (err) {
+      setSelectedLocale(locale);
+      setSelectedThemeMode(themeMode);
       const message = String(err);
       setStatus("failed");
       setError(message);
@@ -84,7 +75,7 @@ export function SettingsPage({
                 value={selectedThemeMode}
                 onChange={(value) => {
                   setSelectedThemeMode(value);
-                  void persist(selectedLocale, value);
+                  void persist({ theme_mode: value });
                 }}
                 options={[
                   { value: "system", label: t(locale, "system") },
@@ -100,7 +91,7 @@ export function SettingsPage({
                 value={selectedLocale}
                 onChange={(value) => {
                   setSelectedLocale(value);
-                  void persist(value, selectedThemeMode);
+                  void persist({ locale: value });
                 }}
                 options={[
                   { value: "zh", label: "中文" },
@@ -114,7 +105,7 @@ export function SettingsPage({
           <div className="space-y-3 px-6 py-5">
             <label className="flex items-center justify-between gap-4 text-[14px] font-semibold text-foreground">
               <span className="min-w-0">允许匿名使用统计</span>
-              <input type="checkbox" className="h-4 w-4 shrink-0" aria-describedby="telemetry-description" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist(selectedLocale, selectedThemeMode, event.target.checked)} />
+              <input type="checkbox" className="h-4 w-4 shrink-0" aria-describedby="telemetry-description" checked={telemetryEnabled} disabled={saving} onChange={(event) => void persist({ telemetry_enabled: event.target.checked })} />
             </label>
             <div id="telemetry-description" className="space-y-2 text-sm leading-6 text-muted-foreground">
               <p>匿名统计仅统计桌面工具的启动、加固、签名次数及失败阶段、类别，此通道不上传 APK、路径、包名、证书、密码或原始日志。</p>
