@@ -6,7 +6,7 @@
 
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
-| Rust | 1.70+ | 含 rustup |
+| Rust | 当前稳定版；桌面共享库声明至少 1.89 | 含 rustup；完整依赖图以锁定构建为准 |
 | Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均需在 PATH |
 | Android SDK | Platform 35 | 需设置 `ANDROID_HOME` |
 | Android build-tools | 35.0.0 | 提供 `d8` 等 Android 构建工具 |
@@ -25,7 +25,7 @@ make build-stub             # ① 构建 Android 壳（必须最先执行）
 make build-cli              # ② 编译 shield 命令行工具
 make build-gui              # ③ 构建桌面 GUI Tauri 版（需先 build-stub）
 make build-all              # build-stub + build-cli + build-gui（Tauri）
-make test                   # 运行 shield-core + shield-cli 单元测试
+make test                   # 运行 shield-app + shield-core + shield-cli 单元测试
 make clean                  # 清理所有构建产物
 ```
 
@@ -76,7 +76,7 @@ make build-gui
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 macOS 实验自动化特性；不读取 GUI 证书库、不安装到应用目录、不修改系统 PATH。默认 `make build-cli` 仍不启用该特性，当前公开的 1.4.3 安装包没有这些新入口。
+输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 `mcp-server`（包含原自动化执行特性）；MCP 不自启动，须由宿主显式调用 `mcp serve`，默认只读。不读取 GUI 证书库、不安装到应用目录、不修改系统 PATH。默认 `make build-cli` 仍不启用这些特性，当前公开的 1.4.3 安装包没有这些新入口。
 
 输出（Linux）：`target/release/mocika-shield`
 输出（Windows）：`target\\release\\mocika-shield.exe`

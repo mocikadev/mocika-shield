@@ -4,6 +4,11 @@ use std::path::{Path, PathBuf};
 
 use crate::args::{EnvironmentPolicyArg, KeystoreTypeArg, ProtectArgs, SignArgs};
 
+mod protect;
+#[cfg(test)]
+#[path = "config/shared_sign_tests.rs"]
+mod shared_sign_tests;
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CliConfig {
@@ -18,6 +23,11 @@ pub(crate) struct CliConfig {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProtectConfig {
+    use_shared_settings: Option<bool>,
+    runtime_mode: Option<String>,
+    sign_after_protect: Option<bool>,
+    certificate_id: Option<String>,
+    use_default_certificate: Option<bool>,
     input: Option<PathBuf>,
     output: Option<PathBuf>,
     apktool: Option<PathBuf>,
@@ -42,6 +52,80 @@ struct SignConfig {
 }
 
 impl CliConfig {
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    pub(crate) fn shared_agent_overrides(&self) -> Result<shield_app::protect::ProtectOverrides> {
+        use shield_app::protect::{ProtectCertificateSource, ProtectOverrides};
+        if self.protect.use_shared_settings == Some(false)
+            || self.protect.sign_after_protect == Some(false)
+            || (self.protect.certificate_id.is_some()
+                && self.protect.use_default_certificate == Some(true))
+        {
+            bail!("受控共享加固需要明确且一致的共享签名来源");
+        }
+        Ok(ProtectOverrides {
+            runtime_mode: self.protect.runtime_mode.clone(),
+            environment_policy: self.protect.environment_policy.clone(),
+            sign_after_protect: Some(true),
+            certificate: self
+                .protect
+                .certificate_id
+                .clone()
+                .map(ProtectCertificateSource::Saved)
+                .or_else(|| {
+                    (self.protect.use_default_certificate == Some(true))
+                        .then_some(ProtectCertificateSource::Default)
+                }),
+        })
+    }
+
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    pub(crate) fn merge_shared_agent_protect(
+        &self,
+        args: ProtectArgs,
+    ) -> Result<ResolvedProtectArgs> {
+        self.merge_protect_base(args)
+    }
+
+    /// 共享证书作为完整材料来源，项目与本次参数只能覆盖签名版本和工具等非秘密设置。
+    pub(crate) fn merge_shared_sign(
+        &self,
+        args: SignArgs,
+        certificate: shield_app::certificates::CertificateRecord,
+    ) -> Result<ResolvedSignArgs> {
+        self.require_shared_sign_source(&args)?;
+        Ok(ResolvedSignArgs {
+            input: required_path(args.input.or_else(|| self.sign.input.clone()), "--input")?,
+            output: required_path(args.output.or_else(|| self.sign.output.clone()), "--output")?,
+            keystore: PathBuf::from(certificate.keystore_path),
+            key_alias: certificate.key_alias,
+            keystore_password: certificate.keystore_password,
+            key_password: certificate.key_password,
+            keystore_type: parse_keystore_type(Some(&certificate.ks_type))?
+                .context("共享证书类型无效")?,
+            apksigner: args.apksigner.or_else(|| self.sign.apksigner.clone()),
+            v1: args.v1.or(self.sign.v1).unwrap_or(certificate.sign_v1),
+            v2: args.v2.or(self.sign.v2).unwrap_or(certificate.sign_v2),
+            v3: args.v3.or(self.sign.v3).unwrap_or(certificate.sign_v3),
+            v4: args.v4.or(self.sign.v4).unwrap_or(certificate.sign_v4),
+            json: args.json,
+        })
+    }
+
+    pub(crate) fn require_shared_sign_source(&self, args: &SignArgs) -> Result<()> {
+        if args.ks.is_some()
+            || args.key_alias.is_some()
+            || args.ks_type.is_some()
+            || args.ks_pass.is_some()
+            || args.key_pass.is_some()
+            || self.sign.keystore.is_some()
+            || self.sign.key_alias.is_some()
+            || self.sign.keystore_type.is_some()
+        {
+            bail!("共享证书不能与临时 keystore、Alias、类型或密码参数／环境变量混用，请明确选择一种材料来源");
+        }
+        Ok(())
+    }
+
     pub(crate) fn load(path: Option<&Path>) -> Result<Self> {
         let Some(path) = path else {
             return Ok(Self::default());
@@ -62,7 +146,17 @@ impl CliConfig {
     }
 
     pub(crate) fn merge_protect(&self, args: ProtectArgs) -> Result<ResolvedProtectArgs> {
+        // 旧受控规划不具备共享身份绑定，不能因新增项目字段悄悄读取 GUI 数据。
+        if self.protect.has_application_settings() || args.has_application_settings() {
+            bail!("当前受控规划尚未支持共享加固设置，请使用原配置；不会忽略新字段或读取共享证书库");
+        }
+        self.merge_protect_base(args)
+    }
+
+    fn merge_protect_base(&self, args: ProtectArgs) -> Result<ResolvedProtectArgs> {
         Ok(ResolvedProtectArgs {
+            runtime_profile: None,
+            signing: None,
             excluded_abis: args.exclude_abis,
             input: required_path(args.input.or_else(|| self.protect.input.clone()), "--input")?,
             output: required_path(
@@ -130,6 +224,8 @@ impl CliConfig {
 }
 
 pub(crate) struct ResolvedProtectArgs {
+    pub runtime_profile: Option<shield_core::RuntimeProfile>,
+    pub signing: Option<ResolvedSignArgs>,
     pub excluded_abis: Vec<String>,
     pub input: PathBuf,
     pub output: PathBuf,

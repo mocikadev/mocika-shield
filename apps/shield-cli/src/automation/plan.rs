@@ -18,7 +18,10 @@ use std::path::{Path, PathBuf};
 #[derive(Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Sources {
-    pub config: FileSnapshot,
+    pub config: Option<FileSnapshot>,
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<super::shared_plan::SharedIdentity>,
     pub input: FileSnapshot,
     pub keystore: FileSnapshot,
     pub java: FileSnapshot,
@@ -30,16 +33,41 @@ pub(super) struct Sources {
 
 impl Sources {
     pub fn recheck(&self) -> Result<(), CheckError> {
-        snapshot::recheck(&[
-            &self.config,
-            &self.input,
-            &self.keystore,
-            &self.java,
-            &self.keytool,
-            &self.apktool,
-            &self.apksigner,
-            &self.resources,
-        ])
+        snapshot::recheck(&self.files())?;
+        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        if let Some(shared) = &self.shared {
+            shared.recheck()?;
+        }
+        Ok(())
+    }
+    pub fn files(&self) -> Vec<&FileSnapshot> {
+        self.config
+            .iter()
+            .chain([
+                &self.input,
+                &self.keystore,
+                &self.java,
+                &self.keytool,
+                &self.apktool,
+                &self.apksigner,
+                &self.resources,
+            ])
+            .collect()
+    }
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    pub fn materials(&self) -> Vec<(super::task_materials::Role, &FileSnapshot)> {
+        use super::task_materials::Role;
+        let mut values = vec![(Role::Input, &self.input)];
+        if let Some(config) = &self.config {
+            values.push((Role::Config, config));
+        }
+        values.extend([
+            (Role::Keystore, &self.keystore),
+            (Role::Apktool, &self.apktool),
+            (Role::Apksigner, &self.apksigner),
+            (Role::Resources, &self.resources),
+        ]);
+        values
     }
 }
 
@@ -85,15 +113,29 @@ pub(super) fn prepare(
     let config_snapshot = snapshot::file("config", config)?;
     // 相对配置路径沿用调用者提供配置位置的语义，不能因配置是链接而改用目标目录。
     let (protect, sign) = resolve(&args, &config_snapshot.lookup_path)?;
-    if executable && sign.v4 {
-        return Err(CheckError::new(
-            "SIGNING_V4_NOT_SUPPORTED",
-            "受控执行首版不支持 V4，请显式选择 V1–V3；不会静默关闭 V4。",
-        ));
-    }
+    check_executable_signing(&sign, executable)?;
+    // 保持旧分支的早期拒绝顺序：无效输出／V4 不能因缺少 Java 被改报工具错误。
+    outputs(&args.output, sign.v4)?;
     let (profile, profile_name) = args.runtime_profile.resolve();
+    let sources = sources(Some(config_snapshot), &protect, &sign, profile)?;
+    prepare_resolved(args, protect, sign, sources, executable, profile_name)
+}
+
+pub(super) fn prepare_resolved(
+    args: PlanProtectArgs,
+    protect: ResolvedProtectArgs,
+    sign: ResolvedSignArgs,
+    sources: Sources,
+    executable: bool,
+    profile_name: &str,
+) -> Result<Assessment, CheckError> {
+    check_executable_signing(&sign, executable)?;
+    let (profile, _) = args.runtime_profile.resolve();
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    let schema = if sources.shared.is_some() { 3 } else { 2 };
+    #[cfg(not(all(feature = "agent-executor", target_os = "macos")))]
+    let schema = 2;
     let outputs = outputs(&args.output, sign.v4)?;
-    let sources = sources(config_snapshot, &protect, &sign, profile)?;
     let certificate = extract_keystore_cert_fingerprint(
         &sources.keystore.path,
         &sign.key_alias,
@@ -115,7 +157,7 @@ pub(super) fn prepare(
     let preflight = report_data(report, profile_name)?;
     let mut data = json!({
         "scope": "protect_sign_plan",
-        "plan_schema_version": 2,
+        "plan_schema_version": schema,
         "runtime_profile": profile_name,
         "execution_ready": false,
         "private_key_access_checked": false,
@@ -156,7 +198,7 @@ pub(super) fn prepare(
     };
     // 只将白名单字段纳入摘要，禁止序列化含密码的 ResolvedSignArgs。
     let identity = json!({
-        "plan_schema_version": 2,
+        "plan_schema_version": schema,
         "tool_version": env!("CARGO_PKG_VERSION"),
         "operation": "protect_and_sign",
         "sources": sources,
@@ -198,6 +240,17 @@ pub(super) fn prepare(
         #[cfg(all(feature = "agent-executor", target_os = "macos"))]
         digest: digest.into(),
     })))
+}
+
+fn check_executable_signing(sign: &ResolvedSignArgs, executable: bool) -> Result<(), CheckError> {
+    if executable && sign.v4 {
+        Err(CheckError::new(
+            "SIGNING_V4_NOT_SUPPORTED",
+            "受控执行首版不支持 V4，请显式选择 V1–V3；不会静默关闭 V4。",
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 fn resolve(
@@ -255,8 +308,8 @@ fn resolve(
     Ok((protect, sign))
 }
 
-fn sources(
-    config: FileSnapshot,
+pub(super) fn sources(
+    config: Option<FileSnapshot>,
     protect: &ResolvedProtectArgs,
     sign: &ResolvedSignArgs,
     profile: RuntimeProfile,
@@ -283,6 +336,8 @@ fn sources(
     }
     Ok(Sources {
         config,
+        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        shared: None,
         input: snapshot::file("input", &protect.input)?,
         keystore: snapshot::file("keystore", &sign.keystore)?,
         java: snapshot::file("java", java.java_path.as_deref().ok_or_else(missing_tool)?)?,

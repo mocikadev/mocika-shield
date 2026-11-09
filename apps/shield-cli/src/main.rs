@@ -6,6 +6,9 @@ mod automation;
 mod cli_json;
 mod commands;
 mod config;
+mod management;
+#[cfg(all(feature = "mcp-server", target_os = "macos"))]
+mod mcp;
 
 use args::{Cli, Commands};
 use cli_json::error_event_json;
@@ -30,13 +33,56 @@ fn main() {
 }
 
 fn execute(cli: Cli) -> Result<i32> {
+    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    let shared_agent = matches!(&cli.command, Commands::Agent(_));
+    #[cfg(not(all(feature = "agent-executor", target_os = "macos")))]
+    let shared_agent = false;
+    #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+    let shared_mcp = matches!(&cli.command, Commands::Mcp(_));
+    #[cfg(not(all(feature = "mcp-server", target_os = "macos")))]
+    let shared_mcp = false;
+    let shared_sign = matches!(&cli.command, Commands::Sign(args) if args.certificate_id.is_some() || args.use_default_certificate);
+    if cli.app_home.is_some()
+        && !matches!(
+            &cli.command,
+            Commands::Cert(_) | Commands::Config(_) | Commands::Protect(_)
+        )
+        && !shared_sign
+        && !shared_agent
+        && !shared_mcp
+    {
+        return Ok(management::unsupported_home());
+    }
     let load_config = || CliConfig::load(cli.config.as_deref());
     match cli.command {
+        Commands::Cert(args) => {
+            return Ok(management::run_certificates(
+                args,
+                cli.app_home.as_deref(),
+                cli.config.is_some(),
+            ))
+        }
+        Commands::Config(args) => {
+            return Ok(management::run_config(
+                args,
+                cli.app_home.as_deref(),
+                cli.config.is_some(),
+            ))
+        }
+        #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+        Commands::Mcp(args) => {
+            return Ok(mcp::run(
+                args,
+                cli.config.as_deref(),
+                cli.app_home.as_deref(),
+            ))
+        }
         #[cfg(all(feature = "agent-executor", target_os = "macos"))]
         Commands::Agent(args) => {
             return Ok(automation::execution::run_agent(
                 args,
                 cli.config.as_deref(),
+                cli.app_home.as_deref(),
             ))
         }
         #[cfg(all(feature = "agent-executor", target_os = "macos"))]
@@ -57,7 +103,22 @@ fn execute(cli: Cli) -> Result<i32> {
         Commands::PlanProtect(args) => {
             return Ok(automation::run_plan_protect(args, cli.config.as_deref()))
         }
-        Commands::Protect(args) => run_protect(load_config()?.merge_protect(args)?)?,
+        Commands::Protect(args) => {
+            let config = load_config().map_err(|_| {
+                anyhow::anyhow!("无法读取或解析加固项目配置；请在本机检查，不会输出文件原文")
+            })?;
+            run_protect(config.resolve_protect(args, cli.app_home.as_deref())?)?;
+        }
+        Commands::Sign(args) if shared_sign => {
+            let config = load_config().map_err(|_| {
+                anyhow::anyhow!("共享签名无法读取或解析项目配置；不会输出文件原文，请在本机检查")
+            })?;
+            run_sign(management::signing::resolve(
+                &config,
+                args,
+                cli.app_home.as_deref(),
+            )?)?;
+        }
         Commands::Sign(args) => run_sign(load_config()?.merge_sign(args)?)?,
         Commands::CheckApk { path } => {
             load_config()?;

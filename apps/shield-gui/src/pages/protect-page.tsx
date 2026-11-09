@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clipboard, FolderOpen, RotateCcw, Square } from "lucide-react";
 import { AppButton, DropZone, SelectedApkCard, StatusMessage, TextInput } from "@/components/app/common";
 import { ProtectConfigurationPanel } from "@/components/app/protect-configuration-panel";
@@ -34,35 +34,12 @@ export function ProtectPage({
   runtimeInfoLoaded: boolean;
   configLoaded: boolean;
   protectDefaults: ProtectDefaults;
-  onProtectDefaultsChange: (defaults: ProtectDefaults) => void;
+  onProtectDefaultsChange: (patch: Partial<ProtectDefaults>) => void;
   onOpenCertificates: () => void;
 }) {
   const { copiedLabel, copy } = useClipboard(locale);
   const [signAfterProtect, setSignAfterProtect] = useState(false);
   const [selectedCertificateId, setSelectedCertificateId] = useState("");
-  const initialized = useRef(false);
-  const certificateInitialized = useRef(false);
-
-  useEffect(() => {
-    if (!configLoaded || !certificatesLoaded || initialized.current) return;
-    initialized.current = true;
-    setSignAfterProtect(protectDefaults.sign_after_protect ?? Boolean(defaultCertificate?.auto_sign_enabled));
-  }, [certificatesLoaded, configLoaded, defaultCertificate, protectDefaults.sign_after_protect]);
-
-  useEffect(() => {
-    if (!configLoaded || !certificatesLoaded) return;
-    setSelectedCertificateId((current) => {
-      if (certificateInitialized.current && certificates.some((item) => item.id === current)) {
-        return current;
-      }
-      certificateInitialized.current = true;
-      const preferred = protectDefaults.certificate_id;
-      if (preferred && certificates.some((item) => item.id === preferred)) {
-        return preferred;
-      }
-      return defaultCertificate?.id ?? certificates[0]?.id ?? "";
-    });
-  }, [certificates, certificatesLoaded, configLoaded, defaultCertificate, protectDefaults.certificate_id]);
 
   const signingCertificate = useMemo(
     () => signAfterProtect ? certificates.find((item) => item.id === selectedCertificateId) ?? null : null,
@@ -71,8 +48,20 @@ export function ProtectPage({
   const workflow = useProtectWorkflow({ active, locale, certificate: signingCertificate, buildInfo, defaults: protectDefaults });
   const locked = workflow.taskLocked || workflow.state === "prechecking" || workflow.state === "running";
 
+  useEffect(() => {
+    if (!configLoaded || !certificatesLoaded || locked) return;
+    setSignAfterProtect(protectDefaults.sign_after_protect ?? Boolean(defaultCertificate?.auto_sign_enabled));
+  }, [configLoaded, certificatesLoaded, locked, protectDefaults.sign_after_protect, defaultCertificate?.auto_sign_enabled]);
+
+  useEffect(() => {
+    if (!configLoaded || !certificatesLoaded || locked) return;
+    const preferred = protectDefaults.certificate_id;
+    setSelectedCertificateId(preferred && certificates.some((item) => item.id === preferred)
+      ? preferred : defaultCertificate?.id ?? certificates[0]?.id ?? "");
+  }, [configLoaded, certificatesLoaded, locked, certificates, defaultCertificate?.id, protectDefaults.certificate_id]);
+
   function updateDefaults(patch: Partial<ProtectDefaults>) {
-    onProtectDefaultsChange({ ...protectDefaults, ...patch });
+    onProtectDefaultsChange(patch);
   }
 
   function updateSignAfterProtect(value: boolean) {

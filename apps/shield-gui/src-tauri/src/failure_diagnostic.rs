@@ -62,6 +62,17 @@ impl From<String> for ExecutionFailure {
         }
     }
 }
+impl From<shield_app::certificates::CertificateError> for ExecutionFailure {
+    fn from(error: shield_app::certificates::CertificateError) -> Self {
+        Self {
+            message: error.message,
+            diagnostic: error.diagnostic,
+            executed: error.executed,
+            cancelled: false,
+            tool_path: None,
+        }
+    }
+}
 impl std::fmt::Display for ExecutionFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.message.fmt(f)
@@ -242,6 +253,23 @@ pub(crate) struct FailureReasonCount {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn 共享证书错误适配保留执行状态与诊断() {
+        use shield_app::certificates::CertificateError;
+        let preflight = ExecutionFailure::from(CertificateError::preflight(
+            "输入待补齐".into(),
+            Diagnostic::new(FailureCode::KeyAliasNotFound),
+        ));
+        assert!(!preflight.executed);
+        assert!(!preflight.cancelled);
+        assert_eq!(preflight.diagnostic.code, FailureCode::KeyAliasNotFound);
+        let executed = ExecutionFailure::from(CertificateError::diagnosed(
+            "工具执行失败".into(),
+            Diagnostic::new(FailureCode::ToolNotFound),
+        ));
+        assert!(executed.executed);
+        assert_eq!(executed.diagnostic.code, FailureCode::ToolNotFound);
+    }
     #[test]
     fn 字符串边界错误默认是已执行失败() {
         let failure = ExecutionFailure::from("后台任务执行失败".to_string());

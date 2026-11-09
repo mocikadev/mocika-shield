@@ -185,6 +185,8 @@ shield --config shield-cli.toml agent protect -i input.apk -o protected-signed.a
 
 ### 基础用法
 
+开发分支新增共享配置、证书管理，以及按 GUI 已保存资料独立签名／普通和受控加固，见[CLI 共享资料说明](ops/shared-data-cli.md)。Skill 0.2.0 已更新指引，MCP 已接入宿主白名单查询与共享受控加固，独立签名及管理写工具尚未开放。这些能力尚未进入公开安装包；旧普通加固不隐式读取 GUI 偏好，下列传统文件配置方式保持可用。
+
 ```bash
 shield protect -i input.apk -o protected.apk
 ```

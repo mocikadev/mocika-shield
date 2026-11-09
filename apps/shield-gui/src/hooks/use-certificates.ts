@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { notifyError } from "@/lib/notify";
+import { PreferenceSync } from "@/lib/preference-sync";
 import {
   api,
   type CertificateRecord,
@@ -22,6 +23,7 @@ export function useCertificatesState() {
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sync] = useState(() => new PreferenceSync());
 
   const replaceCertificate = useCallback((next: CertificateRecord) => {
     setCertificates((items) => {
@@ -36,52 +38,69 @@ export function useCertificatesState() {
     setSelectedId(next.id);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
+    const token = sync.beginRead();
+    if (token === undefined) return;
     setLoading(true);
-    setError("");
     try {
       const next = await api.listCertificates();
+      if (!sync.canApply(token)) return;
+      setError("");
       setCertificates(next);
       setSelectedId((current) => pickNextSelectedId(next, current));
     } catch (err) {
+      if (!sync.canApply(token)) return;
       const message = String(err);
       setError(message);
-      notifyError(message);
+      if (!silent) notifyError(message);
     } finally {
-      setLoading(false);
-      setLoaded(true);
+      if (sync.canApply(token)) { setLoading(false); setLoaded(true); }
     }
-  }, []);
+  }, [sync]);
+
+  const mutate = useCallback(async <T,>(operation: () => Promise<T>) => {
+    try { return await sync.write(operation); }
+    finally { if (!sync.busy) await refresh(true); }
+  }, [sync, refresh]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    const onFocus = () => { void refresh(true); };
+    const onVisibility = () => { if (document.visibilityState === "visible") void refresh(true); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      sync.invalidate();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refresh, sync]);
 
   const saveCertificate = useCallback(
-    async (input: CertificateUpsertInput) => {
+    async (input: CertificateUpsertInput) => mutate(async () => {
       const saved = await api.saveCertificate(input);
       replaceCertificate(saved);
       if (saved.is_default) {
         setCertificates((items) => items.map((item) => ({ ...item, is_default: item.id === saved.id })));
       }
       return saved;
-    },
-    [replaceCertificate],
+    }),
+    [replaceCertificate, mutate],
   );
 
   const createManagedCertificate = useCallback(
-    async (input: CreateManagedCertificateInput) => {
+    async (input: CreateManagedCertificateInput) => mutate(async () => {
       const saved = await api.createManagedCertificate(input);
       replaceCertificate(saved);
       if (saved.is_default) {
         setCertificates((items) => items.map((item) => ({ ...item, is_default: item.id === saved.id })));
       }
       return saved;
-    },
-    [replaceCertificate],
+    }),
+    [replaceCertificate, mutate],
   );
 
-  const setDefaultCertificate = useCallback(async (id: string) => {
+  const setDefaultCertificate = useCallback(async (id: string) => mutate(async () => {
     setError("");
     try {
       await api.setDefaultCertificate(id);
@@ -93,9 +112,9 @@ export function useCertificatesState() {
       notifyError(message);
       throw err;
     }
-  }, []);
+  }), [mutate]);
 
-  const deleteCertificate = useCallback(async (id: string, removeKeystoreFile: boolean) => {
+  const deleteCertificate = useCallback(async (id: string, removeKeystoreFile: boolean) => mutate(async () => {
     const next = await api.deleteCertificate(id, removeKeystoreFile);
     setCertificates(next);
     setSelectedId((current) => {
@@ -105,15 +124,15 @@ export function useCertificatesState() {
       return pickNextSelectedId(next, null);
     });
     return next;
-  }, []);
+  }), [mutate]);
 
   const verifyCertificate = useCallback(
-    async (id: string) => {
+    async (id: string) => mutate(async () => {
       const verified = await api.verifyCertificate(id);
       replaceCertificate(verified);
       return verified;
-    },
-    [replaceCertificate],
+    }),
+    [replaceCertificate, mutate],
   );
 
   const validateCertificate = useCallback(

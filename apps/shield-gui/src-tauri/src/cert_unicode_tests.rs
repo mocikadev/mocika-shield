@@ -6,6 +6,8 @@ use shield_core::{
     extract_apk_cert_fingerprint, extract_keystore_cert_fingerprint, sign_apk, KeystoreType,
     SignOptions, SigningVersions,
 };
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[test]
 #[ignore = "需要真实 JDK、SHIELD_TEST_APK 和 SHIELD_TEST_APKSIGNER，手动执行"]
@@ -17,8 +19,7 @@ fn 中文证书真实导入保存重开及签名() {
     let dir = temp.path().join("中文证书 空格");
     fs::create_dir_all(&dir).unwrap();
     let db = dir.join("shield.db");
-    let store = CertificateStoreState::new(db.clone(), dir.clone());
-    initialize_schema(&store.open().unwrap()).unwrap();
+    let store = CertificateStoreState::initialize(db.clone(), dir.clone()).unwrap();
     // 仅用于测试的公开口令，不使用也不输出用户秘密。
     let password = "test-only-123456";
     for kind in ["JKS", "PKCS12"] {
@@ -79,7 +80,7 @@ fn 中文证书真实导入保存重开及签名() {
                 },
             )
             .unwrap();
-            let reopened = CertificateStoreState::new(db.clone(), dir.clone());
+            let reopened = CertificateStoreState::initialize(db.clone(), dir.clone()).unwrap();
             let loaded = reopened.get_certificate(&imported.id).unwrap().unwrap();
             assert_eq!(loaded.key_alias, expected);
             assert!(loaded.keystore_password == password && loaded.key_password == password);

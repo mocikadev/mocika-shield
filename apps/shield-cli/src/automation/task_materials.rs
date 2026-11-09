@@ -27,6 +27,21 @@ const ROLES: [Role; 6] = [
     Role::Apksigner,
     Role::Resources,
 ];
+const SHARED_ROLES: [Role; 5] = [
+    Role::Input,
+    Role::Keystore,
+    Role::Apktool,
+    Role::Apksigner,
+    Role::Resources,
+];
+
+fn roles(version: u32, has_config: bool) -> Result<&'static [Role], MaterialError> {
+    match (version, has_config) {
+        (1, true) | (2, true) => Ok(&ROLES),
+        (2, false) => Ok(&SHARED_ROLES),
+        _ => Err(MaterialError::InvalidBundle),
+    }
+}
 
 impl Role {
     fn name(self) -> &'static str {
@@ -78,7 +93,7 @@ struct Entry {
 #[serde(deny_unknown_fields)]
 struct Manifest {
     format_version: u32,
-    entries: [Entry; 6],
+    entries: Vec<Entry>,
 }
 
 pub(super) struct MaterialBundle {
@@ -90,11 +105,34 @@ impl MaterialBundle {
     pub fn create(
         parent: &Path,
         sources: &[(Role, &FileSnapshot)],
+        checkpoint: impl FnMut() -> Result<(), MaterialError>,
+    ) -> Result<Self, MaterialError> {
+        Self::create_version(parent, sources, 1, checkpoint)
+    }
+
+    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    pub fn create_shared(
+        parent: &Path,
+        sources: &[(Role, &FileSnapshot)],
+        checkpoint: impl FnMut() -> Result<(), MaterialError>,
+    ) -> Result<Self, MaterialError> {
+        Self::create_version(parent, sources, 2, checkpoint)
+    }
+
+    fn create_version(
+        parent: &Path,
+        sources: &[(Role, &FileSnapshot)],
+        version: u32,
         mut checkpoint: impl FnMut() -> Result<(), MaterialError>,
     ) -> Result<Self, MaterialError> {
         validate_directory(parent)?;
-        if sources.len() != ROLES.len()
-            || ROLES
+        let roles = roles(
+            version,
+            sources.iter().any(|(role, _)| *role == Role::Config),
+        )
+        .map_err(|_| MaterialError::InvalidSet)?;
+        if sources.len() != roles.len()
+            || roles
                 .iter()
                 .any(|role| sources.iter().filter(|(found, _)| found == role).count() != 1)
             || sources
@@ -107,7 +145,7 @@ impl MaterialBundle {
         let root = fs::canonicalize(parent)?.join("materials");
         fs::DirBuilder::new().mode(0o700).create(&root)?;
         let mut entries = Vec::new();
-        for role in ROLES {
+        for &role in roles {
             let snapshot = sources
                 .iter()
                 .find(|(found, _)| *found == role)
@@ -147,8 +185,8 @@ impl MaterialBundle {
         }
         checkpoint()?;
         let manifest = Manifest {
-            format_version: 1,
-            entries: entries.try_into().map_err(|_| MaterialError::InvalidSet)?,
+            format_version: version,
+            entries,
         };
         let bytes = serde_json::to_vec(&manifest).map_err(|_| MaterialError::InvalidBundle)?;
         let mut index = OpenOptions::new()
@@ -179,16 +217,52 @@ impl MaterialBundle {
         sources: &[(Role, &FileSnapshot)],
         checkpoint: impl FnMut() -> Result<(), MaterialError>,
     ) -> Result<Self, MaterialError> {
+        Self::verify_sources_version(root, sources, 1, checkpoint)
+    }
+
+    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    pub fn verify_shared_sources(
+        root: &Path,
+        sources: &[(Role, &FileSnapshot)],
+        checkpoint: impl FnMut() -> Result<(), MaterialError>,
+    ) -> Result<Self, MaterialError> {
+        Self::verify_sources_version(root, sources, 2, checkpoint)
+    }
+
+    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    fn verify_sources_version(
+        root: &Path,
+        sources: &[(Role, &FileSnapshot)],
+        version: u32,
+        checkpoint: impl FnMut() -> Result<(), MaterialError>,
+    ) -> Result<Self, MaterialError> {
         validate_directory(root)?;
         let file = regular(&root.join("materials.json"))?;
         validate_private_file(&file)?;
         let mut bytes = Vec::new();
         file.take(4097).read_to_end(&mut bytes)?;
-        if bytes.len() > 4096 || sources.len() != 6 {
+        if bytes.len() > 4096 {
             return Err(MaterialError::InvalidBundle);
         }
         let manifest: Manifest =
             serde_json::from_slice(&bytes).map_err(|_| MaterialError::InvalidBundle)?;
+        let expected = roles(
+            version,
+            sources.iter().any(|(role, _)| *role == Role::Config),
+        )?;
+        if manifest.format_version != version
+            || sources.len() != expected.len()
+            || manifest
+                .entries
+                .iter()
+                .map(|entry| entry.role)
+                .ne(expected.iter().copied())
+            || expected
+                .iter()
+                .any(|role| sources.iter().filter(|(found, _)| found == role).count() != 1)
+        {
+            return Err(MaterialError::InvalidBundle);
+        }
         for entry in manifest.entries {
             let source = sources
                 .iter()
@@ -226,7 +300,18 @@ impl MaterialBundle {
         }
         let manifest: Manifest =
             serde_json::from_slice(&bytes).map_err(|_| MaterialError::InvalidBundle)?;
-        if manifest.format_version != 1 || manifest.entries.iter().map(|entry| entry.role).ne(ROLES)
+        let expected = roles(
+            manifest.format_version,
+            manifest
+                .entries
+                .iter()
+                .any(|entry| entry.role == Role::Config),
+        )?;
+        if manifest
+            .entries
+            .iter()
+            .map(|entry| entry.role)
+            .ne(expected.iter().copied())
         {
             return Err(MaterialError::InvalidBundle);
         }

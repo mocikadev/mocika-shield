@@ -105,7 +105,7 @@ class MacosAppBundleTests(unittest.TestCase):
         calls = self.calls()
         builds = [args for name, *args in calls if name == "cargo" and args[0] == "build"]
         self.assertEqual(len(builds), 1)
-        self.assertIn("agent-executor", builds[0])
+        self.assertIn("mcp-server", builds[0])
         self.assertIn("--locked", builds[0])
         signatures = [args for name, *args in calls if name == "codesign"]
         self.assertEqual(len(signatures), 3)
@@ -119,6 +119,7 @@ class MacosAppBundleTests(unittest.TestCase):
         calls = self.calls()
         builds = [args for name, *args in calls if name == "cargo" and args[0] == "build"]
         self.assertEqual(len(builds), 2)
+        self.assertTrue(all("mcp-server" in args for args in builds))
         self.assertIn("aarch64-apple-darwin", builds[0])
         self.assertIn("x86_64-apple-darwin", builds[1])
         checks = [args for name, *args in calls if name == "lipo" and "-verify_arch" in args]

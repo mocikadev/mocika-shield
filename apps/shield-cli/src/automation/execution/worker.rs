@@ -35,6 +35,7 @@ impl From<CheckError> for WorkerError {
             "SIGNING_V4_NOT_SUPPORTED" => Rejection::V4Unsupported,
             "CREDENTIAL_UNAVAILABLE" => Rejection::CredentialUnavailable,
             "PLAN_SOURCE_CHANGED" => Rejection::SourceChanged,
+            "SHARED_BINDING_INVALID" | "SHARED_CREDENTIAL_CONFLICT" => Rejection::InvalidRequest,
             "EXECUTABLE_CHANGED" | "EXECUTOR_CHANGED" => Rejection::ExecutorChanged,
             "TOOLCHAIN_CHANGED" => Rejection::ToolchainChanged,
             _ => {
@@ -79,7 +80,13 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
             .wait_start(Duration::from_secs(3600))
             .map_err(|_| WorkerError::Policy(Rejection::InvalidRequest))?;
         let (bootstrap, _) = read_json::<Bootstrap>(&args.root.join("bootstrap.json"), 65536)?;
-        if bootstrap.format_version != 2 {
+        if bootstrap.format_version
+            != if bootstrap.request.shared.is_some() {
+                3
+            } else {
+                2
+            }
+        {
             return Err(WorkerError::Policy(Rejection::InvalidRequest));
         }
         bootstrap.executor.worker()?;
@@ -96,14 +103,22 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
                 stage: Stage::Prepare,
             },
         )?;
-        let plan = match plan::prepare(request.plan_args(), Some(&request.config), true)? {
+        let assessment = match &request.shared {
+            Some(shared) => crate::automation::shared_plan::prepare(
+                request.plan_args(),
+                request.config.as_deref(),
+                shared,
+            ),
+            None => plan::prepare(request.plan_args(), request.config.as_deref(), true),
+        }?;
+        let plan = match assessment {
             Assessment::Blocked(_) => return Err(WorkerError::Policy(Rejection::PlanBlocked)),
             Assessment::Prepared(plan) => plan,
         };
         match bootstrap.mode {
             Mode::Plan => {
                 let proof = PlanProof {
-                    format_version: 1,
+                    format_version: if plan.sources.shared.is_some() { 2 } else { 1 },
                     warning: plan.result.status == crate::automation::Status::Warning,
                     sources: plan.sources,
                 };
@@ -157,18 +172,11 @@ fn execute(
     executor: &identity::Executable,
 ) -> Result<(), WorkerError> {
     let sources = &plan.sources;
-    let bundle = MaterialBundle::create(
-        root,
-        &[
-            (Role::Input, &sources.input),
-            (Role::Config, &sources.config),
-            (Role::Keystore, &sources.keystore),
-            (Role::Apktool, &sources.apktool),
-            (Role::Apksigner, &sources.apksigner),
-            (Role::Resources, &sources.resources),
-        ],
-        || Ok(()),
-    )
+    let bundle = if sources.shared.is_some() {
+        MaterialBundle::create_shared(root, &sources.materials(), || Ok(()))
+    } else {
+        MaterialBundle::create(root, &sources.materials(), || Ok(()))
+    }
     .map_err(|_| WorkerError::Policy(Rejection::MaterialInvalid))?;
     sources.recheck()?;
     MaterialBundle::verify(&root.join("materials"), bundle.digest(), || Ok(()))

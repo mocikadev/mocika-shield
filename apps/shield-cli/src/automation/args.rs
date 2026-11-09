@@ -26,7 +26,7 @@ pub(crate) struct DoctorArgs {
     pub(super) json: bool,
 }
 
-#[derive(Clone, Copy, Default, ValueEnum, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) enum Profile {
     #[default]

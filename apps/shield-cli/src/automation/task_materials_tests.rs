@@ -78,6 +78,52 @@ fn 六类材料固化且索引不包含路径和凭据() {
 }
 
 #[test]
+fn 共享无项目使用新版五角色且不能冒充旧版缺项() {
+    let fixture = Fixture::new();
+    let refs: Vec<_> = fixture
+        .refs()
+        .into_iter()
+        .filter(|(role, _)| *role != Role::Config)
+        .collect();
+    assert!(matches!(
+        MaterialBundle::create(&fixture.work, &refs, || Ok(())),
+        Err(MaterialError::InvalidSet)
+    ));
+    let bundle = MaterialBundle::create_shared(&fixture.work, &refs, || Ok(())).unwrap();
+    assert!(!bundle.path(Role::Config).exists());
+    let index = fs::read(bundle.root.join("materials.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_slice(&index).unwrap();
+    assert_eq!(value["format_version"], 2);
+    assert_eq!(value["entries"].as_array().unwrap().len(), 5);
+    MaterialBundle::verify_shared_sources(&bundle.root, &refs, || Ok(())).unwrap();
+    value["format_version"] = serde_json::json!(1);
+    let bytes = serde_json::to_vec(&value).unwrap();
+    fs::write(bundle.root.join("materials.json"), &bytes).unwrap();
+    assert!(matches!(
+        MaterialBundle::verify(&bundle.root, Sha256::digest(bytes).into(), || Ok(())),
+        Err(MaterialError::InvalidBundle)
+    ));
+}
+
+#[test]
+fn 共享有项目仍固定六角色并拒绝重复缺项及未知版本() {
+    let fixture = Fixture::new();
+    let refs = fixture.refs();
+    let bundle = MaterialBundle::create_shared(&fixture.work, &refs, || Ok(())).unwrap();
+    MaterialBundle::verify_shared_sources(&bundle.root, &refs, || Ok(())).unwrap();
+    let mut duplicated = refs.clone();
+    duplicated[1] = duplicated[0];
+    assert!(MaterialBundle::verify_shared_sources(&bundle.root, &duplicated, || Ok(())).is_err());
+    assert!(MaterialBundle::verify_shared_sources(&bundle.root, &refs[..5], || Ok(())).is_err());
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(bundle.root.join("materials.json")).unwrap()).unwrap();
+    manifest["format_version"] = serde_json::json!(3);
+    let bytes = serde_json::to_vec(&manifest).unwrap();
+    fs::write(bundle.root.join("materials.json"), &bytes).unwrap();
+    assert!(MaterialBundle::verify(&bundle.root, Sha256::digest(bytes).into(), || Ok(())).is_err());
+}
+
+#[test]
 fn 材料不完整重复或角色错配均拒绝() {
     let fixture = Fixture::new();
     let refs = fixture.refs();
@@ -210,7 +256,7 @@ fn 未知字段重复角色超限索引即使摘要匹配也拒绝() {
                 serde_json::to_vec(&value).unwrap()
             }
             2 => {
-                value["format_version"] = serde_json::json!(2);
+                value["format_version"] = serde_json::json!(3);
                 serde_json::to_vec(&value).unwrap()
             }
             _ => vec![b' '; 4097],
