@@ -1,166 +1,182 @@
 # 本地 Agent 接入与 Skill 安装
 
-> 当前调整：CLI 已有[共享管理、签名、普通及受控加固](shared-data-cli.md)，独立 Skill 0.3.0 提供单次受控独立签名指引；MCP 已接入[共享来源与证书范围](../design/shared-mcp.md)。签名及资料管理已合入并通过本机完整包和当前 Agent 实调；当前功能分支补证书生命周期，实际进度见[专项任务](../process/mcp-certificate-lifecycle-plan.md)。下文原外置配置流程继续兼容；公开安装包、宿主原生注册及未完成验收不得据此推定已更新。
+> 当前主干已合入 CLI、独立 Skill、MCP 和共享资料管理，先以已验证的 macOS 开发应用包使用。**公开 1.4.3 安装包尚不包含这些新增入口。** 源码构建仍显示 1.4.3，不能只看版本号判断能力，须核对对应命令帮助和工具发现。交付状态与证据见[收口审查](../process/agent-delivery-review.md)。
 
-CLI 与 Skill 已随 PR #152 合并主干，仍是尚未发布的实验接入；公开 1.4.3 安装包不包含 `agent plan/protect`。首轮执行仅限 macOS；其他平台和额外客户端分别验收，不根据安装包或版本号推定已经支持。完整契约见[命令设计](../design/agent-cli-contract.md)，实际进展见[验收记录](../process/agent-integration-plan.md)。本地 MCP 按[专项计划](../process/local-mcp-plan.md)开发，尚不作为可安装能力。
+## 选择入口与共享资料
 
-## 目录与职责
+| 入口 | 使用方式 |
+|---|---|
+| CLI | 本机脚本直接调用应用内 `shield`，不要求 GUI 打开 |
+| Skill | 用户独立安装 `skills/mocika-shield/`，Agent 按流程调用 CLI，不包含另一套执行实现 |
+| MCP | 宿主按需启动同一 CLI 的 `mcp serve`，通过标准输入输出发现和调用工具，不监听网络端口 |
 
-```text
-skills/mocika-shield/                 # 根目录直接可见，独立安装和升级
-├── SKILL.md                          # 流程、自身版本和 CLI 协议兼容声明
-├── references/cli.md                 # 随技能携带的命令/结果说明
-├── scripts/resolve-cli.sh            # 只查找路径，不执行候选或保存配置
-└── agents/openai.yaml                # 客户端界面元数据，不声明 MCP
-docs/ops/agent-setup.md               # 面向用户的安装、配置与使用说明
-docs/design/agent-*.md                # 维护者设计，不打入技能包
-docs/process/agent-integration-plan.md # 阶段与实际验收记录
-tests/agent-skill/cases.json           # 客户端行为验收场景，不打入技能包
-scripts/tests/test_agent_skill.py      # 可搬迁性、引用与分发完整性检查
+三者可独立使用，不强制同时安装 Skill 和 MCP。GUI、CLI 和共享 MCP 复用本地 `config.toml`、`shield.db` 与证书；查询和保存通过[共享服务](../design/shared-application.md)，不让模型直接读取数据库或解密密码。GUI 无需常驻；切页、恢复焦点或下次查询时可见新偏好，活动任务仍使用固定快照。
+
+本批验收限 macOS，普通源码 CLI 默认不启用 `agent-executor`／`mcp-server`；macOS 共包脚本会显式启用。Linux／Windows、Intel／通用架构、额外 JDK 和宿主原生注册分别验收，不将当前 Mac 的结果扩写为全部通过。
+
+## 准备完整应用
+
+按[构建指南](build.md)先准备壳资源，再运行 `make build-gui` 或 `bash scripts/build-macos-app.sh`。使用完整 `.app`，不要只提取裸二进制、事后替换包内文件或让 Agent 自行下载替代工具。应用不一定在 `/Applications`，以下路径都须替换为真实位置：
+
+```bash
+SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
+"$SHIELD_CLI" --version
+"$SHIELD_CLI" agent --help
+"$SHIELD_CLI" mcp serve --help
 ```
 
-`skills/` 是技能的唯一源码入口，不是本仓库自动激活的隐藏开发技能目录。业务执行仍在 CLI 与共享核心，Skill 不包含二进制、JAR、资源包、证书、密码、测试 APK 或第二套执行器；小型路径定位脚本只供不同 Agent 复用同一查找规则，不包装加固任务。README 提供直接入口，不为未来 MCP 或其他平台预建空目录。
-
-App 和 Skill 分开交付：macOS 应用只携带 GUI、CLI 与运行资源，技能由用户从仓库独立取得。应用内布局如下，不包含 Skill：
+应用布局为：
 
 ```text
 MocikaShield.app/Contents/
 ├── MacOS/
-│   ├── mocika-shield
-│   └── shield
+│   ├── mocika-shield              # GUI
+│   └── shield                     # 独立 CLI，含本地 MCP 入口
 └── Resources/
-    ├── tools/
-    └── resources/
+    ├── tools/                    # 共用 JAR
+    └── resources/                # 标准／工控资源
 ```
 
-CLI 可在 GUI 关闭时使用。配置、输入和输出放在应用包及技能目录之外，不把安装目录作为工作目录；这是一项使用约定，不等于系统写保护。Skill 不在 App 构建资源清单中，没有技能源码也能构建 App，不需要为了更新操作指引而升级整个应用。
+Skill 不在应用包中。输入、输出、可选项目配置和技能安装目录留在包外；输出父目录须已存在，不能覆盖原包或已有目标。完整构建和签名只说明应用包就绪，不等于 Android 设备业务已验。
 
-## 准备应用和本地签名配置
+## 最简共享 MCP 配置
 
-维护者按[构建说明](build.md)执行 `make build-gui` 生成完整 `.app`。将整个应用放在选定位置，不只提取内部 CLI；不要修改已交付的应用包或使用自动下载执行脚本来修复环境。
+### 使用 GUI 已保存的证书
 
-共享来源通过已保存的 GUI／CLI 证书和偏好工作，无须另建项目或注入密码，见[共享资料说明](shared-data-cli.md)。外部临时材料仍使用独立 `shield-cli.toml`，格式见[使用指南](../usage.md#cli-配置文件)；不保存密码，不把 GUI 文件当项目配置。受控流程仍要求明确输入、输出及原签名证书，父目录须已存在，仅支持 V1–V3。
+先在本机查看证书，取所选记录的 `id`；它不是 Alias，不需要再次输入密码：
 
-外部材料、导入或创建新证书时，宿主须在本地安全取得 `MOCIKA_SHIELD_KS_PASS` 和可选 `MOCIKA_SHIELD_KEY_PASS`；终端变量不代表桌面客户端会继承。不将密码粘贴到模型对话、技能文件、项目仓库或工具参数；缺凭据先解决本地注入，不回显环境排障。已保存共享材料不需要重复注入。
+```bash
+"$SHIELD_CLI" cert list
+```
 
-## 命令定位与本机配置
+列表不含密码，但有名称、路径和 Alias，只在本机查看，不把整份摘要贴到对话中。未指定 `--app-home` 时即使用 GUI 的原资料；该参数只供宿主显式隔离测试，不是共享 GUI 资料的必填项，也不能通过复制数据库代替迁移。
 
-Skill 按以下顺序定位 CLI：本次明确指定的绝对路径、宿主 `MOCIKA_SHIELD_CLI`、PATH 中的 `shield`，均没有时询问用户。明确配置失效或为空时不会借其他位置回退；PATH 有多个不同文件候选时要求选择。同文件链接或重复 PATH 项可去重，不递归扫描用户目录。
+将下面的路径和证书编号替换为本机实际值，再把服务定义放入宿主支持的 **stdio MCP** 配置位置。`command` 是程序绝对路径，`args` 是独立参数数组，不经过 shell；具体外层包装字段由客户端决定，不声称所有客户端格式相同：
 
-只需在使用者自己的 Agent 环境中配置一次路径。例如（替换为实际位置，不假定 App 在应用程序目录）：
+```json
+{
+  "command": "/你的实际目录/MocikaShield.app/Contents/MacOS/shield",
+  "args": [
+    "mcp", "serve",
+    "--use-shared-settings",
+    "--allow-execution",
+    "--input-root", "/你的APK目录",
+    "--output-root", "/你的产物目录",
+    "--allow-certificate", "所选证书编号"
+  ]
+}
+```
+
+输入、输出根目录必须预先存在，使用明确的包外绝对路径；不要选择整个用户目录等过宽范围。只读接入删去 `--allow-execution`。服务默认总期限为 120 秒，处理较大 APK 时可由宿主预先设置 `--timeout-seconds`（1～3600 秒），不会因进度自动续期。
+
+共享模式不需要 `shield-cli.toml` 或密码环境；已有证书签名由本地服务读取已保存密码。允许多个旧证书时重复 `--allow-certificate`，总范围最多 64 项。服务能力由宿主一次配置，工具不能自行提权；明确的本次任务不要求第二次确认，宿主本身的审批策略保持不变。
+
+### 初次没有证书
+
+可省略整组 `--allow-certificate`，表示不授权任何旧记录，不是开放整库。用户明确要求导入／创建时，仅这两种固定调用使用宿主本机安全预置的 `MOCIKA_SHIELD_KS_PASS` 和可选 `MOCIKA_SHIELD_KEY_PASS`；不要将密码填入工具参数、技能、仓库或对话。
+
+只有导入／创建完整确认成功的新编号才加入当前会话，可直接用于签名、加固和管理，无须为使用新编号而重启。删除成功后撤销编号；新服务会话须由宿主显式配置要沿用的旧编号。缺安全凭据时明确停止，不猜密码、不自动生成密码或重启；更换预置密码由宿主更新环境。详见[生命周期方案](../design/mcp-certificate-lifecycle.md)。
+
+## 当前工具与能力
+
+| 模式 | 不加执行开关 | 加原 `--allow-execution` |
+|---|---:|---:|
+| 共享来源 | 5 项 | 15 项 |
+| 原外置配置来源 | 3 项 | 5 项 |
+
+以当前实际 `tools/list` 为准，不把旧阶段工具数量当作新增权限。共享模式的完整工具清单：
+
+| 分组 | 工具 | 说明 |
+|---|---|---|
+| 检查与规划 | `shield_doctor`、`shield_preflight`、`shield_plan` | 默认可用；规划会短暂准备／回收工作材料，不交付 APK |
+| 共享查询 | `shield_certificates`、`shield_settings` | 默认可用；只返回有限业务字段，不返回名称、路径、Alias 或密码 |
+| 受控任务 | `shield_protect`、`shield_sign`、`shield_execution_status` | 开启执行后可用；状态查询本身只读，取消／未知状态不自动重跑 |
+| 偏好与默认 | `shield_update_settings`、`shield_update_certificate`、`shield_set_default_certificate` | 明确保存意图后一次调用完成，不另做计划 |
+| 证书生命周期 | `shield_verify_certificate`、`shield_import_certificate`、`shield_create_certificate`、`shield_remove_certificate` | 校验也会保存状态；删除只移除记录、始终保留文件 |
+
+能力共享不代表每个入口已经有全部操作：
+
+| 操作 | CLI／Skill | 当前 MCP |
+|---|---|---|
+| 仅加固、不签名 | 可按明确要求走普通 `protect`，不冒充受控保证 | 尚未开放，不擅自加上签名或切换成普通命令 |
+| 清空全局默认证书 | `cert clear-default` | 尚未开放；只能把明确允许项设为默认 |
+| 持久化 GUI 输出目录偏好 | `config set` | 尚未开放；任务输出使用宿主根目录及本次相对路径 |
+| 受控独立签名 | `agent sign` 单次执行 | `shield_sign` 单次执行；均仅 V1–V3，不自动关闭 V4 |
+
+这些差异不在本次文档收口中补功能，也不作为已完成能力继续合并的前置条件。普通命令详见[共享资料 CLI](shared-data-cli.md)。
+
+## 常用任务示例
+
+### 只检查环境
+
+> 检查签名和证书工具是否就绪，不处理 APK、不保存设置。
+
+可调用 `shield_doctor`，参数为 `{"operation":"sign"}` 和 `{"operation":"certificate"}`；`ready` 只说明对应依赖检查，不等于真实私钥签名已通过。
+
+### 只签名，不加固
+
+> 用已允许的共享证书，将 app.apk 签名到新的 app-signed.apk，不安装或发布。
+
+直接单次调用 `shield_sign`：
+
+```json
+{"input":"app.apk","output":"app-signed.apk"}
+```
+
+省略编号时使用唯一允许项，或多项范围内的全局默认项；无法确定就返回有限错误，不猜证书。也可显式加 `certificate_id`。不需要先调用 `shield_plan`、复制摘要、输入保存过的密码或再确认一次。
+
+### 加固并签名
+
+> 使用已允许的证书和保存的目标系统／保护策略，将 app.apk 加固并签名到新的 app-protected.apk。
+
+Agent 先调用 `shield_plan`，提供相对 `input`、`output` 和明确的 `certificate_id`；用户已授权执行且风险已明确时，自动把原返回的 `plan_id`、`plan.sha256` 传给 `shield_protect` 的 `plan_id`、`expect_plan_sha256`。不要求用户手抄摘要或重复指定路径／材料。用户只要求评估或规划时停在计划，不执行。
+
+可选 `runtime_profile` 使用 `standard`／`android-api19`；省略则继承保存的模式。ABI 排除仍按本次明确意图提供，不自动排除。计划一次尝试即消费，不能重用失败或未知任务的引用。
+
+### 保存偏好或管理证书
+
+> 将今后的目标系统改为兼容 Android 4.4，保护策略保持标准保护，不执行加固。
+
+调用 `shield_update_settings`，参数为 `{"runtime_mode":"android_api19","environment_policy":"compatible"}`。注意保存字段 `runtime_mode` 使用下划线，与规划参数的连字符不同；省略字段保持。`sign_after_protect:null` 恢复继承，`certificate_id:null` 清除加固页专用选择，不删除证书或清空全局默认。
+
+证书偏好工具只收编号及名称／备注、V1–V4、自动签名偏好，不可更换材料。导入使用输入根内相对 `keystore`、名称、类型和可选 Alias；只一个 Alias 时可自动选择，文件上限 16 MiB，拒绝链接、跳转和会被路径规范处理改变的末尾空白。创建只收托管文件名、不接保存目录，同名不覆盖。示例参数：
+
+```json
+{"name":"发布证书","keystore":"证书/release.p12","keystore_type":"pkcs12"}
+```
+
+创建可用 `{"name":"发布证书","file_name":"release.p12","alias":"release","dname":"CN=本地签名","keystore_type":"pkcs12"}`。两者可选 `note`、`set_default`、`v1/v2/v3/v4`、`auto_sign`，默认不改全局默认项，V1–V3 开、V4 关、自动签名偏好开。创建／导入仍须满足本机凭据条件。
+
+明确要求删除某一记录时，`shield_remove_certificate` 只需 `certificate_id`，无第二次确认字段；文件保留，也不会自动选择替代证书。管理说明和结果范围见[首批方案](../design/shared-mcp-management.md)及[生命周期方案](../design/mcp-certificate-lifecycle.md)。
+
+## Skill 独立安装与升级
+
+唯一源码为根目录 [skills/mocika-shield/](../../skills/mocika-shield/SKILL.md)。将整个目录安装到所用 Agent 支持的项目级或用户级技能位置，保留 `SKILL.md`、`references/`、`scripts/`、`agents/`；不从 App 提取，不放入本仓库的隐藏开发技能目录，不要求各客户端使用相同路径。已有目标先核对和备份，不直接覆盖。也可使用用户已有的技能管理工具，本项目不自研安装器。
+
+当前 Skill 为 `0.3.0`、公共 CLI 协议 `1`，识别加固计划 `2/3` 和独立签名计划 `4`；声明不等于 App 已具备所有接口。它按“本次明确绝对路径 → 宿主 `MOCIKA_SHIELD_CLI` → PATH 中 `shield` → 询问”定位，无效明确配置不回退，多文件歧义停止，不遍历用户目录。例如由用户给宿主设置：
 
 ```bash
 export MOCIKA_SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
 ```
 
-这不是持久化安装命令；终端变量仅对继承它的进程有效。使用桌面 Agent 时按其宿主环境配置方式设置，不编辑技能文件，也不新增本工具配置字段。App 原地升级通常保留路径，移动后需要调整；技能升级不触碰这一外部配置。
+终端环境不代表桌面客户端会继承，也不是持久安装。定位脚本 `scripts/resolve-cli.sh` 只查找、不执行候选；成功后仍需核对可信来源、完整资源及所需帮助入口。共享资料／仅签名按包内参考处理，不由 Skill 注册或启动 MCP。
 
-技能内 `/bin/bash <已安装技能目录>/scripts/resolve-cli.sh [本次CLI绝对路径]` 只查找、不执行候选，成功输出一条路径，缺失/无效/歧义分别退出 `1/2/3`。它不证明候选来源可信或接口兼容。Agent 仍须核对安装来源、`--version`、`agent --help` 以及实际 JSON 的公共协议 `schema_version`，之后固定本次规划/执行路径；不要遍历或回显其他环境变量。
+更新时按用户选择的仓库提交／版本或管理工具更新完整技能，保留外部路径、证书和项目配置。更新后重新加载并核对能力；不在业务任务中自更新、不跨升级复用执行计划，不要求 Skill 与 App 同版本升级。用户可明确说：
 
-## 从仓库安装 Skill
+> 使用 $mocika-shield，工具位于我指定的完整应用包中；用现有共享证书仅签名到指定新文件，不执行加固。
 
-安装来源为 `mocikadev/mocika-shield` 仓库的 `skills/mocika-shield/` 子目录。用户通过所用 Agent 或已有技能管理工具安装完整目录，按客户端支持选择项目级或用户级位置；不从 `.app` 中提取，不要求统一安装路径，也不要求额外使用本项目自制安装器。请保留参考、脚本和客户端元数据。
+## 原外置配置模式
 
-技能源码已在远端主干，可记录所用提交或引用后独立安装；但须自行准备匹配的开发应用包，不能假定公开 1.4.3 包已支持新命令。记录实际来源便于更新和回退；本工程不自动写入用户的项目或全局目录。
+旧入口继续兼容：不指定 `--use-shared-settings`，由宿主提供包外的 `--config /可信目录/shield-cli.toml`；默认三项检查／规划工具，允许执行后五项。外置执行要求固定项目配置及安全预置密码，不读取共享库来拼接材料。它不提供共享独立签名或资料管理工具，不把共享模式的配置条件套用到这里。
 
-以 Codex 指定项目安装为例：
+项目文件不保存密码，不把 GUI 的 `config.toml` 当项目文件；固定文件发生变化会阻断原计划。外置流程属于兼容选择，不是使用 GUI 已保存证书的前置条件。
 
-Codex 官方文档说明，项目级技能使用 `.agents/skills/`，可通过 `$技能名` 显式调用；技能变化未出现时可重新启动客户端。以下示例只安装到你选定的 Android 工程，不修改用户级技能或全局配置。[官方说明](https://developers.openai.com/codex/build-skills)
+## 结果、取消与验收边界
 
-将已取得的 `skills/mocika-shield/` 整个目录复制到目标 Android 工程的 `.agents/skills/mocika-shield/`，保留内部布局。目标已有目录或链接时先核对，不覆盖；其他 Agent 使用其支持的技能目录，不照搬 Codex 的路径。这里只给出目录安装说明，不声称已验证所有客户端或管理工具。
+- APK 成功必须有完整的 `succeeded`、`output_state:published` 及产物证据；清理或目录同步异常照实报告。签名／ZIP 对齐通过不等于设备安装、启动或全部业务通过。
+- 管理 `change_state:confirmed` 表示结果已确认；`not_attempted` 表示明确未尝试；`unconfirmed` 表示可能已保存，不能称回滚或自动重试。校验失败但状态明确保存仍是失败，不误报成功，也不因此锁死会话。
+- 未确认停止、提交或修改时会话停写并返回 `SESSION_RECOVERY_REQUIRED`，查询仍可用。先人工核对本机状态，不自动重连、改名输出、重建计划或重启绕过。
+- MCP 取消使用本次请求的 `notifications/cancelled`。客户端可能不再收到被取消调用的结果；受控 APK 任务可用同连接的 `shield_execution_status` 查询。独立签名需要取消后查询引用时，在原请求提供进度标识并保存通知中的任务编号，无须前置计划；管理取消不伪造为 APK 状态记录。
+- 服务总期限、连接关闭和有限收尾沿用既有契约，晚取消不删除已发布产物。源码调试时勿在服务存活期间原地编译／替换 CLI 或固定配置。
 
-## Skill 独立升级
-
-技能版本保存在 `SKILL.md` 的 `metadata.version`，当前开发版 `0.3.0` 在共享受控、资料管理及普通签名基线上，增加单次受控独立签名；公共 CLI 协议仍为 `1`，识别计划版本 `2/3/4`，当前平台 `macos`。声明不等于执行权限或 App 版本，不能用 App 1.4.3 推定接口存在。按任务检查对应能力，不把缺少独立签名或管理能力的旧 CLI 当成所有既有加固流程都不可用。
-
-- 用技能管理工具安装的，采用该工具支持的更新/固定版本方式，保留仓库、子目录及实际提交/引用。不在此编造各管理工具的更新命令。
-- 手动安装的，先核对变更并备份当前技能，再完整替换该技能目录，检查新增/删除文件；不覆盖外部 Agent 环境、`shield-cli.toml`、证书或密码。
-- 更新后重新加载技能、核对 CLI 能力及公共协议；同协议、所需能力仍满足时，不要求同时升级 App。不兼容则停止并提示用户选择匹配版本，不擅自升级工具。
-- 不在加固任务中更新技能/CLI，不新增自动更新服务，不运行自更新脚本。升级前的执行计划不跨更新复用，须重新规划。
-
-## 开始使用
-
-在目标工程的新会话中，先确认技能可被发现，再明确提供本机应用路径和文件位置。例如：
-
-> 使用 $mocika-shield。工具在我指定的完整应用包内；请检查本机加固和证书环境，不执行加固，不读取或回显签名密码。
-
-准备好自有 APK 和签名配置后：
-
-> 使用 $mocika-shield，针对我指定的 APK、shield-cli.toml 和新输出路径做加固签名计划，先不要执行；说明阻断、警告和需要确认的地方。
-
-确认计划及策略后，再授权执行。不把“安装技能”“查看计划”理解为授权安装 APK、发布、覆盖、排除 ABI 或上传资料。
-
-## 客户端验收
-
-使用 [场景清单](../../tests/agent-skill/cases.json) 逐项核对实际工具调用、进程终态和文件变化，不只检查模型答复。至少记录客户端版本、应用包来源/路径、Java 主版本、授权范围、是否出现覆盖或额外工具调用；记录中不含凭据、生产证书或业务 APK。不同客户端分别记录，不将一个客户端的 CLI 运行结果当作其他客户端通过。
-
-可以直接由当前 Agent 显式读取技能并在临时项目验证，不要求先另开会话；本项目已完成一次[当前会话显式使用验收](../process/agent-session-validation.md)，包含实际工具调用、解包阶段取消及模拟升级配置保留。该结果不同于仅跑脚本，也不证明新会话自动发现/选择、其他 Agent 或各客户端按钮/断开行为。其他客户端的目录与交互按需补测，不把它们统一设为已验证流程继续推进的前置条件；未经确认仍不安装到全局。
-
-## 本地 MCP 开发验证
-
-2026-11-09：开发中的 MCP 默认提供 `shield_doctor`、`shield_preflight`、`shield_plan` 三项只读工具；宿主显式允许后额外提供受控执行和状态查询。它与 Skill 独立，不要求安装技能，也不由技能启动服务。源码的 macOS `.app` 构建已显式启用 MCP，公开安装包尚未更新，不能用 App 版本号推定入口存在；用对应包内 `shield mcp serve --help` 检查入口。
-
-完整应用包用 `bash scripts/build-macos-app.sh` 构建；宿主的程序字段指向用户实际保存位置的 `MocikaShield.app/Contents/MacOS/shield`，参数按独立数组传入，不通过 shell、不假设安装在 `/Applications`。升级后如应用位置变化，由用户更新宿主路径；不得只提取裸 CLI，或让 Agent 在运行中覆盖应用。GUI 无须启动。参数示意：
-
-```text
-/实际保存位置/MocikaShield.app/Contents/MacOS/shield --config /可信配置目录/shield-cli.toml mcp serve --input-root /授权输入目录 --output-root /授权输出目录 --timeout-seconds 120
-```
-
-- 输入、输出根目录须已存在，启动参数使用绝对路径；不从输入目录推断配置或工具。工具调用只传各自根目录内的相对路径。
-- 签名配置可不提供，此时环境检查/预检仍可用，计划返回缺配置错误。签名配置必须在输出根目录之外；固定配置变化后需重启服务，不能在工具调用中切换。
-- 密码仍由宿主在本机注入既有环境变量，不能写在 MCP 工具参数中。无凭据需求的检查子进程不继承签名密码。只读规划也会调用 Java/keytool，产生本次临时材料，但不交付最终 APK。
-- 默认只读；由宿主在启动参数额外加入 `--allow-execution` 后，才注册 `shield_protect` 和 `shield_execution_status`，此时固定签名配置为必需项。工具调用不能切换这项权限；用户仍须授权单次执行，不能把启动服务当作批准任意任务。
-- 本轮使用 `2025-11-25` 协议进行真实标准输入输出连接测试，尚未把服务注册进当前 Agent 的工具列表；连接测试不等于实际宿主的发现、授权和按钮行为已验收。
-- 不自动修改任何 Agent 全局配置，不监听网络端口，不改变系统 Java。各宿主配置入口和授权按钮分别验收，不把真实标准流客户端验证写成宿主已接入。
-
-只做源码协议调试时也可用 `cargo build -p shield-cli --features mcp-server --locked`；这不替代完整应用包验收。源码默认构建不开放 MCP，服务存活期间不要原地重新编译/替换执行器或修改固定配置。
-
-开发验证流程为：`shield_plan` 返回 `plan_id`、`plan.sha256` 和有效期；确认后调用 `shield_protect`，只传 `plan_id` 与 `expect_plan_sha256`，不再次传路径、配置、密码或覆盖选项。`shield_execution_status` 只传 `plan_id`，执行期间和请求取消后都可在同一连接查询。计划最多保留 16 条，未消费计划 10 分钟到期，结束记录另保留 10 分钟；不建立持久任务库。
-
-开始尝试即消费计划，输出占用、配置变化、工具失败或结果未知后均不得对同一计划重试。MCP 取消使用原请求 ID 的 `notifications/cancelled`；不等待被取消请求的响应，改查本会话状态。已提交产物不会因晚取消被删除；连接中断后不可通过新连接恢复状态，也不能自动换输出名重跑。状态查询不代表重新验证环境。需要阶段通知时由客户端为调用提供 `_meta.progressToken`，阶段序号不是耗时百分比。
-
-若出现提交/结果未知或清理未确认，本会话暂停新的规划与执行，返回 `SESSION_RECOVERY_REQUIRED`，状态中 `session_execution_blocked` 为真。不能改用另一个计划或等待记录过期来恢复；先人工检查本机进程、临时材料和产物，再由用户重新建立会话，不得自动重连或重启。已有成功产物不会删除，状态查询和只读检查继续可用。明确未启动 CLI 的取消/输出占用等不需要清理，不会仅因此锁定会话，但原执行计划仍已消费。
-
-### 开发分支的单次独立签名
-
-以下能力已通过当前 Mac 的源码标准流及完整 `.app` 验证，宿主注册仍另验；独立 Skill 0.3.0 已同步指引，不随 App 打包。预先在 GUI／CLI 保存证书后，宿主一次配置共享范围和原执行开关，不增加签名专用开关：
-
-```text
-shield mcp serve --use-shared-settings --allow-execution --input-root /授权输入目录 --output-root /授权输出目录 --allow-certificate 证书编号
-```
-
-`shield_sign` 一次调用只需：
-
-```json
-{"input":"应用.apk","output":"应用-signed.apk"}
-```
-
-可以另传 `certificate_id` 选择已有允许项。省略时使用范围内默认项或唯一允许项；多项无法确定则返回固定错误，不猜选或挂起询问。只做独立签名，不加固、不覆盖，首版仅支持 V1–V3；不需要先调用 `shield_plan`、复制摘要或再次确认。宿主自身的工具授权策略仍由宿主管理。
-
-返回的 `plan_id` 只是本会话任务查询引用，不能提交给 `shield_protect`。若客户端需要运行中或取消后查询，在同一次签名请求提供 `_meta.progressToken`，保存阶段通知 `_meta["mocika-shield/plan_id"]` 后，用原状态工具查询；不为取得引用增加前置调用。未请求进度也能正常完成签名，并在结果中取得引用。
-
-独立签名基线为共享执行 7 项、共享只读 4 项工具；当前管理扩展另见下节。默认项查询与签名共用一次总期限。缺信息／版本不支持等普通错误，在 CLI 有实际清场证据时不会锁死会话；错误修正后的下一次明确请求可以继续处理，不允许自动重试、绕过未知锁定或自动重启服务。
-
-### 开发分支的共享资料管理
-
-已合入的管理首批提供 `shield_settings` 查询业务设置；共享模式启用原 `--allow-execution` 后，还提供 `shield_update_settings`、`shield_update_certificate`、`shield_set_default_certificate`。无需新的启动开关、前置计划或逐次确认；服务只在明确保存／管理意图下执行，宿主原有审批策略不变。该基线共享只读为 5 项、共享执行为 11 项，生命周期扩展另见下节，原外置模式仍为 3／5 项。公开安装包尚未包含，能力以命令及工具发现为准。
-
-设置只包括模式、策略、自动签名意图及加固页专用证书，省略保持；两个可空字段的 `null` 分别恢复继承与清除专用选择，不删除证书。示例参数：
-
-```json
-{"runtime_mode":"android_api19","environment_policy":"compatible","sign_after_protect":null,"certificate_id":null}
-```
-
-证书偏好修改只接 `certificate_id` 及可选 `name`、`note`、`v1/v2/v3/v4`、`auto_sign`；全局默认切换只接允许范围内的明确编号，不修改加固页专用选择。偏好工具不接受材料路径、Alias 或密码，不回显名称、备注或材料。设置中的范围外证书编号会隐藏并标记 `outside_scope`，不是自动改为默认项。
-
-成功写入回执为 `change_state:confirmed`；`not_attempted` 表示明确未尝试。`unconfirmed` 表示可能已保存，不能认为回滚、自动重试或开新连接绕过；可查询实际偏好，当前会话继续停写。管理命令不使用项目 `--config`，不会把临时覆盖保存成默认；已固定的加固计划仍使用原身份。设计及实际验收见[首批管理方案](../design/shared-mcp-management.md)与[任务记录](../process/shared-mcp-management-plan.md)。
-
-### 开发分支的证书生命周期
-
-当前分支共享执行模式新增 `shield_verify_certificate`、`shield_import_certificate`、`shield_create_certificate`、`shield_remove_certificate`，共 15 项工具；共享只读仍为 5 项。沿用原执行开关，不加重复确认。校验和删除只需 `certificate_id`；删除只移除记录、保留文件。校验失败但失败状态已保存时返回失败和 `change_state:confirmed`，不是校验成功，也不因此锁死会话。
-
-新建／导入仅使用宿主本机预置的 `MOCIKA_SHIELD_KS_PASS` 和可选 `MOCIKA_SHIELD_KEY_PASS`，不给工具传密码或环境变量名；已有证书签名仍读取库内密码，无须再注入。缺凭据明确停止，不要求把密码发给 Agent。启动后更换这两项预置值需要宿主更新服务环境；不会自研口令管理或自动重启流程。
-
-导入示例参数为 `{"name":"发布证书","keystore":"证书/release.p12","keystore_type":"pkcs12"}`：文件须在输入根内，16 MiB 以内、不允许链接或跳转；只有一个 Alias 时可省略，否则明确提供 `alias`。导入保留原路径和文件。创建示例为 `{"name":"发布证书","file_name":"release.p12","alias":"release","dname":"CN=本地签名","keystore_type":"pkcs12"}`：只能指定文件名，不传保存目录；共享托管目录中同名不覆盖。两者可选 `note`、`set_default`、`v1/v2/v3/v4` 和 `auto_sign`；默认不切换全局默认，V1–V3 开、V4 关、自动签名偏好开。
-
-初次没有证书可不指定 `--allow-certificate`，不代表授权整库；仅创建／导入完整确认成功的新编号加入当前会话，可直接用于签名、加固和管理，总范围最多 64 项。删除成功后撤销编号；新服务会话须由宿主明确配置需要沿用的编号，不自动开放旧记录。其他范围和未知停写规则保持，详见[生命周期方案](../design/mcp-certificate-lifecycle.md)及[实施记录](../process/mcp-certificate-lifecycle-plan.md)。
+当前 Agent 已完成显式 Skill 使用、临时标准流工具调用及真实签名，见[会话记录](../process/agent-session-validation.md)和[交付审查](../process/agent-delivery-review.md)；完整包、旧证书复用与协议专项分别有实际证据。这不同于宿主原生注册、新会话自动发现、每个客户端审批／取消按钮或跨平台验收。未经确认不写任何客户端全局配置、安装技能或修改 Java；本批文档调整不要求重复已通过的完整测试。
