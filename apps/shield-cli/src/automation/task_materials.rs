@@ -34,11 +34,15 @@ const SHARED_ROLES: [Role; 5] = [
     Role::Apksigner,
     Role::Resources,
 ];
+const SIGN_ROLES: [Role; 3] = [Role::Input, Role::Keystore, Role::Apksigner];
+const SIGN_CONFIG_ROLES: [Role; 4] = [Role::Input, Role::Config, Role::Keystore, Role::Apksigner];
 
 fn roles(version: u32, has_config: bool) -> Result<&'static [Role], MaterialError> {
     match (version, has_config) {
         (1, true) | (2, true) => Ok(&ROLES),
         (2, false) => Ok(&SHARED_ROLES),
+        (3, false) => Ok(&SIGN_ROLES),
+        (3, true) => Ok(&SIGN_CONFIG_ROLES),
         _ => Err(MaterialError::InvalidBundle),
     }
 }
@@ -119,7 +123,7 @@ impl MaterialBundle {
         Self::create_version(parent, sources, 2, checkpoint)
     }
 
-    fn create_version(
+    pub(super) fn create_version(
         parent: &Path,
         sources: &[(Role, &FileSnapshot)],
         version: u32,
@@ -230,7 +234,7 @@ impl MaterialBundle {
     }
 
     #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
-    fn verify_sources_version(
+    pub(super) fn verify_sources_version(
         root: &Path,
         sources: &[(Role, &FileSnapshot)],
         version: u32,

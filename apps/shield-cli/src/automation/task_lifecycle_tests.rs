@@ -11,7 +11,90 @@ fn evidence() -> ArtifactEvidence {
         signature_checked: true,
         protection_checked: true,
         alignment_checked: true,
+        content_sha256: None,
     }
+}
+
+#[test]
+fn 两种任务的证据不得互换且签名必须保留指定内容() {
+    let now = Instant::now();
+    for invalid in 0..5 {
+        let mut signing =
+            Task::new_sign(now, Duration::from_secs(120), PLAN, CERT, [4; 32]).unwrap();
+        signing.hello(now).unwrap();
+        signing.isolation_confirmed(now).unwrap();
+        signing.start(now).unwrap();
+        let mut artifact = evidence();
+        artifact.protection_checked = false;
+        artifact.content_sha256 = Some([4; 32]);
+        match invalid {
+            0 => artifact.content_sha256 = None,
+            1 => artifact.content_sha256 = Some([5; 32]),
+            2 => artifact.protection_checked = true,
+            3 => artifact.signature_checked = false,
+            _ => artifact.certificate_sha256 = [0; 32],
+        }
+        assert!(signing.ready(now, PLAN, artifact).is_err());
+    }
+    let mut signing = Task::new_sign(now, Duration::from_secs(120), PLAN, CERT, [4; 32]).unwrap();
+    signing.hello(now).unwrap();
+    signing.isolation_confirmed(now).unwrap();
+    signing.start(now).unwrap();
+    let mut artifact = evidence();
+    artifact.protection_checked = false;
+    artifact.content_sha256 = Some([4; 32]);
+    signing.ready(now, PLAN, artifact).unwrap();
+    assert!(!signing.can_cleanup());
+    signing.tree_stopped(now).unwrap();
+    assert_eq!(signing.phase(), Phase::Finalizing);
+    signing.verified(now, true).unwrap();
+    signing.begin_publish(now).unwrap();
+    signing.cancel(now).unwrap();
+    signing.committed(true, true, true).unwrap();
+    signing.cancel(now).unwrap();
+    assert_eq!(signing.take_outcome().unwrap().status, Status::Succeeded);
+    assert!(running(now).ready(now, PLAN, artifact).is_err());
+    artifact.protection_checked = true;
+    assert!(running(now).ready(now, PLAN, artifact).is_err());
+}
+
+#[test]
+fn 签名任务停止未确认时仍保留未知且不得清理() {
+    let now = Instant::now();
+    let mut signing = Task::new_sign(now, Duration::from_secs(120), PLAN, CERT, [4; 32]).unwrap();
+    signing.cancel(now).unwrap();
+    signing.stop_unconfirmed(now).unwrap();
+    assert_eq!(signing.take_outcome().unwrap().status, Status::Unknown);
+    assert!(!signing.can_cleanup());
+}
+
+#[test]
+fn 两类任务启动前父端复核失败不伪造工作进程错误且必须等待停止() {
+    let now = Instant::now();
+    for sign in [false, true] {
+        for hello in [false, true] {
+            let mut task = if sign {
+                Task::new_sign(now, Duration::from_secs(120), PLAN, CERT, [4; 32]).unwrap()
+            } else {
+                task(now)
+            };
+            task.isolation_confirmed(now).unwrap();
+            if hello {
+                task.hello(now).unwrap();
+            }
+            task.preparation_failed(now).unwrap();
+            assert_eq!(task.phase(), Phase::Stopping);
+            assert!(task.take_outcome().is_none());
+            assert!(!task.can_cleanup());
+            task.tree_stopped(now).unwrap();
+            assert_eq!(
+                task.take_outcome().unwrap().status,
+                Status::Failed(Failure::Verification)
+            );
+            assert!(task.can_cleanup());
+        }
+    }
+    assert!(running(now).preparation_failed(now).is_err());
 }
 
 fn task(now: Instant) -> Task {

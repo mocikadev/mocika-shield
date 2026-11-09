@@ -132,6 +132,9 @@ impl SharedAccess {
             Err("CERTIFICATE_NOT_ALLOWED")
         }
     }
+    pub fn sole_certificate(&self) -> Option<&str> {
+        (self.allowed.len() == 1).then(|| self.allowed.first().unwrap().as_str())
+    }
     pub fn arguments(&self) -> Vec<OsString> {
         self.home
             .as_ref()

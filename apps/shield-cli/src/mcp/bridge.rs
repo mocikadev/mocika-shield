@@ -24,6 +24,7 @@ pub(super) struct Outcome {
 pub(super) async fn run(
     policy: &Policy,
     call: Invocation,
+    deadline: Option<Instant>,
     cancelled: CancellationToken,
     shutdown: CancellationToken,
     mut observe: impl FnMut(Progress) + Send,
@@ -31,6 +32,9 @@ pub(super) async fn run(
     policy.check()?;
     if cancelled.is_cancelled() || shutdown.is_cancelled() {
         return Err("TASK_CANCELLED");
+    }
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+        return Err("TASK_TIMEOUT");
     }
     let mut command = Command::new(policy.cli());
     command
@@ -69,7 +73,9 @@ pub(super) async fn run(
         progress,
     ));
     let mut bytes = None;
-    let deadline = Instant::now() + Duration::from_secs(policy.timeout_seconds);
+    // 旧单次调用保留原计时边界；只有新签名组合调用传入共同的绝对期限。
+    let deadline =
+        deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(policy.timeout_seconds));
     let mut stop: Option<(&'static str, Instant)> = None;
     let exit = loop {
         while let Ok(progress) = updates.try_recv() {

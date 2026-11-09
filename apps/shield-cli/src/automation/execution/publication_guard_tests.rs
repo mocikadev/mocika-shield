@@ -18,6 +18,7 @@ fn ready(timeout: Duration) -> (Task, Instant) {
             signature_checked: true,
             protection_checked: true,
             alignment_checked: true,
+            content_sha256: None,
         },
     )
     .unwrap();

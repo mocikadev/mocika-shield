@@ -132,18 +132,31 @@ impl Tools {
         sources: &Sources,
         check: &mut impl FnMut() -> Result<(), CheckError>,
     ) -> Result<Self, CheckError> {
+        Self::capture_files(&sources.java, &sources.keytool, check)
+    }
+    pub fn capture_files(
+        java: &FileSnapshot,
+        keytool: &FileSnapshot,
+        check: &mut impl FnMut() -> Result<(), CheckError>,
+    ) -> Result<Self, CheckError> {
         let tools = Self {
-            java: Executable::capture("java", &sources.java.lookup_path, check)
-                .map_err(Self::changed)?,
-            keytool: Executable::capture("keytool", &sources.keytool.lookup_path, check)
+            java: Executable::capture("java", &java.lookup_path, check).map_err(Self::changed)?,
+            keytool: Executable::capture("keytool", &keytool.lookup_path, check)
                 .map_err(Self::changed)?,
         };
-        tools.matches(sources)?;
+        tools.matches_files(java, keytool)?;
         Ok(tools)
     }
 
     pub fn matches(&self, sources: &Sources) -> Result<(), CheckError> {
-        if self.java.file != sources.java || self.keytool.file != sources.keytool {
+        self.matches_files(&sources.java, &sources.keytool)
+    }
+    pub fn matches_files(
+        &self,
+        java: &FileSnapshot,
+        keytool: &FileSnapshot,
+    ) -> Result<(), CheckError> {
+        if self.java.file != *java || self.keytool.file != *keytool {
             return Err(error("TOOLCHAIN_CHANGED"));
         }
         Ok(())

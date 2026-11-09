@@ -124,6 +124,53 @@ fn 共享有项目仍固定六角色并拒绝重复缺项及未知版本() {
 }
 
 #[test]
+fn 独立签名仅接受三类材料及可选项目且不能借此放宽加固() {
+    for has_config in [false, true] {
+        let fixture = Fixture::new();
+        let refs: Vec<_> = fixture
+            .refs()
+            .into_iter()
+            .filter(|(role, _)| {
+                matches!(role, Role::Input | Role::Keystore | Role::Apksigner)
+                    || (has_config && *role == Role::Config)
+            })
+            .collect();
+        assert!(MaterialBundle::create(&fixture.work, &refs, || Ok(())).is_err());
+        assert!(MaterialBundle::create_shared(&fixture.work, &refs, || Ok(())).is_err());
+        let bundle = MaterialBundle::create_version(&fixture.work, &refs, 3, || Ok(())).unwrap();
+        assert!(!bundle.path(Role::Apktool).exists());
+        assert!(!bundle.path(Role::Resources).exists());
+        MaterialBundle::verify_sources_version(&bundle.root, &refs, 3, || Ok(())).unwrap();
+        assert!(MaterialBundle::verify_shared_sources(&bundle.root, &refs, || Ok(())).is_err());
+        for invalid in [
+            refs[..refs.len() - 1].to_vec(),
+            {
+                let mut v = refs.clone();
+                v.push(refs[0]);
+                v
+            },
+            fixture.refs(),
+        ] {
+            assert!(
+                MaterialBundle::verify_sources_version(&bundle.root, &invalid, 3, || Ok(()))
+                    .is_err()
+            );
+        }
+        let mut manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(bundle.root.join("materials.json")).unwrap()).unwrap();
+        for version in [1, 2, 4] {
+            manifest["format_version"] = serde_json::json!(version);
+            let bytes = serde_json::to_vec(&manifest).unwrap();
+            fs::write(bundle.root.join("materials.json"), &bytes).unwrap();
+            assert!(
+                MaterialBundle::verify(&bundle.root, Sha256::digest(bytes).into(), || Ok(()))
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn 材料不完整重复或角色错配均拒绝() {
     let fixture = Fixture::new();
     let refs = fixture.refs();

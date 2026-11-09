@@ -20,7 +20,7 @@ pub(super) fn decode(bytes: &[u8], operation: &str, exit: i32) -> Result<Value> 
         }
         events.push(value);
     }
-    if matches!(operation, "agent_plan" | "agent_protect") {
+    if matches!(operation, "agent_plan" | "agent_protect" | "agent_sign") {
         return controlled(&events, operation, exit);
     }
     if events.len() != 1 {
@@ -99,6 +99,7 @@ fn controlled(events: &[Value], operation: &str, exit: i32) -> Result<Value> {
         return Err("CLI_PROTOCOL_INVALID");
     }
     let plan_only = operation == "agent_plan";
+    let signing = operation == "agent_sign";
     let status = last["status"].as_str().ok_or("CLI_PROTOCOL_INVALID")?;
     let expected = match status {
         "ready" | "warning" if plan_only => 0,
@@ -168,10 +169,12 @@ fn controlled(events: &[Value], operation: &str, exit: i32) -> Result<Value> {
         let key_checked = plan["private_key_access_checked"]
             .as_bool()
             .ok_or("CLI_PROTOCOL_INVALID")?;
-        if !matches!(plan["schema_version"].as_u64(), Some(2 | 3))
-            || !hex_digest(digest)
-            || key_checked != (output == "published")
-        {
+        let version_valid = if signing {
+            plan["schema_version"] == 4
+        } else {
+            matches!(plan["schema_version"].as_u64(), Some(2 | 3))
+        };
+        if !version_valid || !hex_digest(digest) || key_checked != (output == "published") {
             return Err("CLI_PROTOCOL_INVALID");
         }
         safe["plan"] = json!({"schema_version":plan["schema_version"],"sha256":digest,"private_key_access_checked":key_checked});
@@ -197,6 +200,12 @@ fn controlled(events: &[Value], operation: &str, exit: i32) -> Result<Value> {
     if output == "published" && safe["plan"].is_null() {
         return Err("CLI_PROTOCOL_INVALID");
     }
+    if !last["warnings"].is_null() {
+        if !signing || last["warnings"] != json!(["SIGNING_CERTIFICATE_CHANGED"]) {
+            return Err("CLI_PROTOCOL_INVALID");
+        }
+        safe["warnings"] = last["warnings"].clone();
+    }
     Ok(safe)
 }
 
@@ -215,10 +224,11 @@ const STAGES: [&str; 13] = [
     "verify",
     "publish",
 ];
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct Progress {
     pub stage: &'static str,
     pub index: u8,
+    pub plan_id: Option<String>,
 }
 pub(super) struct Stream<'a> {
     operation: &'a str,
@@ -275,6 +285,7 @@ impl<'a> Stream<'a> {
                     .ok_or("CLI_PROTOCOL_INVALID")?;
                 if self.last_stage.is_some_and(|before| before >= index)
                     || self.operation == "agent_plan" && index > 3
+                    || self.operation == "agent_sign" && ![0, 1, 9, 10, 11, 12].contains(&index)
                 {
                     return Err("CLI_PROTOCOL_INVALID");
                 }
@@ -283,6 +294,7 @@ impl<'a> Stream<'a> {
                 Ok(Some(Progress {
                     stage: STAGES[index],
                     index: index as u8,
+                    plan_id: None,
                 }))
             }
             _ => Err("CLI_PROTOCOL_INVALID"),
@@ -337,6 +349,9 @@ fn number(value: &Value) -> Result<u64> {
     value.as_u64().ok_or("CLI_PROTOCOL_INVALID")
 }
 
+#[cfg(test)]
+#[path = "protocol/signing_tests.rs"]
+mod signing_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

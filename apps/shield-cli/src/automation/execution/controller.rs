@@ -3,11 +3,9 @@ use super::identity::Tools;
 use super::launch::Launcher;
 use super::*;
 use crate::automation::{
-    plan::Sources,
     publication::{Publication, PublicationCheckpoint, PublicationError},
     snapshot,
     task_lifecycle::{Output, Phase, Status, Task},
-    task_materials::{MaterialBundle, MaterialError},
     worker_protocol::{Message, Rejection},
 };
 use serde_json::{json, Value};
@@ -19,13 +17,19 @@ use std::time::Duration;
 #[path = "publication_guard_tests.rs"]
 mod publication_guard_tests;
 #[cfg(test)]
+#[path = "signing_tests.rs"]
+mod signing_tests;
+#[cfg(test)]
+#[path = "../../../tests/support/execution_fixture.rs"]
+mod test_fixture;
+#[cfg(test)]
 #[path = "controller_tests.rs"]
 mod tests;
 
 struct Planned {
     digest: [u8; 32],
     certificate: [u8; 32],
-    sources: Sources,
+    sources: sources::Sources,
     tools: Tools,
     warning: bool,
     cleanup_complete: bool,
@@ -47,55 +51,10 @@ fn rejection(code: Rejection) -> CheckError {
         Rejection::MaterialInvalid => "MATERIAL_INVALID",
         Rejection::ExecutorChanged => "EXECUTOR_CHANGED",
         Rejection::ToolchainChanged => "TOOLCHAIN_CHANGED",
+        Rejection::SigningInputInvalid => "SIGNING_INPUT_INVALID",
+        Rejection::SigningVersionsInvalid => "SIGNING_VERSIONS_INVALID",
+        Rejection::SigningConfigInvalid => "SIGNING_CONFIG_INVALID",
     })
-}
-
-fn source_refs(sources: &Sources) -> Result<Vec<&snapshot::FileSnapshot>, CheckError> {
-    if sources.config.is_none() && sources.shared.is_none() {
-        return Err(error("SOURCE_PROOF_INVALID"));
-    }
-    let values = [
-        &sources.input,
-        &sources.keystore,
-        &sources.java,
-        &sources.keytool,
-        &sources.apktool,
-        &sources.apksigner,
-        &sources.resources,
-    ];
-    for (source, expected) in values.iter().zip([
-        "input",
-        "keystore",
-        "java",
-        "keytool",
-        "apktool",
-        "apksigner",
-        "resources",
-    ]) {
-        if source.role != expected {
-            return Err(error("SOURCE_PROOF_INVALID"));
-        }
-    }
-    if sources
-        .config
-        .as_ref()
-        .is_some_and(|config| config.role != "config")
-    {
-        return Err(error("SOURCE_PROOF_INVALID"));
-    }
-    Ok(sources.files())
-}
-
-fn recheck_sources(
-    sources: &Sources,
-    deadline: Instant,
-    cancel: &AtomicBool,
-) -> Result<(), CheckError> {
-    snapshot::recheck_checked(&source_refs(sources)?, &mut || checkpoint(deadline, cancel))?;
-    if let Some(shared) = &sources.shared {
-        shared.recheck()?;
-    }
-    checkpoint(deadline, cancel)
 }
 
 fn planning(
@@ -155,37 +114,47 @@ fn planning(
         let _ = root.keep();
         return Err(error("STOP_UNCONFIRMED"));
     }
-    let (digest, certificate, expected_sources) = result?;
-    let (proof, bytes) = read_json::<PlanProof>(&root.path().join("sources.json"), 65536)?;
-    if <[u8; 32]>::from(Sha256::digest(bytes)) != expected_sources {
-        return Err(error("SOURCE_PROOF_INVALID"));
-    }
-    if proof.format_version != if request.shared.is_some() { 2 } else { 1 } {
-        return Err(error("SOURCE_PROOF_INVALID"));
-    }
-    let PlanProof {
-        sources, warning, ..
-    } = proof;
-    match (&sources.shared, &request.shared) {
-        (Some(identity), Some(shared)) => identity.matches(shared)?,
-        (None, None) => {}
-        _ => return Err(error("SOURCE_PROOF_INVALID")),
-    }
-    if sources.config.is_some() != request.config.is_some() {
-        return Err(error("SOURCE_PROOF_INVALID"));
-    }
-    recheck_sources(&sources, deadline, cancel)?;
-    launcher.recheck(deadline, cancel)?;
-    let tools = Tools::capture(&sources, &mut || checkpoint(deadline, cancel))?;
-    let cleanup_complete = root.close().is_ok();
-    Ok(Planned {
-        digest,
-        certificate,
-        sources,
-        tools,
-        warning,
-        cleanup_complete,
-    })
+    // 已确认整组和管道停止后，仍须显式关闭临时目录才能对外确认清理。
+    let prepared = (|| {
+        let (digest, certificate, expected_sources) = result?;
+        let (proof, bytes) = read_json::<PlanProof>(&root.path().join("sources.json"), 65536)?;
+        if <[u8; 32]>::from(Sha256::digest(bytes)) != expected_sources {
+            return Err(error("SOURCE_PROOF_INVALID"));
+        }
+        if proof.format_version != request.proof_version() {
+            return Err(error("SOURCE_PROOF_INVALID"));
+        }
+        let PlanProof {
+            sources, warning, ..
+        } = proof;
+        sources.matches(request)?;
+        sources.recheck(deadline, cancel)?;
+        launcher.recheck(deadline, cancel)?;
+        let tools = match &sources {
+            sources::Sources::Protect(s) => {
+                Tools::capture(s, &mut || checkpoint(deadline, cancel))?
+            }
+            sources::Sources::Sign(_) => {
+                let (java, keytool) = sources.tools();
+                Tools::capture_files(java, keytool, &mut || checkpoint(deadline, cancel))?
+            }
+        };
+        Ok(Planned {
+            digest,
+            certificate,
+            sources,
+            tools,
+            warning,
+            cleanup_complete: false,
+        })
+    })();
+    let complete = root.close().is_ok();
+    prepared
+        .map(|mut planned| {
+            planned.cleanup_complete = complete;
+            planned
+        })
+        .map_err(|error: CheckError| error.with_cleanup(complete))
 }
 
 pub(super) fn run(request: Request, cancel: Arc<AtomicBool>) -> Result<Value, CheckError> {
@@ -236,28 +205,27 @@ fn run_with_options(
         crate::automation::task_lifecycle::Stage::Prepare,
     ));
     let planned = planning(&request, deadline, &cancel, &mut launcher)?;
-    if let (Some(shared), Some(identity)) = (&mut request.shared, &planned.sources.shared) {
-        // 执行工作进程使用本次已解析身份，不再次选默认项或读取新的共享偏好。
-        shared.certificate_id = None;
-        shared.use_default_certificate = false;
-        shared.runtime_profile = None;
-        shared.environment_policy = None;
-        shared.binding = Some(identity.binding.clone());
-    }
-    checkpoint(deadline, &cancel)?;
+    // 后续进程使用已固定身份，不再次选择默认项。
+    planned.sources.bind_request(&mut request);
+    checkpoint(deadline, &cancel).map_err(|e| e.with_cleanup(planned.cleanup_complete))?;
     if let RunMode::Protect(expected) = mode {
         if expected != planned.digest {
-            return Err(error("PLAN_MISMATCH"));
+            return Err(error("PLAN_MISMATCH").with_cleanup(planned.cleanup_complete));
         }
     }
     if matches!(mode, RunMode::Plan) {
-        launcher.verify(deadline, &cancel)?;
-        checkpoint(deadline, &cancel)?;
+        launcher
+            .verify(deadline, &cancel)
+            .map_err(|e| e.with_cleanup(planned.cleanup_complete))?;
+        checkpoint(deadline, &cancel).map_err(|e| e.with_cleanup(planned.cleanup_complete))?;
         let mut value = json!({"type":"result","status":if planned.warning { "warning" } else { "ready" },
             "output_state":"not_published","cleanup_complete":planned.cleanup_complete,"retryable":false,
             "elapsed_ms":started.elapsed().as_millis(),"plan_digest":hex(&planned.digest)});
-        if let Some(identity) = &planned.sources.shared {
-            value["shared_binding"] = json!(identity.binding.encode()?);
+        if let Some(binding) = planned.sources.shared_binding()? {
+            value["shared_binding"] = json!(binding);
+        }
+        if request.sign.is_some() {
+            value["task_kind"] = json!("sign");
         }
         return Ok(value);
     }
@@ -267,8 +235,17 @@ fn run_with_options(
         .work_dir()
         .map_err(|_| error("OUTPUT_UNAVAILABLE"))?
         .to_owned();
-    let mut task = Task::new(started, timeout, planned.digest, planned.certificate)
-        .map_err(|_| error("INVALID_REQUEST"))?;
+    let mut task = match planned.sources.content() {
+        Some(content) => Task::new_sign(
+            started,
+            timeout,
+            planned.digest,
+            planned.certificate,
+            content,
+        ),
+        None => Task::new(started, timeout, planned.digest, planned.certificate),
+    }
+    .map_err(|_| error("INVALID_REQUEST"))?;
     let (mut group, pump) = launcher.spawn(
         &request,
         Mode::Execute,
@@ -303,7 +280,7 @@ fn run_with_options(
                 match launcher
                     .recheck(deadline, &cancel)
                     .and_then(|_| planned.tools.recheck(&mut || checkpoint(deadline, &cancel)))
-                    .and_then(|_| recheck_sources(&planned.sources, deadline, &cancel))
+                    .and_then(|_| planned.sources.recheck(deadline, &cancel))
                 {
                     Err(err) if matches!(err.code, "TASK_TIMEOUT" | "TASK_CANCELLED") => {
                         if cancel.load(Ordering::SeqCst) {
@@ -315,11 +292,7 @@ fn run_with_options(
                     }
                     Err(err) => {
                         failure_code = err.code;
-                        task.worker_failed(
-                            Instant::now(),
-                            shield_core::diagnostic::FailureCode::Unknown,
-                        )
-                        .map_err(|_| ())
+                        task.preparation_failed(Instant::now()).map_err(|_| ())
                     }
                     Ok(()) => task
                         .hello(Instant::now())
@@ -417,7 +390,7 @@ fn run_with_options(
                     .recheck(deadline, &cancel)
                     .and_then(|_| planned.tools.recheck(&mut || checkpoint(deadline, &cancel)))
                     .and_then(|_| {
-                        let checked = recheck_sources(&planned.sources, deadline, &cancel);
+                        let checked = planned.sources.recheck(deadline, &cancel);
                         if checked
                             .as_ref()
                             .is_err_and(|err| err.code == "PLAN_SOURCE_CHANGED")
@@ -471,8 +444,14 @@ fn run_with_options(
         Output::Uncertain => "uncertain",
     };
     let mut result = json!({ "type":"result", "status":status, "output_state":output, "cleanup_complete":cleanup, "retryable":false, "elapsed_ms":started.elapsed().as_millis(), "plan_digest":hex(&planned.digest) });
-    if let Some(identity) = &planned.sources.shared {
-        result["shared_binding"] = json!(identity.binding.encode()?);
+    if let Some(binding) = planned.sources.shared_binding()? {
+        result["shared_binding"] = json!(binding);
+    }
+    if planned.sources.content().is_some() {
+        result["task_kind"] = json!("sign");
+        if planned.warning {
+            result["signing_warning"] = json!(true);
+        }
     }
     if let Output::Published {
         directory_synced, ..
@@ -549,18 +528,13 @@ fn publication_checkpoint(
 
 fn verify(
     root: &Path,
-    sources: &Sources,
+    sources: &sources::Sources,
     deadline: Instant,
     cancel: &AtomicBool,
 ) -> Result<(), CheckError> {
-    recheck_sources(sources, deadline, cancel)?;
-    let check = || checkpoint(deadline, cancel).map_err(|_| MaterialError::Interrupted);
-    let verified = if sources.shared.is_some() {
-        MaterialBundle::verify_shared_sources(&root.join("materials"), &sources.materials(), check)
-    } else {
-        MaterialBundle::verify_sources(&root.join("materials"), &sources.materials(), check)
-    };
-    verified.map_err(|_| error("MATERIAL_INVALID"))?;
+    sources.recheck(deadline, cancel)?;
+    sources.verify_materials(&root.join("materials"), deadline, cancel)?;
+    sources.verify_content(&root.join("signed.apk"), deadline, cancel)?;
     if !install_alignment(&root.join("signed.apk"))? {
         return Err(error("ARTIFACT_INVALID"));
     }

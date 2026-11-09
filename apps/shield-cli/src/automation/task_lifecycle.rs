@@ -29,14 +29,19 @@ pub(super) struct ArtifactEvidence {
     pub signature_checked: bool,
     pub protection_checked: bool,
     pub alignment_checked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_sha256: Option<[u8; 32]>,
 }
 
 impl ArtifactEvidence {
-    fn valid(&self, certificate: [u8; 32]) -> bool {
+    fn valid(&self, certificate: [u8; 32], content: Option<[u8; 32]>) -> bool {
         self.bytes > 0
             && self.certificate_sha256 == certificate
             && self.signature_checked
-            && self.protection_checked
+            && match content {
+                None => self.protection_checked && self.content_sha256.is_none(),
+                Some(expected) => !self.protection_checked && self.content_sha256 == Some(expected),
+            }
             && self.alignment_checked
     }
 }
@@ -120,6 +125,7 @@ pub(super) struct Task {
     tree_stopped: bool,
     expected_plan: [u8; 32],
     expected_certificate: [u8; 32],
+    expected_content: Option<[u8; 32]>,
     candidate: Option<ArtifactEvidence>,
     stage: Option<Stage>,
     goal: Option<Goal>,
@@ -147,6 +153,7 @@ impl Task {
             tree_stopped: false,
             expected_plan: plan,
             expected_certificate: certificate,
+            expected_content: None,
             candidate: None,
             stage: None,
             goal: None,
@@ -158,6 +165,20 @@ impl Task {
 
     pub fn phase(&self) -> Phase {
         self.phase
+    }
+
+    /// 只有父端创建任务时能选择签名验收，工作进程的字段不能改变任务种类。
+    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    pub fn new_sign(
+        now: Instant,
+        timeout: Duration,
+        plan: [u8; 32],
+        certificate: [u8; 32],
+        content: [u8; 32],
+    ) -> Result<Self, TransitionError> {
+        let mut task = Self::new(now, timeout, plan, certificate)?;
+        task.expected_content = Some(content);
+        Ok(task)
     }
 
     /// 必须由平台进程控制层确认；工作进程不能通过消息设置此标志。
@@ -207,7 +228,9 @@ impl Task {
         if self.phase != Phase::Running {
             return self.violation();
         }
-        if plan != self.expected_plan || !artifact.valid(self.expected_certificate) {
+        if plan != self.expected_plan
+            || !artifact.valid(self.expected_certificate, self.expected_content)
+        {
             self.stop(Goal::Failed(Failure::InvalidEvidence));
             return Err(TransitionError::InvalidTransition);
         }
@@ -226,6 +249,16 @@ impl Task {
             return self.violation();
         }
         self.stop(Goal::Failed(Failure::Worker(code)));
+        Ok(())
+    }
+
+    /// 父端启动前复核失败，不冒充已经运行的工作进程错误；仍须确认整组停止。
+    pub fn preparation_failed(&mut self, now: Instant) -> Result<(), TransitionError> {
+        self.active(now)?;
+        if !matches!(self.phase, Phase::Starting | Phase::Handshaken) {
+            return Err(TransitionError::InvalidTransition);
+        }
+        self.stop(Goal::Failed(Failure::Verification));
         Ok(())
     }
 

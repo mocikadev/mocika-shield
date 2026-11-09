@@ -54,49 +54,9 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
 }
 
 fn contains_valid_mshd_block(reader: &mut impl Read, total_size: u64) -> Result<bool> {
-    const MSHD_HEADER_LEN: usize = 8;
-    const OVERLAP_LEN: usize = MSHD_HEADER_LEN - 1;
-    const BUFFER_LEN: usize = 64 * 1024;
-
-    if total_size < MSHD_HEADER_LEN as u64 {
-        return Ok(false);
-    }
-
-    let mut buffer = vec![0u8; BUFFER_LEN + OVERLAP_LEN];
-    let mut overlap_len = 0usize;
-    let mut consumed = 0u64;
-
-    loop {
-        let read_len = reader.read(&mut buffer[overlap_len..overlap_len + BUFFER_LEN])?;
-        if read_len == 0 {
-            return Ok(false);
-        }
-
-        let available = overlap_len + read_len;
-        let base_offset = consumed.saturating_sub(overlap_len as u64);
-        for index in 0..=available.saturating_sub(MSHD_HEADER_LEN) {
-            if &buffer[index..index + 4] != b"MSHD" {
-                continue;
-            }
-            let payload_len = u32::from_le_bytes(
-                buffer[index + 4..index + MSHD_HEADER_LEN]
-                    .try_into()
-                    .expect("MSHD 长度字段固定为 4 字节"),
-            ) as u64;
-            let block_start = base_offset + index as u64;
-            if block_start
-                .checked_add(MSHD_HEADER_LEN as u64)
-                .and_then(|offset| offset.checked_add(payload_len))
-                == Some(total_size)
-            {
-                return Ok(true);
-            }
-        }
-
-        consumed += read_len as u64;
-        overlap_len = available.min(OVERLAP_LEN);
-        buffer.copy_within(available - overlap_len..available, 0);
-    }
+    Ok(crate::mshd::scan(reader, total_size, true, &mut || Ok(()))?
+        .block
+        .is_some())
 }
 
 fn classify_apk_open_error(path: &Path, err: &io::Error) -> String {

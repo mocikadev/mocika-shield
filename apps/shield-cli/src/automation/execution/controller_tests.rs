@@ -5,8 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::thread;
 
-#[path = "../../../tests/support/execution_fixture.rs"]
-mod fixture;
+use super::test_fixture as fixture;
 use fixture::{private, Fixture};
 
 fn program() -> PathBuf {
@@ -22,6 +21,7 @@ fn request(fixture: &Fixture, timeout_seconds: u64) -> Request {
     Request {
         config: Some(fixture.config.clone()),
         shared: None,
+        sign: None,
         input: fixture.input.clone(),
         output: fixture.output.clone(),
         runtime_profile: Profile::Standard,
@@ -374,6 +374,7 @@ fn 预先取消不创建任务或启动工作进程() {
     let request = Request {
         config: Some(root.path().join("none.toml")),
         shared: None,
+        sign: None,
         input: root.path().join("none.apk"),
         output: root.path().join("output.apk"),
         runtime_profile: Profile::Standard,
@@ -434,7 +435,7 @@ fn 真实工作入口执行阶段超时后后代停止且无最终文件() {
 
 #[test]
 #[ignore = "需要显式构建的开发 CLI、真实 JDK、资源及授权的小型测试 APK，不纳入日常 CI"]
-fn 真实工作入口准备后计划变化拒绝旧摘要() {
+fn 真实工作入口执行前材料变化由父端阻断且不误报协议失败() {
     let fixture = Fixture::new();
     let program = program();
     let mut launches = 0;
@@ -456,7 +457,8 @@ fn 真实工作入口准备后计划变化拒绝旧摘要() {
     ));
     assert_eq!(launches, 2);
     assert_finished(&fixture, &value, "failed");
-    assert_eq!(value["code"], "PLAN_MISMATCH");
+    // 父端在 Start 之前已经发现漂移，不应等待工作进程重规划后才报摘要不符。
+    assert_eq!(value["code"], "PLAN_SOURCE_CHANGED");
     assert!(!fixture.output.exists());
 }
 

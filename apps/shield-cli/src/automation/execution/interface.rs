@@ -19,6 +19,10 @@ pub(crate) struct AgentArgs {
 
 #[derive(Subcommand)]
 enum AgentCommand {
+    /// 只读预览共享独立签名，不是执行前置步骤。
+    SignPlan(SignCommon),
+    /// 使用共享证书，一次完成内部规划、独立签名与无覆盖交付。
+    Sign(SignCommon),
     /// 在受控工作进程中规划，不生成最终 APK。
     Plan(Common),
     /// 匹配既有计划后，加固、签名并无覆盖交付。
@@ -29,6 +33,38 @@ enum AgentCommand {
         #[arg(long, value_parser = digest)]
         expect_plan_sha256: [u8; 32],
     },
+}
+
+#[derive(Args)]
+struct SignCommon {
+    #[arg(short, long, value_name = "APK")]
+    input: PathBuf,
+    #[arg(short, long, value_name = "APK")]
+    output: PathBuf,
+    /// 省略时使用共享默认证书；不会交互询问或猜选其他记录。
+    #[arg(long)]
+    certificate_id: Option<String>,
+    #[arg(long, default_value_t = 1200, value_parser = clap::value_parser!(u64).range(1..=3600))]
+    timeout_seconds: u64,
+    #[arg(long)]
+    control_stdin: bool,
+}
+impl From<SignCommon> for Common {
+    fn from(args: SignCommon) -> Self {
+        Self {
+            input: args.input,
+            output: args.output,
+            runtime_profile: None,
+            use_shared_settings: true,
+            certificate_id: args.certificate_id,
+            use_default_certificate: false,
+            environment_policy: None,
+            shared_binding: None,
+            exclude_abis: vec![],
+            timeout_seconds: args.timeout_seconds,
+            control_stdin: args.control_stdin,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -67,8 +103,10 @@ fn digest(value: &str) -> Result<[u8; 32], String> {
 }
 
 pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Path>) -> i32 {
-    let (common, mode, operation) = match args.command {
-        AgentCommand::Plan(common) => (common, RunMode::Plan, "agent_plan"),
+    let (common, mode, operation, signing) = match args.command {
+        AgentCommand::SignPlan(common) => (common.into(), RunMode::Plan, "agent_sign_plan", true),
+        AgentCommand::Sign(common) => (common.into(), RunMode::Probe, "agent_sign", true),
+        AgentCommand::Plan(common) => (common, RunMode::Plan, "agent_plan", false),
         AgentCommand::Protect {
             common,
             expect_plan_sha256,
@@ -76,6 +114,7 @@ pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Pa
             common,
             RunMode::Protect(expect_plan_sha256),
             "agent_protect",
+            false,
         ),
     };
     let started = Instant::now();
@@ -115,14 +154,21 @@ pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Pa
             Ok(binding) => {
                 let mut request = Request {
                     config: config.map(Path::to_owned),
-                    shared: shared.then_some(crate::automation::shared_plan::SharedRequest {
+                    sign: signing.then(|| crate::automation::sign_plan::Request {
                         app_home: home.map(Path::to_owned),
-                        certificate_id: common.certificate_id,
-                        use_default_certificate: common.use_default_certificate,
-                        runtime_profile: common.runtime_profile,
-                        environment_policy: common.environment_policy,
-                        binding,
+                        certificate_id: common.certificate_id.clone(),
+                        binding: None,
                     }),
+                    shared: (shared && !signing).then_some(
+                        crate::automation::shared_plan::SharedRequest {
+                            app_home: home.map(Path::to_owned),
+                            certificate_id: common.certificate_id,
+                            use_default_certificate: common.use_default_certificate,
+                            runtime_profile: common.runtime_profile,
+                            environment_policy: common.environment_policy,
+                            binding,
+                        },
+                    ),
                     input: common.input,
                     output: common.output,
                     runtime_profile: common.runtime_profile.unwrap_or_default(),
@@ -131,11 +177,12 @@ pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Pa
                 };
                 match request.validate() {
                     Err(err) => Terminal::before_start(err.code),
-                    Ok(()) => Terminal::from_run(
+                    Ok(()) => Terminal::from_operation(
                         controller::run_controlled(request, controls.cancel(), mode, |notice| {
                             events.progress(notice)
                         }),
                         matches!(mode, RunMode::Plan),
+                        signing,
                     ),
                 }
             }

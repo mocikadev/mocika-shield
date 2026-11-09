@@ -1,6 +1,6 @@
 # 共享资料、独立签名与普通加固
 
-只使用当前可信 CLI 已提供的入口，先按任务检查 `cert --help`、`config --help`、`sign --help` 或 `protect --help`。这些是本地资料命令，不等于 MCP 已提供相同工具；不要自行注册服务或改客户端全局设置。
+只使用当前可信 CLI 已提供的入口，先按任务检查 `cert --help`、`config --help`、`agent sign --help`、`sign --help` 或 `protect --help`。这些本地命令不等于 MCP 已提供相同工具；不要自行注册服务或改客户端全局设置。
 
 ## 来源与持久化
 
@@ -48,6 +48,22 @@ GUI 专用证书选择和全局默认项不同：`config set --clear-certificate
 管理成功是单条 JSON：`schema_version=1`、`operation=cert|config`、`type=result`、`status=ready`。错误为 `type=error` 及固定错误码；`change_state=unconfirmed` 表示可能已修改但回读／回执不确定，不是已回滚，须先查询状态而非自动重试。语法错误退出 2，不能把 stderr 原文当安全诊断。
 
 ## 独立签名
+
+支持受控入口时，明确的“仅签名到指定新文件”就足够，不再要求先预览、复制摘要或重复确认：
+
+```bash
+"$SHIELD_CLI" agent sign -i "$SHIELD_INPUT" -o "$SHIELD_OUTPUT" \
+  --certificate-id "$SHIELD_CERTIFICATE_ID"
+# 使用共享全局默认项时省略 --certificate-id；不会改动 GUI 默认项。
+```
+
+一次调用固定选中记录，内部规划并签名，父进程原子无覆盖交付；无需 apktool 或壳资源。只接受共享证书的 V1–V3，不接受临时材料、外部密码环境、加固模式、ABI 排除、计划摘要或绑定参数。缺默认项或 V4 冲突直接返回有限错误，不改设置、不换来源。用户只要求预览时改用 `agent sign-plan`，不生成最终 APK；预览并非执行凭据。公共计划为版本 `4`，事件／取消按 [受控命令约定](cli.md) 处理。
+
+普通未加固 APK 可以按明确选择的证书签名；已有签名更换时返回 `SIGNING_CERTIFICATE_CHANGED`，不代表可覆盖升级。当前加固 APK 的证书绑定不匹配会拒绝，不以换证书规避。成功只证明签名／内容及对齐检查，不证明设备启动成功。
+
+若宿主已注册并开放共享 MCP 签名工具，可直接单次调用 `shield_sign`，参数仅 `input`、`output` 和可选 `certificate_id`；不先调用 `shield_plan` 或传摘要。证书沿用宿主既有范围，歧义返回错误；工具自身不挂起等待确认。不得因此启动服务或修改宿主授权策略。
+
+仅当当前入口缺少受控签名、且用户接受旧入口边界时，使用兼容命令：
 
 ```bash
 "$SHIELD_CLI" sign --json -i "$SHIELD_INPUT" -o "$SHIELD_OUTPUT" \

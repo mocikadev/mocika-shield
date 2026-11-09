@@ -8,11 +8,13 @@ pub mod error;
 mod java_process;
 mod java_tools;
 pub mod keytool;
+mod mshd;
 mod preflight;
 mod protect;
 mod protect_api;
 mod runtime_resources;
 pub mod signing;
+mod signing_input;
 mod tool_evidence;
 pub mod utils;
 pub mod zipalign;
@@ -34,4 +36,5 @@ pub use signing::{
     check_apksigner, find_apksigner, sign_apk, sign_apk_with_progress, KeystoreType, SignOptions,
     SigningProgressStep, SigningVersions,
 };
+pub use signing_input::{inspect_signing_input, SigningInput};
 pub use zipalign::{align_apk, verify_apk_alignment, AlignmentIssue};

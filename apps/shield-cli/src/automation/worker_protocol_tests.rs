@@ -28,6 +28,7 @@ fn 双向有限消息逐帧往返且边界清晰() {
         signature_checked: true,
         protection_checked: true,
         alignment_checked: true,
+        content_sha256: None,
     };
     for (peer, messages) in [
         (
@@ -220,6 +221,7 @@ fn 候选证据未知字段和错误布尔类型不能绕过校验() {
                 signature_checked: true,
                 protection_checked: true,
                 alignment_checked: true,
+                content_sha256: None,
             },
         })
         .unwrap();

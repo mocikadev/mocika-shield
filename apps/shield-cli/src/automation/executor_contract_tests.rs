@@ -23,6 +23,7 @@ fn prepared(now: Instant) -> (tempfile::TempDir, Publication, Task) {
         signature_checked: true,
         protection_checked: true,
         alignment_checked: true,
+        content_sha256: None,
     };
     let mut messages = Vec::new();
     let mut writer = FrameWriter::new(&mut messages, TASK_ID, Peer::Worker);

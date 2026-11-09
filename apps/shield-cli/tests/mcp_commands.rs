@@ -304,11 +304,12 @@ fn 受控计划超时保留超时原因并停止其证书工具() {
     let config = planning_fixture(dir.path());
     let mut session = Session::new(dir.path(), Some(&config), 10, true);
     session.send(
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"shield_plan",
-        "arguments":{"input":"中文 样本.apk","output":"out.apk"}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"shield_plan",
+        "arguments":{"input":"中文 样本.apk","output":"out.apk"},"_meta":{"progressToken":"准备门槛"}}}),
     );
+    session.wait_stage("prepare");
     heartbeat(dir.path());
-    let result = session.receive(2)["result"]["structuredContent"].clone();
+    let result = session.receive(3)["result"]["structuredContent"].clone();
     assert_eq!(result["status"], "timed_out", "超时回执不符：{result}");
     assert_eq!(result["code"], "TASK_TIMEOUT");
     let before = fs::read(dir.path().join("heartbeat")).unwrap();
@@ -324,10 +325,18 @@ fn 受控计划断开后先收尾且不生成最终文件() {
     let config = planning_fixture(dir.path());
     let mut session = Session::new(dir.path(), Some(&config), 15, true);
     session.send(
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"shield_plan",
-        "arguments":{"input":"中文 样本.apk","output":"out.apk"}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"shield_plan",
+        "arguments":{"input":"中文 样本.apk","output":"out.apk"},"_meta":{"progressToken":"准备门槛"}}}),
     );
+    // 先同步实际 CLI 准备阶段，不把调试执行器身份复核算成证书工具已运行。
+    let started = Instant::now();
+    session.wait_stage("prepare");
+    let prepared = started.elapsed();
     heartbeat(dir.path());
+    eprintln!(
+        "准备通知等待：{prepared:?}；证书工具等待：{:?}",
+        started.elapsed() - prepared
+    );
     session.close();
     let before = fs::read(dir.path().join("heartbeat")).unwrap();
     std::thread::sleep(Duration::from_millis(100));

@@ -146,14 +146,11 @@ pub fn sign_apk_with_progress(
         bool_str(v.v2),
         "--v3-signing-enabled",
         bool_str(v.v3),
+        "--v4-signing-enabled",
+        bool_str(v.v4),
         "--out",
         sign_output_str,
     ];
-
-    if v.v4 {
-        cmd_args.push("--v4-signing-enabled");
-        cmd_args.push("true");
-    }
 
     cmd_args.push(aligned_input_str);
 

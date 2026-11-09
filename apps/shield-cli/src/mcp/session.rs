@@ -15,11 +15,25 @@ enum Phase {
     Finished { result: Value, ended: Instant },
 }
 struct Record {
-    arguments: Value,
-    binding: Option<String>,
-    digest: String,
+    operation: Operation,
     created: Instant,
     phase: Phase,
+}
+enum Operation {
+    Protect {
+        arguments: Value,
+        binding: Option<String>,
+        digest: String,
+    },
+    Sign,
+}
+impl Operation {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Protect { .. } => "agent_protect",
+            Self::Sign => "agent_sign",
+        }
+    }
 }
 #[derive(Default)]
 pub(super) struct Session {
@@ -61,6 +75,29 @@ impl Session {
         digest: String,
         binding: Option<String>,
     ) -> Result<String> {
+        self.insert_record(
+            Operation::Protect {
+                arguments,
+                binding,
+                digest,
+            },
+            Phase::Planned,
+        )
+    }
+    pub fn start_sign(&mut self) -> Result<String> {
+        if self.execution_blocked {
+            return Err("SESSION_RECOVERY_REQUIRED");
+        }
+        if self
+            .records
+            .values()
+            .any(|record| matches!(record.phase, Phase::Running(_)))
+        {
+            return Err("SERVER_BUSY");
+        }
+        self.insert_record(Operation::Sign, Phase::Running(None))
+    }
+    fn insert_record(&mut self, operation: Operation, phase: Phase) -> Result<String> {
         self.can_plan()?;
         for _ in 0..4 {
             let mut random = [0u8; 16];
@@ -72,11 +109,9 @@ impl Session {
                 self.records.insert(
                     id.clone(),
                     Record {
-                        arguments,
-                        binding,
-                        digest,
+                        operation,
                         created: Instant::now(),
-                        phase: Phase::Planned,
+                        phase,
                     },
                 );
                 return Ok(id);
@@ -86,18 +121,33 @@ impl Session {
     }
     pub fn begin(&mut self, id: &str, digest: &str) -> Result<(Value, Option<String>)> {
         self.prune(Instant::now());
+        let busy = self
+            .records
+            .values()
+            .any(|record| matches!(record.phase, Phase::Running(_)));
         let record = self.records.get_mut(id).ok_or("PLAN_NOT_AVAILABLE")?;
+        let Operation::Protect {
+            arguments,
+            binding,
+            digest: expected,
+        } = &record.operation
+        else {
+            return Err("PLAN_NOT_AVAILABLE");
+        };
         if !matches!(record.phase, Phase::Planned) {
             return Err("PLAN_ALREADY_CONSUMED");
         }
         if self.execution_blocked {
             return Err("SESSION_RECOVERY_REQUIRED");
         }
-        if !record.digest.eq_ignore_ascii_case(digest) {
+        if busy {
+            return Err("SERVER_BUSY");
+        }
+        if !expected.eq_ignore_ascii_case(digest) {
             return Err("PLAN_DIGEST_MISMATCH");
         }
         record.phase = Phase::Running(None);
-        Ok((record.arguments.clone(), record.binding.clone()))
+        Ok((arguments.clone(), binding.clone()))
     }
     pub fn invalidate_plans(&mut self) {
         self.records
@@ -112,9 +162,10 @@ impl Session {
             *current = Some(stage);
         }
     }
-    fn finish(&mut self, id: &str, result: Value) {
+    fn finish(&mut self, id: &str, mut result: Value) {
         if let Some(record) = self.records.get_mut(id) {
             if matches!(record.phase, Phase::Running(_)) {
+                result["operation"] = json!(record.operation.name());
                 if result["status"] == "unknown"
                     || result["output_state"] == "uncertain"
                     || matches!(
@@ -149,6 +200,7 @@ impl Session {
             }
         };
         result["plan_id"] = json!(id);
+        result["operation"] = json!(record.operation.name());
         // 状态查询不会重新检查环境或授予执行权限，不把缓存状态当成新计划。
         result["live_policy_checked"] = json!(false);
         result["session_execution_blocked"] = json!(self.execution_blocked);
@@ -183,18 +235,82 @@ impl Attempt {
 impl Drop for Attempt {
     fn drop(&mut self) {
         if !self.finished {
-            lock(&self.session).finish(&self.id, unknown("TASK_STATE_UNKNOWN"));
+            let mut session = lock(&self.session);
+            let operation = session
+                .records
+                .get(&self.id)
+                .map(|r| r.operation.name())
+                .unwrap_or("agent_protect");
+            session.finish(&self.id, unknown_for("TASK_STATE_UNKNOWN", operation));
         }
     }
 }
 pub(super) fn unknown(code: &'static str) -> Value {
-    json!({"schema_version":1,"operation":"agent_protect","status":"unknown","code":code,
+    unknown_for(code, "agent_protect")
+}
+pub(super) fn unknown_for(code: &'static str, operation: &'static str) -> Value {
+    json!({"schema_version":1,"operation":operation,"status":"unknown","code":code,
         "output_state":"uncertain","cleanup_state":"unconfirmed","retryable":false})
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn 签名直接运行且引用不能消费为加固计划并共用容量和活动门槛() {
+        let mut session = Session::default();
+        let protect = session.insert(json!({}), "a".repeat(64)).unwrap();
+        let sign = session.start_sign().unwrap();
+        assert_eq!(session.status(&sign).unwrap()["state"], "running");
+        assert_eq!(session.status(&sign).unwrap()["operation"], "agent_sign");
+        assert_eq!(
+            session.begin(&sign, &"a".repeat(64)),
+            Err("PLAN_NOT_AVAILABLE")
+        );
+        assert_eq!(session.begin(&protect, &"a".repeat(64)), Err("SERVER_BUSY"));
+        assert_eq!(session.start_sign(), Err("SERVER_BUSY"));
+        session.records.get_mut(&sign).unwrap().created = Instant::now() - TTL;
+        assert_eq!(session.status(&sign).unwrap()["state"], "running");
+        session.finish(
+            &sign,
+            json!({"status":"succeeded","output_state":"published","cleanup_state":"complete"}),
+        );
+        session.begin(&protect, &"a".repeat(64)).unwrap();
+        assert_eq!(session.start_sign(), Err("SERVER_BUSY"));
+        session.finish(
+            &protect,
+            json!({"status":"failed","output_state":"not_published","cleanup_state":"complete"}),
+        );
+        for _ in 2..CAPACITY {
+            let id = session.start_sign().unwrap();
+            session.finish(&id,json!({"status":"failed","output_state":"not_published","cleanup_state":"complete"}));
+        }
+        assert_eq!(session.start_sign(), Err("PLAN_CAPACITY_REACHED"));
+    }
+    #[test]
+    fn 签名异常和任一类清场未知都停止整个会话的后续写入() {
+        for sign in [false, true] {
+            let shared = Arc::new(Mutex::new(Session::default()));
+            let pending = lock(&shared).insert(json!({}), "a".repeat(64)).unwrap();
+            let id = if sign {
+                lock(&shared).start_sign().unwrap()
+            } else {
+                let id = lock(&shared).insert(json!({}), "b".repeat(64)).unwrap();
+                lock(&shared).begin(&id, &"b".repeat(64)).unwrap();
+                id
+            };
+            drop(Attempt::new(shared.clone(), id.clone()));
+            assert_eq!(
+                lock(&shared).status(&id).unwrap()["operation"],
+                if sign { "agent_sign" } else { "agent_protect" }
+            );
+            assert_eq!(lock(&shared).start_sign(), Err("SESSION_RECOVERY_REQUIRED"));
+            assert_eq!(
+                lock(&shared).begin(&pending, &"a".repeat(64)),
+                Err("SESSION_RECOVERY_REQUIRED")
+            );
+        }
+    }
     #[test]
     fn 共享绑定只随同一次消费返回内部执行不出现在状态中() {
         let mut session = Session::default();

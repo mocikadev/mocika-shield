@@ -52,6 +52,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 了解 GUI／CLI／MCP／未来 TUI 共用配置、证书与业务能力的调整 | [design/shared-application.md](design/shared-application.md)、[实施计划](process/shared-application-plan.md) |
 | 了解受控共享身份、记录级绑定及跨调用无状态传输设计 | [design/shared-agent-binding.md](design/shared-agent-binding.md) |
 | 了解 MCP 共享模式、证书白名单和会话私有绑定 | [design/shared-mcp.md](design/shared-mcp.md) |
+| 了解受控独立签名、已加固包绑定检查与 MCP 无人值守单次调用方案 | [design/controlled-signing.md](design/controlled-signing.md)、[实施计划](process/controlled-signing-plan.md) |
 | 使用开发分支 CLI 管理共享资料、独立签名与加固后签名 | [ops/shared-data-cli.md](ops/shared-data-cli.md) |
 | 了解 Agent 工作子进程、取消与原子无覆盖提交 | [design/agent-executor.md](design/agent-executor.md) |
 | 了解自动化命令、结果协议与取消/断开语义 | [design/agent-cli-contract.md](design/agent-cli-contract.md) |

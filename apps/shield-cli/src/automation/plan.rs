@@ -389,7 +389,7 @@ fn missing_tool() -> CheckError {
     )
 }
 
-fn keystore_type(kind: KeystoreTypeArg) -> &'static str {
+pub(super) fn keystore_type(kind: KeystoreTypeArg) -> &'static str {
     match kind {
         KeystoreTypeArg::Jks => "JKS",
         KeystoreTypeArg::Pkcs12 => "PKCS12",
