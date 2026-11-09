@@ -40,9 +40,18 @@ impl Runner {
             if kind.writes() && session::lock(&self.session).execution_blocked() {
                 return Err("SESSION_RECOVERY_REQUIRED");
             }
-            tools::management_call(name, arguments.clone(), &self.policy)
+            let (call, kind) = tools::management_call(name, arguments.clone(), &self.policy)?;
+            let source = if matches!(kind, Management::Import) {
+                Some(
+                    self.policy
+                        .import_source(arguments["keystore"].as_str().ok_or("ARGUMENT_INVALID")?)?,
+                )
+            } else {
+                None
+            };
+            Ok((call, kind, source))
         });
-        let (call, kind) = match prepared {
+        let (call, kind, source) = match prepared {
             Ok(call) => call,
             Err(code) => {
                 let mut value = management_failure(code, false, kind.operation());
@@ -61,8 +70,26 @@ impl Runner {
         };
         let mut result = match decoded.and_then(|value| {
             self.check()?;
-            if value["status"] == "ready" {
+            if let Some(source) = &source {
+                source.check(&self.policy)?;
+            }
+            if value["change_state"] == "confirmed" {
                 self.management_postcheck(kind, &arguments, &value)?;
+                if value["status"] == "ready" {
+                    if kind.adds_certificate() {
+                        self.policy.add_created_certificate(
+                            value["data"]["certificate"]["id"]
+                                .as_str()
+                                .ok_or("CLI_PROTOCOL_INVALID")?,
+                        )?;
+                    } else if matches!(kind, Management::Remove) {
+                        self.policy.remove_certificate(
+                            arguments["certificate_id"]
+                                .as_str()
+                                .ok_or("CLI_PROTOCOL_INVALID")?,
+                        )?;
+                    }
+                }
             }
             Ok(value)
         }) {
@@ -133,6 +160,38 @@ impl Runner {
             }
             Management::SetDefault => {
                 if value["data"]["default_certificate_id"] != args["certificate_id"] {
+                    return Err("CLI_PROTOCOL_INVALID");
+                }
+            }
+            Management::Verify => {
+                if value["data"]["certificate"]["id"] != args["certificate_id"] {
+                    return Err("CLI_PROTOCOL_INVALID");
+                }
+            }
+            Management::Remove => {
+                if value["data"]["removed_id"] != args["certificate_id"] {
+                    return Err("CLI_PROTOCOL_INVALID");
+                }
+            }
+            Management::Import | Management::Create => {
+                let certificate = &value["data"]["certificate"];
+                for (index, key) in ["v1", "v2", "v3", "v4"].iter().enumerate() {
+                    let expected = args.get(key).and_then(Value::as_bool).unwrap_or(index != 3);
+                    if certificate["signing_versions"][index] != expected {
+                        return Err("CLI_PROTOCOL_INVALID");
+                    }
+                }
+                if certificate["is_default"]
+                    != args
+                        .get("set_default")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    || certificate["auto_sign_enabled"]
+                        != args
+                            .get("auto_sign")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(true)
+                {
                     return Err("CLI_PROTOCOL_INVALID");
                 }
             }

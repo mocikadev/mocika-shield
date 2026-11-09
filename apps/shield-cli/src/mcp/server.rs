@@ -23,7 +23,7 @@ impl ServerHandler for Server {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("mocika-shield", env!("CARGO_PKG_VERSION")))
             .with_protocol_version(ProtocolVersion::V_2025_11_25)
-            .with_instructions("只处理宿主固定目录与配置。已开启执行时，加固使用本会话计划及匹配摘要，计划一次消费；共享独立签名及资料偏好修改一次调用完成，无额外计划或重复确认。只在用户明确要求保存或切换默认时修改资料，修改结果未确认不得称回滚或自动重试。禁止任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
+            .with_instructions("只处理宿主固定目录与配置。已开启执行时，加固使用本会话计划及匹配摘要，计划一次消费；共享签名和资料管理一次调用完成，无额外计划或重复确认。仅在用户明确要求时保存、创建、导入或删除记录，文件始终保留；校验也会保存状态。创建／导入只使用宿主预置密码，禁止索要对话密码；成功的新编号当前会话直接可用。修改未确认不得称回滚或自动重试。禁止任意命令、设备安装或发布。未显式允许执行时只有只读工具。")
     }
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
         Cow::Owned(vec![ProtocolVersion::V_2025_11_25])

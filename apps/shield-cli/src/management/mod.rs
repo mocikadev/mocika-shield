@@ -14,6 +14,7 @@ struct ManagementError {
     code: &'static str,
     message: &'static str,
     change_state: &'static str,
+    verified_failure: Option<String>,
 }
 impl ManagementError {
     fn new(code: &'static str, message: &'static str) -> Self {
@@ -21,6 +22,7 @@ impl ManagementError {
             code,
             message,
             change_state: "not_attempted",
+            verified_failure: None,
         }
     }
     fn after_write(mut self) -> Self {
@@ -33,6 +35,11 @@ impl ManagementError {
             "CERTIFICATE_STORE_FAILED",
             "证书库操作未完成，请检查本机数据和权限；不会切换到其他数据库。",
         )
+    }
+    fn verified_failure(mut self, id: String) -> Self {
+        self.change_state = "confirmed";
+        self.verified_failure = Some(id);
+        self
     }
 }
 type Response = Result<Value, ManagementError>;
@@ -105,6 +112,9 @@ fn emit(operation: &str, run: impl FnOnce() -> Response) -> i32 {
             value["code"] = json!(error.code);
             value["message"] = json!(error.message);
             value["change_state"] = json!(error.change_state);
+            if let Some(id) = error.verified_failure {
+                value["data"] = json!({"certificate":{"id":id,"verification_status":"failed"}});
+            }
             1
         }
     };

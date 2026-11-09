@@ -2,7 +2,7 @@ use super::*;
 use std::os::unix::fs::symlink;
 
 #[test]
-fn 共享范围须显式白名单且不创建缺失资料或固定整库摘要() {
+fn 共享范围不隐式授权旧证书且不创建缺失资料或固定整库摘要() {
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("输入");
     let output = dir.path().join("输出");
@@ -12,7 +12,9 @@ fn 共享范围须显式白名单且不创建缺失资料或固定整库摘要()
     fs::write(&cli, b"fixture").unwrap();
     let home = dir.path().join("应用资料");
     let make = || Policy::new(&input, &output, None, &cli, 10).unwrap();
-    assert!(make().with_shared(Some(&home), vec![]).is_err());
+    let empty = make().with_shared(Some(&home), vec![]).unwrap();
+    assert!(empty.certificate("other").is_err());
+    assert_eq!(empty.sole_certificate().unwrap(), None);
     assert!(make()
         .with_shared(Some(&home), vec!["same".into(), "same".into()])
         .is_err());

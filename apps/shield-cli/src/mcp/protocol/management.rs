@@ -10,16 +10,29 @@ pub(in crate::mcp) enum Management {
     UpdateSettings,
     UpdateCertificate,
     SetDefault,
+    Verify,
+    Import,
+    Create,
+    Remove,
 }
 impl Management {
     pub fn operation(self) -> &'static str {
         match self {
             Self::Settings | Self::UpdateSettings => "config",
-            Self::UpdateCertificate | Self::SetDefault => "cert",
+            _ => "cert",
         }
     }
     pub fn writes(self) -> bool {
         !matches!(self, Self::Settings)
+    }
+    pub fn adds_certificate(self) -> bool {
+        matches!(self, Self::Import | Self::Create)
+    }
+    pub fn lifecycle(self) -> bool {
+        matches!(
+            self,
+            Self::Verify | Self::Remove | Self::Import | Self::Create
+        )
     }
 }
 fn identifier(value: &Value) -> Result<&str> {
@@ -54,6 +67,16 @@ pub(in crate::mcp) fn decode_management(
         let state = event["change_state"]
             .as_str()
             .ok_or("CLI_PROTOCOL_INVALID")?;
+        if state == "confirmed" && matches!(kind, Management::Verify) {
+            let value = &event["data"]["certificate"];
+            if value["verification_status"] != "failed" {
+                return Err("CLI_PROTOCOL_INVALID");
+            }
+            return Ok(
+                json!({"schema_version":1,"operation":"cert","status":"blocked","code":code(&event["code"])?,"change_state":"confirmed","retryable":false,
+                "data":{"certificate":{"id":identifier(&value["id"])?,"verification_status":"failed"}}}),
+            );
+        }
         if !["not_attempted", "unconfirmed"].contains(&state) {
             return Err("CLI_PROTOCOL_INVALID");
         }
@@ -83,7 +106,7 @@ pub(in crate::mcp) fn decode_management(
                 "environment_policy":choice(&value["environment_policy"],&["compatible","strict"])?,
                 "sign_after_protect":value["sign_after_protect"],"certificate_id":certificate}})
         }
-        Management::UpdateCertificate => {
+        Management::UpdateCertificate | Management::Import | Management::Create => {
             let value = &data["certificate"];
             let versions = ["sign_v1", "sign_v2", "sign_v3", "sign_v4"]
                 .iter()
@@ -94,6 +117,19 @@ pub(in crate::mcp) fn decode_management(
         }
         Management::SetDefault => {
             json!({"default_certificate_id":identifier(&data["default_certificate_id"])?})
+        }
+        Management::Verify => {
+            let value = &data["certificate"];
+            if value["last_verify_status"] != "success" {
+                return Err("CLI_PROTOCOL_INVALID");
+            }
+            json!({"certificate":{"id":identifier(&value["id"])?,"verification_status":"success"}})
+        }
+        Management::Remove => {
+            if data["keystore_file"] != "retained" {
+                return Err("CLI_PROTOCOL_INVALID");
+            }
+            json!({"removed_id":identifier(&data["removed_id"])?,"keystore_file":"retained"})
         }
     };
     Ok(

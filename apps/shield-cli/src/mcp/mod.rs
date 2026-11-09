@@ -38,10 +38,10 @@ enum McpCommand {
         /// 仅由宿主配置；不等于任意任务已获用户授权。
         #[arg(long)]
         allow_execution: bool,
-        /// 宿主明确选择共享资料，不再从外部密码环境取得签名材料。
+        /// 宿主明确选择共享资料；已有证书签名使用库内密码，创建／导入用宿主预置环境。
         #[arg(long)]
         use_shared_settings: bool,
-        /// 可重复指定；只允许模型查询和选择这些证书编号。
+        /// 可重复指定；授权已有证书编号。留空不授权旧证书，本会话新建成功的编号另行加入。
         #[arg(long, requires = "use_shared_settings")]
         allow_certificate: Vec<String>,
     },

@@ -1,4 +1,4 @@
-//! 宿主固定的共享上下文与证书白名单；不读取数据库、配置内容或秘密。
+//! 宿主固定上下文与会话证书范围；只接收已确认的新编号，不读取数据库或秘密。
 use super::{Result, Root};
 use shield_app::paths::ApplicationPaths;
 use std::{
@@ -6,6 +6,7 @@ use std::{
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 struct Directory {
@@ -70,11 +71,11 @@ pub(super) struct SharedAccess {
     paths: ApplicationPaths,
     config: Directory,
     data: Directory,
-    allowed: BTreeSet<String>,
+    allowed: Mutex<BTreeSet<String>>,
 }
 impl SharedAccess {
     pub fn new(home: Option<&Path>, ids: Vec<String>, output: &Path) -> Result<Self> {
-        if ids.is_empty() || ids.len() > 64 || ids.iter().any(|id| !valid_id(id)) {
+        if ids.len() > 64 || ids.iter().any(|id| !valid_id(id)) {
             return Err("CERTIFICATE_SCOPE_REQUIRED");
         }
         let count = ids.len();
@@ -107,7 +108,7 @@ impl SharedAccess {
             paths,
             config,
             data,
-            allowed,
+            allowed: Mutex::new(allowed),
         };
         access.check()?;
         Ok(access)
@@ -126,14 +127,58 @@ impl SharedAccess {
         Ok(())
     }
     pub fn certificate(&self, id: &str) -> Result<()> {
-        if valid_id(id) && self.allowed.contains(id) {
+        if valid_id(id)
+            && self
+                .allowed
+                .lock()
+                .map_err(|_| "CERTIFICATE_SCOPE_INVALID")?
+                .contains(id)
+        {
             Ok(())
         } else {
             Err("CERTIFICATE_NOT_ALLOWED")
         }
     }
-    pub fn sole_certificate(&self) -> Option<&str> {
-        (self.allowed.len() == 1).then(|| self.allowed.first().unwrap().as_str())
+    pub fn sole_certificate(&self) -> Result<Option<String>> {
+        let allowed = self
+            .allowed
+            .lock()
+            .map_err(|_| "CERTIFICATE_SCOPE_INVALID")?;
+        Ok((allowed.len() == 1).then(|| allowed.first().unwrap().clone()))
+    }
+    pub fn can_add(&self) -> Result<()> {
+        if self
+            .allowed
+            .lock()
+            .map_err(|_| "CERTIFICATE_SCOPE_INVALID")?
+            .len()
+            >= 64
+        {
+            Err("CERTIFICATE_SCOPE_FULL")
+        } else {
+            Ok(())
+        }
+    }
+    pub fn add_created(&self, id: &str) -> Result<()> {
+        if !valid_id(id) {
+            return Err("CLI_PROTOCOL_INVALID");
+        }
+        let mut allowed = self
+            .allowed
+            .lock()
+            .map_err(|_| "CERTIFICATE_SCOPE_INVALID")?;
+        if allowed.len() >= 64 || allowed.contains(id) {
+            return Err("CERTIFICATE_SCOPE_INVALID");
+        }
+        allowed.insert(id.to_owned());
+        Ok(())
+    }
+    pub fn remove(&self, id: &str) -> Result<()> {
+        self.allowed
+            .lock()
+            .map_err(|_| "CERTIFICATE_SCOPE_INVALID")?
+            .remove(id);
+        Ok(())
     }
     pub fn arguments(&self) -> Vec<OsString> {
         self.home

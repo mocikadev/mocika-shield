@@ -291,15 +291,23 @@ fn 空库查询不创建资料且启动范围不能覆盖资料目录() {
     assert_eq!(result["data"]["certificates"], json!([]));
     session.close();
     assert!(!home.exists());
-    for (context, ids) in [
-        (&home, vec![]),
-        (&root.path().join("输出"), vec!["allowed"]),
-    ] {
-        let output = command(root.path(), context, &ids, false).output().unwrap();
-        assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
-        assert!(!String::from_utf8_lossy(&output.stderr).contains(root.path().to_str().unwrap()));
-    }
+    let mut empty = Session::start(command(root.path(), &home, &[], false));
+    assert_eq!(
+        empty.call(2, "shield_certificates", json!({}))["data"]["certificates"],
+        json!([])
+    );
+    assert_eq!(
+        empty.call(3, "shield_certificates", json!({"certificate_id":"other"}))["code"],
+        "CERTIFICATE_NOT_ALLOWED"
+    );
+    empty.close();
+    assert!(!home.exists());
+    let output = command(root.path(), &root.path().join("输出"), &["allowed"], false)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(root.path().to_str().unwrap()));
 }
 
 fn plan(session: &mut Session, id: u64, certificate: &str, output: &str) -> Value {

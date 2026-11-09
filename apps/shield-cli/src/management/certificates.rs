@@ -27,7 +27,7 @@ pub(super) fn run(command: CertificateCommand, paths: &ApplicationPaths) -> Resp
                         .map_or("CERTIFICATE_INVALID", |diagnostic| diagnostic.code.as_str()),
                     "已保存失败校验结果；请在本机检查证书文件、密码、Alias 和 keytool。",
                 )
-                .after_write());
+                .verified_failure(id));
             }
             Ok(json!({"certificate": CertificateSummary::from(result.value)}))
         }
