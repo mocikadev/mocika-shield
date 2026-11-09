@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { FolderKey, Info, LoaderCircle, PencilLine, Settings, ShieldCheck } from "lucide-react";
 import { Toaster } from "sonner";
 import { AppSidebarHeader, MajorUpdateDialog, UpdateBanner } from "@/components/app/common";
@@ -55,6 +56,23 @@ export function App() {
     void refreshConfig();
     void refreshCertificates(true);
   }, [page, refreshConfig, refreshCertificates]);
+
+  useEffect(() => {
+    let disposed = false;
+    // macOS WebView 的 DOM 焦点不等同于原生窗口前台状态，切回应用须额外刷新共享资料。
+    const unlisten = getCurrentWindow().listen<unknown>("tauri://focus", () => {
+      if (disposed) return;
+      void refreshConfig();
+      void refreshCertificates(true);
+    }).catch((error) => {
+      if (!disposed) notifyError(String(error));
+      return () => {};
+    });
+    return () => {
+      disposed = true;
+      void unlisten.then((stop) => stop());
+    };
+  }, [refreshConfig, refreshCertificates]);
 
   useEffect(() => {
     const unlisten = onTauriEvent<TaskSnapshot>("task-state", (task) => {
