@@ -148,7 +148,7 @@ VERSION=x.y.z make release-macos
 
 本地发布脚本默认仍会生成 CLI 与 GUI 产物，便于维护者离线分发或调试；GitHub Actions 的 Release workflow 会设置 `SKIP_CLI_RELEASE=1`，只构建并上传 GUI 安装包。
 
-开发分支的 macOS 发布入口现已复用 `scripts/build-macos-app.sh`：`.app` 内包含独立 `Contents/MacOS/shield`，与 GUI 共用 JAR 和标准/工控资源，在最终签名前装入并核对架构及内容。`SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不省略应用内 CLI；不新增 Release 资产或独立 CI。未跳过的 macOS 本地压缩包复用同次 CLI，并携带两套资源。CLI 显式启用 macOS 实验自动化特性，普通源码构建默认不启用，Linux/Windows 仍保持原状。共包只提供安装布局，不代替外部 Agent 客户端、其他架构/平台或设备验收；当前公开 1.4.3 产物不因此改变。
+当前主干的 macOS 发布入口复用 `scripts/build-macos-app.sh`：`.app` 内包含独立 `Contents/MacOS/shield`，与 GUI 共用 JAR 和标准／工控资源，在最终签名前装入并核对架构及内容。`SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不省略应用内 CLI；不新增 Release 资产或独立 CI。未跳过的 macOS 本地压缩包复用同次 CLI，并携带两套资源。CLI 显式启用 `mcp-server`（包含原执行特性），普通源码构建默认不启用，Linux／Windows 保持原状。共享资料、单次签名及 MCP 管理的[当前交付范围](agent-delivery-review.md)已验，额外宿主、架构／平台和设备仍各自验收；源码合入不改变公开 1.4.3 产物，预览发布须另行决定，不因本次收口触发标签或 Release。
 
 Skill 独立从根目录 `skills/mocika-shield/` 分发，不进入 `.app`，也不是 App 打包的前置资源；构建入口拒绝开发期旧技能残留。技能有自己的版本及公共 CLI 协议兼容声明，更新由用户或现有技能管理工具触发，不要求与 App 同版本升级，不新增独立 Release 任务或安装/升级服务。安装与升级核对见[接入说明](../ops/agent-setup.md)，不得将目录或脚本检查通过写成真实客户端已经验收。
 

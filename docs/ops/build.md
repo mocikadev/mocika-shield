@@ -76,7 +76,7 @@ make build-gui
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 `mcp-server`（包含原自动化执行特性）；MCP 不自启动，须由宿主显式调用 `mcp serve`，默认只读。不读取 GUI 证书库、不安装到应用目录、不修改系统 PATH。默认 `make build-cli` 仍不启用这些特性，当前公开的 1.4.3 安装包没有这些新入口。
+输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 `mcp-server`（包含原自动化执行特性）；MCP 不自启动，须由宿主显式调用 `mcp serve`，默认只读。共享命令通过本地服务复用 GUI 的配置与证书，不要求 GUI 常驻；构建本身不安装到应用目录或修改系统 PATH。默认 `make build-cli` 仍不启用这些特性，当前公开的 1.4.3 安装包没有这些新入口，最简接入见[使用说明](agent-setup.md)。
 
 输出（Linux）：`target/release/mocika-shield`
 输出（Windows）：`target\\release\\mocika-shield.exe`

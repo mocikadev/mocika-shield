@@ -1,6 +1,6 @@
 # CLI 共享配置与证书管理
 
-当前仅在开发分支实现，未进入公开 1.4.3 安装包。先以本机 macOS 验证为准；GUI 可保持关闭。完整应用包构建见[编译说明](build.md)，阶段状态见[共享应用计划](../process/shared-application-plan.md)。
+当前已合入主干，未进入公开 1.4.3 安装包。先以已验证的 macOS 开发应用包使用，GUI 可保持关闭；完整构建见[编译说明](build.md)，最简配置和能力差异见[接入说明](agent-setup.md)，交付边界见[审查记录](../process/agent-delivery-review.md)。
 
 ## 数据位置与边界
 
@@ -137,4 +137,4 @@ macOS `agent-executor` 开发特性和当前本机构建共包 CLI 已接入共�
 
 写操作报错可能发生在保存后的回读阶段。`change_state: unconfirmed` 表示不能确认修改结果，不表示回滚；没有收到完整响应时同样须先查询本机状态，不自动重试导入、创建或删除。查询失败不换库、不输出工具原始日志。
 
-独立 Skill 0.3.0 已按实际命令扩展单次受控独立签名指引。MCP 的[共享模式](../design/shared-mcp.md)已接脱敏查询、加固、签名及[管理首批](../design/shared-mcp-management.md)；当前分支按已确认的[生命周期方案](../design/mcp-certificate-lifecycle.md)补齐校验、导入、创建与删除记录，复用原执行许可、共享服务及本机凭据机制。原外置配置模式保留，公开安装包和宿主原生注册不据此推定已更新。
+独立 Skill 0.3.0 已有单次受控独立签名指引。MCP 的[共享模式](../design/shared-mcp.md)、[管理首批](../design/shared-mcp-management.md)及[生命周期](../design/mcp-certificate-lifecycle.md)均已合入主干，复用原执行许可、共享服务及本机凭据机制；未开放的纯加固不签名、清空全局默认和输出目录持久化在接入说明中明确列出。原外置配置模式保留，公开安装包和宿主原生注册不据此推定已更新。
