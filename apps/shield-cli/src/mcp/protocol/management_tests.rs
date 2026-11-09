@@ -67,3 +67,27 @@ fn 修改失败保留未尝试或未确认而不转发异常原文() {
         assert!(parse(&missing, Management::UpdateSettings, 1).is_err());
     }
 }
+
+#[test]
+fn 校验失败但保存确认与删除保留事实独立于成功状态() {
+    let value = json!({"schema_version":1,"tool_version":env!("CARGO_PKG_VERSION"),"operation":"cert","type":"error","code":"KEYSTORE_PASSWORD_INVALID","change_state":"confirmed","data":{"certificate":{"id":"allowed","verification_status":"failed","message":"private-message"}}});
+    let safe = parse(&value, Management::Verify, 1).unwrap();
+    assert_eq!(safe["status"], "blocked");
+    assert_eq!(safe["change_state"], "confirmed");
+    assert!(!safe.to_string().contains("private-"));
+    assert!(parse(&value, Management::Create, 1).is_err());
+    let mut bad = value.clone();
+    bad["data"]["certificate"]["verification_status"] = json!("success");
+    assert!(parse(&bad, Management::Verify, 1).is_err());
+    let removed = response(
+        Management::Remove,
+        json!({"removed_id":"allowed","keystore_file":"retained","path":"private-path"}),
+    );
+    assert_eq!(
+        parse(&removed, Management::Remove, 0).unwrap()["data"]["keystore_file"],
+        "retained"
+    );
+    let mut bad = removed;
+    bad["data"]["keystore_file"] = json!("deleted");
+    assert!(parse(&bad, Management::Remove, 0).is_err());
+}

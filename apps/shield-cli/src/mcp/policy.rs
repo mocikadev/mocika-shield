@@ -198,6 +198,20 @@ pub(super) struct Policy {
     shared: Option<SharedAccess>,
     pub timeout_seconds: u64,
 }
+
+/// 只在本次导入调用期间固定材料，不将路径或内容交给协议层。
+pub(super) struct ImportSource {
+    relative: String,
+    file: PinnedFile,
+}
+impl ImportSource {
+    pub fn check(&self, policy: &Policy) -> Result<()> {
+        if policy.input(&self.relative)? != self.file.path {
+            return Err("TRUSTED_FILE_CHANGED");
+        }
+        self.file.check(16 * 1024 * 1024)
+    }
+}
 impl Policy {
     pub fn new(
         input: &Path,
@@ -277,12 +291,35 @@ impl Policy {
             .ok_or("SHARED_SOURCE_NOT_ENABLED")?
             .arguments())
     }
-    pub fn sole_certificate(&self) -> Result<Option<&str>> {
-        Ok(self
-            .shared
+    pub fn sole_certificate(&self) -> Result<Option<String>> {
+        self.shared
             .as_ref()
             .ok_or("SHARED_SOURCE_NOT_ENABLED")?
-            .sole_certificate())
+            .sole_certificate()
+    }
+    pub fn can_add_certificate(&self) -> Result<()> {
+        self.shared
+            .as_ref()
+            .ok_or("SHARED_SOURCE_NOT_ENABLED")?
+            .can_add()
+    }
+    pub fn add_created_certificate(&self, id: &str) -> Result<()> {
+        self.shared
+            .as_ref()
+            .ok_or("SHARED_SOURCE_NOT_ENABLED")?
+            .add_created(id)
+    }
+    pub fn remove_certificate(&self, id: &str) -> Result<()> {
+        self.shared
+            .as_ref()
+            .ok_or("SHARED_SOURCE_NOT_ENABLED")?
+            .remove(id)
+    }
+    pub fn import_source(&self, relative: &str) -> Result<ImportSource> {
+        Ok(ImportSource {
+            relative: relative.to_owned(),
+            file: PinnedFile::open(&self.input(relative)?, 16 * 1024 * 1024)?,
+        })
     }
     pub fn project_config(&self) -> Option<&Path> {
         self.config.as_ref().map(|file| file.path.as_path())

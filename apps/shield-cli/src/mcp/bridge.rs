@@ -13,6 +13,8 @@ pub(super) struct Invocation {
     pub arguments: Vec<OsString>,
     pub operation: &'static str,
     pub controlled: bool,
+    /// 仅固定的证书创建／导入命令可使用宿主预置凭据，不由工具参数设置。
+    pub host_credentials: bool,
 }
 
 pub(super) struct Outcome {
@@ -57,7 +59,7 @@ pub(super) async fn run(
     ] {
         command.env_remove(name);
     }
-    if !call.controlled || policy.is_shared() {
+    if !call.host_credentials && (!call.controlled || policy.is_shared()) {
         command
             .env_remove("MOCIKA_SHIELD_KS_PASS")
             .env_remove("MOCIKA_SHIELD_KEY_PASS");

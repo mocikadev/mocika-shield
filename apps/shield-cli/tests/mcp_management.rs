@@ -114,7 +114,7 @@ fn 工具沿用共享和执行开关且只读查询不创建资料() {
         (false, false, 3),
         (false, true, 5),
         (true, false, 5),
-        (true, true, 11),
+        (true, true, 15),
     ] {
         let mut session = Session::start(fixture.command(shared, execute, &["allowed"]));
         session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
@@ -127,6 +127,10 @@ fn 工具沿用共享和执行开关且只读查询不创建资料() {
             "shield_update_settings",
             "shield_update_certificate",
             "shield_set_default_certificate",
+            "shield_verify_certificate",
+            "shield_import_certificate",
+            "shield_create_certificate",
+            "shield_remove_certificate",
         ] {
             let tool = list.iter().find(|tool| tool["name"] == name);
             assert_eq!(tool.is_some(), shared && execute);

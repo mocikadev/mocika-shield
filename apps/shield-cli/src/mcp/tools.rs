@@ -8,6 +8,7 @@ use rmcp::model::{Tool, ToolAnnotations};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::ffi::OsString;
+mod certificates;
 mod management;
 pub(super) use management::{management_call, management_tool};
 
@@ -151,6 +152,9 @@ pub(super) fn list(allow_execution: bool, shared: bool) -> Vec<Tool> {
         ));
     }
     tools.extend(management::list(allow_execution, shared));
+    if allow_execution && shared {
+        tools.extend(certificates::list());
+    }
     tools
 }
 fn tool(
@@ -212,6 +216,7 @@ pub(super) fn invocation(name: &str, arguments: Value, policy: &Policy) -> Resul
                 arguments: args,
                 operation: "cert",
                 controlled: false,
+                host_credentials: false,
             });
         }
         _ => return Err("TOOL_NOT_AVAILABLE"),
@@ -220,6 +225,7 @@ pub(super) fn invocation(name: &str, arguments: Value, policy: &Policy) -> Resul
         arguments,
         operation,
         controlled,
+        host_credentials: false,
     })
 }
 
@@ -314,6 +320,7 @@ fn plan_call(
             "agent_plan"
         },
         controlled: true,
+        host_credentials: false,
     })
 }
 
@@ -351,6 +358,7 @@ pub(super) fn sign_call(args: &Sign, policy: &Policy, certificate: &str) -> Resu
         arguments: command,
         operation: "agent_sign",
         controlled: true,
+        host_credentials: false,
     })
 }
 

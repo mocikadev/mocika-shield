@@ -1,6 +1,6 @@
 # 本地 Agent 接入与 Skill 安装
 
-> 当前调整：CLI 已有[共享管理、签名、普通及受控加固](shared-data-cli.md)，独立 Skill 0.3.0 提供单次受控独立签名指引；MCP 已接入[共享来源与证书白名单](../design/shared-mcp.md)。单次签名及缺用户名兼容已通过本机完整包和当前 Agent 实调；当前功能分支另接入设置／证书偏好及默认切换，实际进度见[管理任务](../process/shared-mcp-management-plan.md)。下文原外置配置流程继续兼容；公开安装包、宿主原生注册及未完成验收不得据此推定已更新。
+> 当前调整：CLI 已有[共享管理、签名、普通及受控加固](shared-data-cli.md)，独立 Skill 0.3.0 提供单次受控独立签名指引；MCP 已接入[共享来源与证书范围](../design/shared-mcp.md)。签名及资料管理已合入并通过本机完整包和当前 Agent 实调；当前功能分支补证书生命周期，实际进度见[专项任务](../process/mcp-certificate-lifecycle-plan.md)。下文原外置配置流程继续兼容；公开安装包、宿主原生注册及未完成验收不得据此推定已更新。
 
 CLI 与 Skill 已随 PR #152 合并主干，仍是尚未发布的实验接入；公开 1.4.3 安装包不包含 `agent plan/protect`。首轮执行仅限 macOS；其他平台和额外客户端分别验收，不根据安装包或版本号推定已经支持。完整契约见[命令设计](../design/agent-cli-contract.md)，实际进展见[验收记录](../process/agent-integration-plan.md)。本地 MCP 按[专项计划](../process/local-mcp-plan.md)开发，尚不作为可安装能力。
 
@@ -143,7 +143,7 @@ shield mcp serve --use-shared-settings --allow-execution --input-root /授权输
 
 ### 开发分支的共享资料管理
 
-当前功能分支新增 `shield_settings` 查询业务设置；共享模式启用原 `--allow-execution` 后，还提供 `shield_update_settings`、`shield_update_certificate`、`shield_set_default_certificate`。无需新的启动开关、前置计划或逐次确认；服务只在明确保存／管理意图下执行，宿主原有审批策略不变。共享只读为 5 项、共享执行为 11 项，原外置模式仍为 3／5 项。公开安装包尚未包含，能力以命令及工具发现为准。
+已合入的管理首批提供 `shield_settings` 查询业务设置；共享模式启用原 `--allow-execution` 后，还提供 `shield_update_settings`、`shield_update_certificate`、`shield_set_default_certificate`。无需新的启动开关、前置计划或逐次确认；服务只在明确保存／管理意图下执行，宿主原有审批策略不变。该基线共享只读为 5 项、共享执行为 11 项，生命周期扩展另见下节，原外置模式仍为 3／5 项。公开安装包尚未包含，能力以命令及工具发现为准。
 
 设置只包括模式、策略、自动签名意图及加固页专用证书，省略保持；两个可空字段的 `null` 分别恢复继承与清除专用选择，不删除证书。示例参数：
 
@@ -151,6 +151,16 @@ shield mcp serve --use-shared-settings --allow-execution --input-root /授权输
 {"runtime_mode":"android_api19","environment_policy":"compatible","sign_after_protect":null,"certificate_id":null}
 ```
 
-证书修改只接 `certificate_id` 及可选 `name`、`note`、`v1/v2/v3/v4`、`auto_sign`；全局默认切换只接允许范围内的明确编号，不修改加固页专用选择。不接受路径、Alias、密码、导入／创建／校验／删除，不回显名称、备注或材料。设置中的范围外证书编号会隐藏并标记 `outside_scope`，不是自动改为默认项。
+证书偏好修改只接 `certificate_id` 及可选 `name`、`note`、`v1/v2/v3/v4`、`auto_sign`；全局默认切换只接允许范围内的明确编号，不修改加固页专用选择。偏好工具不接受材料路径、Alias 或密码，不回显名称、备注或材料。设置中的范围外证书编号会隐藏并标记 `outside_scope`，不是自动改为默认项。
 
 成功写入回执为 `change_state:confirmed`；`not_attempted` 表示明确未尝试。`unconfirmed` 表示可能已保存，不能认为回滚、自动重试或开新连接绕过；可查询实际偏好，当前会话继续停写。管理命令不使用项目 `--config`，不会把临时覆盖保存成默认；已固定的加固计划仍使用原身份。设计及实际验收见[首批管理方案](../design/shared-mcp-management.md)与[任务记录](../process/shared-mcp-management-plan.md)。
+
+### 开发分支的证书生命周期
+
+当前分支共享执行模式新增 `shield_verify_certificate`、`shield_import_certificate`、`shield_create_certificate`、`shield_remove_certificate`，共 15 项工具；共享只读仍为 5 项。沿用原执行开关，不加重复确认。校验和删除只需 `certificate_id`；删除只移除记录、保留文件。校验失败但失败状态已保存时返回失败和 `change_state:confirmed`，不是校验成功，也不因此锁死会话。
+
+新建／导入仅使用宿主本机预置的 `MOCIKA_SHIELD_KS_PASS` 和可选 `MOCIKA_SHIELD_KEY_PASS`，不给工具传密码或环境变量名；已有证书签名仍读取库内密码，无须再注入。缺凭据明确停止，不要求把密码发给 Agent。启动后更换这两项预置值需要宿主更新服务环境；不会自研口令管理或自动重启流程。
+
+导入示例参数为 `{"name":"发布证书","keystore":"证书/release.p12","keystore_type":"pkcs12"}`：文件须在输入根内，16 MiB 以内、不允许链接或跳转；只有一个 Alias 时可省略，否则明确提供 `alias`。导入保留原路径和文件。创建示例为 `{"name":"发布证书","file_name":"release.p12","alias":"release","dname":"CN=本地签名","keystore_type":"pkcs12"}`：只能指定文件名，不传保存目录；共享托管目录中同名不覆盖。两者可选 `note`、`set_default`、`v1/v2/v3/v4` 和 `auto_sign`；默认不切换全局默认，V1–V3 开、V4 关、自动签名偏好开。
+
+初次没有证书可不指定 `--allow-certificate`，不代表授权整库；仅创建／导入完整确认成功的新编号加入当前会话，可直接用于签名、加固和管理，总范围最多 64 项。删除成功后撤销编号；新服务会话须由宿主明确配置需要沿用的编号，不自动开放旧记录。其他范围和未知停写规则保持，详见[生命周期方案](../design/mcp-certificate-lifecycle.md)及[实施记录](../process/mcp-certificate-lifecycle-plan.md)。

@@ -12,7 +12,7 @@ pub(in crate::mcp) fn management_tool(name: &str) -> Option<Management> {
         "shield_update_settings" => Some(Management::UpdateSettings),
         "shield_update_certificate" => Some(Management::UpdateCertificate),
         "shield_set_default_certificate" => Some(Management::SetDefault),
-        _ => None,
+        _ => super::certificates::kind(name),
     }
 }
 pub(super) fn list(execute: bool, shared: bool) -> Vec<Tool> {
@@ -91,6 +91,9 @@ pub(in crate::mcp) fn management_call(
         return Err("ARGUMENT_INVALID");
     }
     let kind = management_tool(name).ok_or("TOOL_NOT_AVAILABLE")?;
+    if kind.lifecycle() {
+        return super::certificates::call(kind, arguments, policy).map(|call| (call, kind));
+    }
     let mut command = policy.shared_arguments()?;
     match kind {
         Management::Settings => {
@@ -183,12 +186,14 @@ pub(in crate::mcp) fn management_call(
                 args.certificate_id.into(),
             ]);
         }
+        _ => unreachable!("生命周期命令由独立参数模块映射"),
     }
     Ok((
         Invocation {
             arguments: command,
             operation: kind.operation(),
             controlled: false,
+            host_credentials: false,
         },
         kind,
     ))
