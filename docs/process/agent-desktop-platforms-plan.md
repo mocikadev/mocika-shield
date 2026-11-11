@@ -1,6 +1,6 @@
 # Agent 三平台任务与验收
 
-更新：2026-11-11。设计见[三平台适配](../design/agent-desktop-platforms.md)，工具细项见[Java 工具验收](java-tool-adapter-plan.md)。当前稳定版仍为 1.4.3；开发构建版本相同，不代表公开安装包包含 Agent 能力。
+更新：2026-11-11。设计见[三平台适配](../design/agent-desktop-platforms.md)，工具细项见[Java 工具验收](java-tool-adapter-plan.md)。当前稳定版仍为 1.4.3；功能已通过集中 PR 合并，发布目标为 1.5.0-beta.1。开发验收不替代新版本正式产物核对。
 
 ## 任务状态
 

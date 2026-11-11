@@ -108,13 +108,13 @@ APK、证书、密钥库和签名密码只在本机处理，不上传业务文�
 | 模块结构、原理与设计 | [文档导航](docs/README.md) |
 | 后续规划 | [路线图](docs/process/roadmap.md) |
 
-CLI 仅供源码构建和自动化使用，Release 不单独提供 CLI 包。构建顺序为先 `make build-stub`，再 `make build-cli` 或 `make build-gui`；完整依赖与平台步骤以构建指南为准。
+Release 不单独提供 CLI 包；`1.5.0` 预览版将 CLI 随 GUI 安装包交付。源码构建顺序为先 `make build-stub`，再 `make build-cli` 或 `make build-gui`；完整依赖与平台步骤以构建指南为准。
 
-## AI Agent 接入（开发中）
+## AI Agent 接入（预览）
 
 官方 Skill 源码位于根目录 [skills/mocika-shield/](skills/mocika-shield/SKILL.md)，由用户按所用 Agent 独立安装、升级，不随 App 打包。CLI 随 GUI 应用交付，技能通过本地路径配置或 PATH 定位命令；安装、升级和兼容范围见 [Agent 接入说明](docs/ops/agent-setup.md)。
 
-当前主干的 macOS 开发应用包已接入共享证书／配置、受控加固、单次签名和本地 MCP 管理，GUI 无需常驻；最简配置和当前能力见接入说明。公开 1.4.3 安装包尚不支持这些新增入口，其他平台和宿主原生注册仍需分别验收。
+这些能力面向 `1.5.0-beta.1` 及后续预览版：三平台 CLI／MCP 与 GUI 共用配置和证书，支持受控加固、独立签名和证书管理，GUI 无需常驻。稳定版 `1.4.3` 尚不包含新增入口；额外 Agent 客户端的注册与交互仍需按宿主验证。
 
 ## 反馈与交流
 
