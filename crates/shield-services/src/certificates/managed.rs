@@ -17,6 +17,23 @@ pub(super) fn draft(base: &Path) -> Result<tempfile::TempDir, String> {
         .map_err(|e| format!("创建证书暂存目录失败: {e}"))
 }
 
+/// 外层暂存所有者负责回收；只对本次新建的子目录设置私有边界。
+pub(super) fn adapter_directory(base: &Path) -> Result<PathBuf, String> {
+    let path = base.join("adapter-material");
+    #[cfg(windows)]
+    shield_core::windows_private::create_directory(&path)
+        .map_err(|_| "创建私有证书材料目录失败".to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&path)
+            .map_err(|_| "创建私有证书材料目录失败".to_string())?;
+    }
+    Ok(path)
+}
+
 pub(super) fn publish(source: &Path, base: &Path, name: &str) -> Result<PathBuf, String> {
     if Path::new(name).components().count() != 1
         || Path::new(name)

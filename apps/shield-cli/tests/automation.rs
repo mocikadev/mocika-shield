@@ -112,7 +112,10 @@ fn 帮助不是检查结果() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("--operation"));
 }
 
-#[cfg(not(all(feature = "agent-executor", target_os = "macos")))]
+#[cfg(not(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux")
+)))]
 #[test]
 fn 默认构建不开放内部执行入口() {
     for name in ["agent", "__agent-probe", "__agent-worker"] {

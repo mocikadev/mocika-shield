@@ -1,5 +1,8 @@
 //! 单次受控独立签名：只使用隔离资料，标准输入关闭也无需密码或确认交互。
-#![cfg(all(feature = "agent-executor", target_os = "macos"))]
+#![cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
 use serde_json::Value;
 use shield_services::{
     certificates::{
@@ -16,8 +19,10 @@ use std::{
 
 const SECRET: &str = "controlled-signing-test-password";
 #[path = "agent_signing/control.rs"]
+#[cfg(unix)]
 mod control;
 #[path = "agent_signing/protected.rs"]
+#[cfg(unix)]
 mod protected;
 fn command(
     home: &Path,
@@ -229,7 +234,57 @@ fn 真实一次调用默认和编号签名不需要预览且原包资料不变()
                 key_size: 2048,
             },
         )
-        .unwrap();
+        .unwrap_or_else(|error| {
+            eprintln!("隔离证书失败：{:?}，{}", error.diagnostic, error.message);
+            #[cfg(windows)]
+            {
+                // 仅失败后的自有环境探针，不重试业务操作；目标独立且密码为固定合成值。
+                let probe = temp.path().join("failure-probe.p12");
+                assert!(!probe.exists());
+                let output = shield_core::keytool::keytool_command(
+                    shield_core::utils::find_keytool().unwrap(),
+                )
+                .args([
+                    "-genkeypair",
+                    "-storetype",
+                    "PKCS12",
+                    "-alias",
+                    "release",
+                    "-storepass:env",
+                    "SHIELD_PROBE_PASS",
+                    "-keypass:env",
+                    "SHIELD_PROBE_PASS",
+                    "-dname",
+                    "CN=agent-fixture",
+                    "-keyalg",
+                    "RSA",
+                    "-keysize",
+                    "2048",
+                    "-validity",
+                    "7",
+                    "-keystore",
+                ])
+                .arg(&probe)
+                .env("SHIELD_PROBE_PASS", SECRET)
+                .output()
+                .unwrap();
+                let sanitized = |bytes: &[u8]| {
+                    String::from_utf8_lossy(bytes)
+                        .replace(SECRET, "<合成口令已移除>")
+                        .replace(temp.path().to_string_lossy().as_ref(), "<隔离目录>")
+                        .chars()
+                        .take(4096)
+                        .collect::<String>()
+                };
+                eprintln!(
+                    "自有探针退出={:?}，标准输出={}，标准错误={}",
+                    output.status.code(),
+                    sanitized(&output.stdout),
+                    sanitized(&output.stderr)
+                );
+            }
+            panic!("隔离证书创建失败，不计为签名通过");
+        });
         let database = fs::read(paths.certificate_database()).unwrap();
         let material = fs::read(&cert.keystore_path).unwrap();
         let expected = shield_core::extract_keystore_cert_fingerprint(
@@ -272,12 +327,19 @@ fn 真实一次调用默认和编号签名不需要预览且原包资料不变()
                 shield_core::normalize_fingerprint(&actual),
                 shield_core::normalize_fingerprint(&expected)
             );
+            // 原始 Java argv 在 Windows 会损坏中文路径。独立验签使用同字节 ASCII 副本，
+            // 不绕过中文原路径的被测签名／指纹核对，也不放宽原工具验签要求。
+            let reference = tempfile::tempdir().unwrap();
+            assert!(reference.path().as_os_str().is_ascii());
+            let independent = reference.path().join("verify.apk");
+            fs::copy(&out, &independent).unwrap();
+            assert!(fs::read(&out).unwrap() == fs::read(&independent).unwrap());
             assert!(
                 shield_core::utils::java_command(shield_core::utils::find_java().unwrap())
                     .arg("-jar")
                     .arg(&signer)
                     .arg("verify")
-                    .arg(&out)
+                    .arg(&independent)
                     .output()
                     .unwrap()
                     .status
@@ -285,7 +347,7 @@ fn 真实一次调用默认和编号签名不需要预览且原包资料不变()
             );
             assert!(shield_core::utils::no_window_command(&align)
                 .args(["-c", "-P", "16", "4"])
-                .arg(&out)
+                .arg(&independent)
                 .output()
                 .unwrap()
                 .status

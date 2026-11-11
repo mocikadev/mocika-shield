@@ -7,7 +7,10 @@ mod cli_json;
 mod commands;
 mod config;
 mod management;
-#[cfg(all(feature = "mcp-server", target_os = "macos"))]
+#[cfg(all(
+    feature = "mcp-server",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
 mod mcp;
 
 use args::{Cli, Commands};
@@ -33,13 +36,25 @@ fn main() {
 }
 
 fn execute(cli: Cli) -> Result<i32> {
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     let shared_agent = matches!(&cli.command, Commands::Agent(_));
-    #[cfg(not(all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(not(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )))]
     let shared_agent = false;
-    #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+    #[cfg(all(
+        feature = "mcp-server",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     let shared_mcp = matches!(&cli.command, Commands::Mcp(_));
-    #[cfg(not(all(feature = "mcp-server", target_os = "macos")))]
+    #[cfg(not(all(
+        feature = "mcp-server",
+        any(target_os = "macos", target_os = "linux", windows)
+    )))]
     let shared_mcp = false;
     let shared_sign = matches!(&cli.command, Commands::Sign(args) if args.certificate_id.is_some() || args.use_default_certificate);
     if cli.app_home.is_some()
@@ -69,7 +84,10 @@ fn execute(cli: Cli) -> Result<i32> {
                 cli.config.is_some(),
             ))
         }
-        #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+        #[cfg(all(
+            feature = "mcp-server",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         Commands::Mcp(args) => {
             return Ok(mcp::run(
                 args,
@@ -77,7 +95,10 @@ fn execute(cli: Cli) -> Result<i32> {
                 cli.app_home.as_deref(),
             ))
         }
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         Commands::Agent(args) => {
             return Ok(automation::execution::run_agent(
                 args,
@@ -85,11 +106,17 @@ fn execute(cli: Cli) -> Result<i32> {
                 cli.app_home.as_deref(),
             ))
         }
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         Commands::AgentProbe(args) => {
             return Ok(automation::execution::run_probe(args, cli.config.is_some()))
         }
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         Commands::AgentWorker(args) => {
             return Ok(automation::execution::run_worker(
                 args,

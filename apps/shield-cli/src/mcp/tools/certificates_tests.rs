@@ -1,5 +1,7 @@
 use super::*;
-use std::{fs, os::unix::fs::symlink};
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 fn fixture(root: &std::path::Path) -> Policy {
     fs::create_dir(root.join("input")).unwrap();
     fs::create_dir(root.join("output")).unwrap();
@@ -70,6 +72,7 @@ fn 生命周期只映射固定命令且密码和未知参数无法进入() {
         bad[key] = value;
         assert!(call(Management::Create, bad, &policy).is_err());
     }
+    #[cfg(unix)]
     symlink(
         root.path().join("input/中文.p12"),
         root.path().join("input/link.p12"),

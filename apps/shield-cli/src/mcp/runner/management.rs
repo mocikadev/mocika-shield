@@ -1,7 +1,7 @@
 //! 共享管理调用：复用桥接，区分已确认与未知修改；不复制存储或建立管理计划。
 use super::super::protocol::Management;
 use super::*;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "management_tests.rs"]
 mod tests;
 

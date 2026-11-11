@@ -191,10 +191,13 @@ function Build-Cli {
 # ========== 构建 GUI（Tauri NSIS bundle）==========
 function Build-Gui {
     Info "构建 GUI（cargo tauri build --bundles nsis）..."
+    $pythonCommand = if ($env:PYTHON) { $env:PYTHON } else { "python" }
+    Run $pythonCommand @((Join-Path $Root "scripts\prepare_desktop_cli.py"))
     Push-Location (Join-Path $Root "apps\shield-gui")
     try {
         Run npm @("ci")
-        Run cargo @("tauri", "build", "--bundles", "nsis")
+        Run cargo @("tauri", "build", "--bundles", "nsis", "--config",
+            (Join-Path $Root "target\desktop-cli\tauri-sidecar.json"))
     } finally {
         Pop-Location
     }
@@ -218,6 +221,7 @@ function Package-Cli {
     New-Item -ItemType Directory -Path "$pkgDir\bin","$pkgDir\lib","$pkgDir\resources" | Out-Null
 
     Copy-Item (Join-Path $Root "target\x86_64-pc-windows-msvc\release\shield.exe") "$pkgDir\bin\shield.exe"
+    Copy-Item (Join-Path $Root "tools\java-adapter\build\java-adapter.jar") "$pkgDir\lib\java-adapter.jar"
 
     $apktool = Join-Path $Root "tools\apktool_3.0.1.jar"
     if (Test-Path $apktool) {
@@ -261,7 +265,8 @@ mocika-shield-cli-$Version-windows-x86_64\
 ├── bin\shield.exe      # 可执行文件
 ├── lib\
 │   ├── apktool.jar
-│   └── apksigner.jar
+│   ├── apksigner.jar
+│   └── java-adapter.jar
 ├── resources\
 │   └── resources.zip   # Android 壳资源
 └── README.md

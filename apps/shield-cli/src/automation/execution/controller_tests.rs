@@ -2,6 +2,7 @@
 use super::*;
 use std::fs;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::thread;
 

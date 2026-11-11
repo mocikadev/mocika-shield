@@ -1,5 +1,5 @@
 //! 当前 Mac 的显式真实工具验收；不纳入默认重型测试，不修改生产证书或设备。
-#![cfg(all(feature = "mcp-server", target_os = "macos"))]
+#![cfg(all(feature = "mcp-server", any(target_os = "macos", target_os = "linux")))]
 use serde_json::{json, Value};
 use std::{
     fs,

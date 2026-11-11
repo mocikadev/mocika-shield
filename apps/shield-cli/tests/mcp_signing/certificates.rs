@@ -41,6 +41,17 @@ fn 真实创建导入校验签名删除在同会话完成且文件保留() {
         PathBuf::from(std::env::var_os("SHIELD_TEST_APKSIGNER").expect("需指定独立验签工具"));
     let align =
         PathBuf::from(std::env::var_os("SHIELD_TEST_ZIPALIGN").expect("需指定 SDK zipalign"));
+    // 源码 CLI 专项不能沿用普通门禁夹具的假 JAR；完整包仍由自身资源定位。
+    if fixture.package_files.is_empty() {
+        fs::write(
+            fixture.root.path().join("shield-cli.toml"),
+            format!(
+                "schema_version=1\n[sign]\napksigner={}\n",
+                serde_json::to_string(signer.to_str().unwrap()).unwrap()
+            ),
+        )
+        .unwrap();
+    }
     fs::copy(&apk, fixture.root.path().join("输入/应用.apk")).unwrap();
     let input_hash = package_hash(&apk);
     let mut command = fixture.command(&[], true, true, 120);

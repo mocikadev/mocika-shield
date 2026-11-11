@@ -52,7 +52,10 @@ struct SignConfig {
 }
 
 impl CliConfig {
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub(crate) fn shared_agent_overrides(
         &self,
     ) -> Result<shield_services::protect::ProtectOverrides> {
@@ -80,7 +83,10 @@ impl CliConfig {
         })
     }
 
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub(crate) fn merge_shared_agent_protect(
         &self,
         args: ProtectArgs,

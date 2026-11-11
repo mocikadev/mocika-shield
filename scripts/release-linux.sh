@@ -115,10 +115,12 @@ build_cli() {
 # ========== 构建 GUI（Tauri bundle：AppImage + deb）==========
 build_gui() {
   info "构建 GUI（cargo tauri build --bundles appimage,deb）..."
+  cd "$ROOT"
+  python3 scripts/prepare_desktop_cli.py
   cd "$ROOT/apps/shield-gui"
 
   npm ci
-  cargo tauri build --bundles appimage,deb
+  cargo tauri build --bundles appimage,deb --config "$ROOT/target/desktop-cli/tauri-sidecar.json"
 
   success "GUI 构建完成"
 }
@@ -141,6 +143,7 @@ package_cli() {
   # 可执行文件
   cp "$ROOT/target/x86_64-unknown-linux-musl/release/shield" "$CLI_PKG_DIR/bin/shield"
   chmod +x "$CLI_PKG_DIR/bin/shield"
+  cp "$ROOT/tools/java-adapter/build/java-adapter.jar" "$CLI_PKG_DIR/lib/java-adapter.jar"
 
   # 工具 JAR
   if [[ -f "$ROOT/tools/apktool_3.0.1.jar" ]]; then
@@ -189,6 +192,7 @@ Linux x86_64 静态链接版本，无需安装依赖。
 mocika-shield-cli-${VERSION}-linux-x86_64/
 ├── bin/shield          # 可执行文件（静态链接）
 ├── lib/
+│   ├── java-adapter.jar
 │   ├── apktool.jar
 │   └── apksigner.jar
 ├── resources/

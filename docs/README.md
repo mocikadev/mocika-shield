@@ -28,6 +28,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 从源码构建 | [ops/build.md](ops/build.md) |
 | 安装独立 Skill、复制最简 MCP 配置、查看能力和任务示例 | [ops/agent-setup.md](ops/agent-setup.md) |
 | 核对 Agent 主干交付、合并状态和未验边界 | [process/agent-delivery-review.md](process/agent-delivery-review.md) |
+| 跟进 Agent 三平台适配、原生专项与共包边界 | [design/agent-desktop-platforms.md](design/agent-desktop-platforms.md)、[实施计划](process/agent-desktop-platforms-plan.md) |
 | 本地排障 | [ops/troubleshooting.md](ops/troubleshooting.md) |
 | 查看维护统计方案 | [ops/project-statistics.md](ops/project-statistics.md) |
 | 查看匿名使用统计方案 | [ops/telemetry.md](ops/telemetry.md) |
@@ -61,6 +62,7 @@ Mocika Shield 是 Android APK 加固工具，核心流程是将原 APK 的 DEX �
 | 了解自动化命令、结果协议与取消/断开语义 | [design/agent-cli-contract.md](design/agent-cli-contract.md) |
 | 了解 macOS 本地 MCP、启动权限与实施任务 | [design/local-mcp.md](design/local-mcp.md)、[process/local-mcp-plan.md](process/local-mcp-plan.md) |
 | 查看中文路径、Java 工具输出编码修复与验证边界 | [design/chinese-toolchain-compatibility.md](design/chinese-toolchain-compatibility.md) |
+| 了解 Java 无损参数正式接入、辅助 JAR、引导与私有输入生命周期 | [design/java-tool-adapter.md](design/java-tool-adapter.md)、[实施任务](process/java-tool-adapter-plan.md) |
 | 了解可选资源文件保护边界 | [design/asset-protection.md](design/asset-protection.md) |
 | 了解 Android 4.4 工控兼容方案 | [design/android-4.4-compatibility.md](design/android-4.4-compatibility.md) |
 | 查看 AAB 加固可行性结论与后续规划 | [design/aab-feasibility.md](design/aab-feasibility.md) |

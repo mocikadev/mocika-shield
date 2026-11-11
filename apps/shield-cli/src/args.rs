@@ -40,16 +40,28 @@ pub(crate) enum Commands {
     Cert(crate::management::CertificateArgs),
     /// 查询或保存共享业务偏好；不是项目 shield-cli.toml。
     Config(crate::management::ConfigArgs),
-    #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+    #[cfg(all(
+        feature = "mcp-server",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     /// 本机 MCP 实验入口：默认只读，标准输出由协议独占。
     Mcp(crate::mcp::McpArgs),
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     /// 受控本地自动化（开发特性）：逐行 JSON，保留旧命令行为。
     Agent(crate::automation::execution::AgentArgs),
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     #[command(name = "__agent-probe", hide = true)]
     AgentProbe(crate::automation::execution::ProbeArgs),
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     #[command(name = "__agent-worker", hide = true)]
     AgentWorker(crate::automation::execution::WorkerArgs),
     /// 只读检查指定操作的本机依赖，输出版本化 JSON。
@@ -77,9 +89,15 @@ impl Commands {
     pub(crate) fn machine_output(&self) -> bool {
         match self {
             Self::Cert(_) | Self::Config(_) => true,
-            #[cfg(all(feature = "mcp-server", target_os = "macos"))]
+            #[cfg(all(
+                feature = "mcp-server",
+                any(target_os = "macos", target_os = "linux", windows)
+            ))]
             Self::Mcp(_) => false,
-            #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+            #[cfg(all(
+                feature = "agent-executor",
+                any(target_os = "macos", target_os = "linux", windows)
+            ))]
             Self::Agent(_) | Self::AgentProbe(_) | Self::AgentWorker(_) => true,
             Self::Doctor(_) | Self::Preflight(_) | Self::PlanProtect(_) => true,
             Self::Protect(args) => args.json,

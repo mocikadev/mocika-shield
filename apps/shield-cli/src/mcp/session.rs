@@ -2,7 +2,6 @@
 use super::policy::Result;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -100,11 +99,7 @@ impl Session {
     fn insert_record(&mut self, operation: Operation, phase: Phase) -> Result<String> {
         self.can_plan()?;
         for _ in 0..4 {
-            let mut random = [0u8; 16];
-            std::fs::File::open("/dev/urandom")
-                .and_then(|mut file| file.read_exact(&mut random))
-                .map_err(|_| "PLAN_ID_UNAVAILABLE")?;
-            let id: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+            let id = crate::automation::random_id::create().map_err(|_| "PLAN_ID_UNAVAILABLE")?;
             if !self.records.contains_key(&id) {
                 self.records.insert(
                     id.clone(),

@@ -60,23 +60,33 @@ impl Pump {
     /// 先由调用方停止工作组，再有界回收读线程；边等边排空队列，避免背压导致假死。
     pub fn finish(self) -> Result<bool, ()> {
         let deadline = Instant::now() + Duration::from_millis(250);
+        self.finish_before(deadline)
+    }
+
+    fn finish_before(self, deadline: Instant) -> Result<bool, ()> {
         let mut valid = true;
-        while !self.thread.is_finished() {
-            for event in self.receiver.try_iter() {
-                valid &= matches!(event, Err(ProtocolError::EndOfStream));
-            }
+        loop {
             if Instant::now() >= deadline {
                 return Err(());
             }
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        Ok(valid
-            && self.thread.join().is_ok()
-            && !self.bad.load(Ordering::SeqCst)
-            && self
+            match self
                 .receiver
-                .try_iter()
-                .all(|event| matches!(event, Err(ProtocolError::EndOfStream))))
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            {
+                Ok(event) => valid &= matches!(event, Err(ProtocolError::EndOfStream)),
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(mpsc::RecvTimeoutError::Timeout) => return Err(()),
+            }
+        }
+        // 通道关闭不代替线程退出证明；关闭后的最后一小段析构仍受原期限约束。
+        while !self.thread.is_finished() {
+            if Instant::now() >= deadline {
+                return Err(());
+            }
+            std::thread::yield_now();
+        }
+        let joined = self.thread.join().is_ok();
+        Ok(valid && joined && !self.bad.load(Ordering::SeqCst))
     }
 }
 
@@ -85,6 +95,17 @@ mod tests {
     use super::*;
     use crate::automation::{task_lifecycle::Stage, worker_protocol::FrameWriter};
     use std::io::Cursor;
+
+    fn next_message(pump: &Pump) -> Message {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match pump.next() {
+                Ok(Some(message)) => return message,
+                Ok(None) if Instant::now() < deadline => {}
+                _ => panic!("消息泵未在期限内交付预期帧"),
+            }
+        }
+    }
 
     #[test]
     fn 短时突发消息通过背压完整交付() {
@@ -98,9 +119,8 @@ mod tests {
                 .unwrap();
         }
         let pump = Pump::new(Cursor::new(bytes), [0; 16]);
-        std::thread::sleep(Duration::from_millis(5));
         for _ in 0..64 {
-            assert!(matches!(pump.next(), Ok(Some(Message::Progress { .. }))));
+            assert!(matches!(next_message(&pump), Message::Progress { .. }));
         }
         assert!(matches!(pump.finish(), Ok(true)));
     }
@@ -112,7 +132,47 @@ mod tests {
         for _ in 0..64 {
             writer.send(Message::Hello {}).unwrap();
         }
-        let pump = Pump::new(Cursor::new(bytes), [0; 16]);
-        assert!(matches!(pump.finish(), Ok(false)));
+        for round in 0..32 {
+            let pump = Pump::new(Cursor::new(bytes.clone()), [0; 16]);
+            let result = pump.finish();
+            assert!(
+                matches!(result, Ok(false)),
+                "第 {round} 轮多余消息的排空结果：{result:?}"
+            );
+        }
+    }
+
+    struct Blocked {
+        release: mpsc::Receiver<()>,
+        finished: mpsc::Sender<()>,
+    }
+    impl Read for Blocked {
+        fn read(&mut self, _bytes: &mut [u8]) -> std::io::Result<usize> {
+            let _ = self.release.recv();
+            Ok(0)
+        }
+    }
+    impl Drop for Blocked {
+        fn drop(&mut self) {
+            let _ = self.finished.send(());
+        }
+    }
+    #[test]
+    fn 读线程未退出时不能把超时当作完成且不会无限等待() {
+        let (release, held) = mpsc::channel();
+        let (finished, ended) = mpsc::channel();
+        let pump = Pump::new(
+            Blocked {
+                release: held,
+                finished,
+            },
+            [0; 16],
+        );
+        let started = Instant::now();
+        let result = pump.finish_before(started + Duration::from_millis(20));
+        let _ = release.send(());
+        assert!(result.is_err());
+        assert!(started.elapsed() < Duration::from_secs(2));
+        ended.recv_timeout(Duration::from_secs(2)).unwrap();
     }
 }

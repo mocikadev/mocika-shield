@@ -19,11 +19,12 @@ struct Bundle {
     config_hash: [u8; 32],
     before: Vec<[u8; 32]>,
 }
-const FILES: [&str; 7] = [
+const FILES: [&str; 8] = [
     "Contents/MacOS/shield",
     "Contents/MacOS/mocika-shield",
     "Contents/Resources/tools/apktool.jar",
     "Contents/Resources/tools/apksigner.jar",
+    "Contents/Resources/tools/java-adapter.jar",
     "Contents/Resources/resources/resources.zip",
     "Contents/Resources/resources/resources-api19.zip",
     "Contents/_CodeSignature/CodeResources",

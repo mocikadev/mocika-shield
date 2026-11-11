@@ -5,10 +5,9 @@ use super::query_keystore_aliases;
 use super::CertificateError;
 use super::{
     CertificateRecord, CertificateSelection, CertificateStoreState, CertificateUpsertInput,
-    CertificateValidationInput, CertificateValidationResult, CreateManagedCertificateInput,
+    CertificateValidationInput, CertificateValidationResult,
 };
-use shield_core::diagnostic::{Diagnostic, FailureCode, ToolName};
-use shield_core::{keytool::keytool_command, utils::find_keytool};
+use shield_core::diagnostic::{Diagnostic, FailureCode};
 use std::fs;
 use std::path::PathBuf;
 
@@ -137,13 +136,21 @@ pub fn save_certificate_profile(
         .resolved_alias
         .clone()
         .ok_or_else(|| "校验通过但未解析到 alias".to_string())?;
+    save_validated_certificate_profile(store, input, &resolved_alias)
+}
+
+pub(super) fn save_validated_certificate_profile(
+    store: &CertificateStoreState,
+    input: CertificateUpsertInput,
+    resolved_alias: &str,
+) -> Result<CertificateRecord, CertificateError> {
     let final_path = resolve_keystore_path_for_save(store, &input)?;
     let now = current_timestamp();
     store
         .save_certificate(
             &input,
             &final_path,
-            &resolved_alias,
+            resolved_alias,
             Some(("success", None, now)),
         )
         .map_err(|error| {
@@ -198,118 +205,7 @@ pub fn verify_saved_certificate(
     }
 }
 
-pub fn create_managed_certificate(
-    store: &CertificateStoreState,
-    input: CreateManagedCertificateInput,
-) -> Result<CertificateRecord, CertificateError> {
-    if input.name.trim().is_empty() {
-        return Err(preflight_input("请输入证书名称"));
-    }
-    if input.key_alias.trim().is_empty() {
-        return Err(preflight_input("请输入 Key Alias"));
-    }
-    if input.keystore_password.trim().is_empty() {
-        return Err(preflight_input("请输入 Keystore 密码"));
-    }
-    if input.keystore_password.trim().chars().count() < 6 {
-        return Err(preflight_input("Keystore 密码至少需要 6 个字符"));
-    }
-    if !input.key_password.trim().is_empty() && input.key_password.trim().chars().count() < 6 {
-        return Err(preflight_input("Key 密码至少需要 6 个字符"));
-    }
-    if input.dname.trim().is_empty() {
-        return Err(preflight_input("请输入证书主题信息"));
-    }
-    if input.validity_days == 0 {
-        return Err(preflight_input("有效期必须大于 0 天"));
-    }
-    if input.key_size != 2048 && input.key_size != 4096 {
-        return Err(preflight_input("密钥位数建议使用 2048 或 4096"));
-    }
-
-    let file_name = build_managed_file_name(&input.file_name, input.ks_type.as_deref());
-    let stage = managed::draft(store.keystore_dir())?;
-    let keystore_path = stage.path().join(&file_name);
-    let ks_type =
-        normalize_keystore_type(input.ks_type.as_deref()).unwrap_or_else(|| "JKS".to_string());
-    let keytool = find_keytool().map_err(|err| {
-        CertificateError::diagnosed(err.to_string(), Diagnostic::new(FailureCode::ToolNotFound))
-    })?;
-    let effective_key_password = if input.key_password.trim().is_empty() {
-        input.keystore_password.clone()
-    } else {
-        input.key_password.clone()
-    };
-
-    let output = keytool_command(&keytool)
-        .args([
-            "-genkeypair",
-            "-keystore",
-            keystore_path.to_string_lossy().as_ref(),
-            "-storetype",
-            &ks_type,
-            "-storepass:env",
-            "MOCIKA_SHIELD_CERT_KS_PASS",
-            "-alias",
-            &input.key_alias,
-            "-keypass:env",
-            "MOCIKA_SHIELD_CERT_KEY_PASS",
-            "-dname",
-            input.dname.trim(),
-            "-validity",
-            &input.validity_days.to_string(),
-            "-keyalg",
-            "RSA",
-            "-keysize",
-            &input.key_size.to_string(),
-        ])
-        .env("MOCIKA_SHIELD_CERT_KS_PASS", &input.keystore_password)
-        .env("MOCIKA_SHIELD_CERT_KEY_PASS", &effective_key_password)
-        .output()
-        .map_err(|e| {
-            CertificateError::diagnosed(
-                format!("启动 keytool 失败，请确认 JDK 8+ 已安装: {e}"),
-                Diagnostic::from_io(&e),
-            )
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(CertificateError::diagnosed(
-            classify_create_keystore_error(&stderr),
-            Diagnostic::from_tool_streams(
-                ToolName::Keytool,
-                output.status.code(),
-                &output.stdout,
-                &output.stderr,
-            ),
-        ));
-    }
-
-    let upsert = CertificateUpsertInput {
-        id: None,
-        name: input.name,
-        source_type: "managed".to_string(),
-        keystore_path: keystore_path.to_string_lossy().to_string(),
-        keystore_password: input.keystore_password,
-        key_alias: input.key_alias,
-        key_password: input.key_password,
-        ks_type: Some(ks_type),
-        sign_v1: input.sign_v1,
-        sign_v2: input.sign_v2,
-        sign_v3: input.sign_v3,
-        sign_v4: input.sign_v4,
-        auto_sign_enabled: input.auto_sign_enabled,
-        note: input.note,
-        set_as_default: input.set_as_default,
-        copy_keystore_to_managed: true,
-        managed_file_name: Some(file_name),
-    };
-
-    save_certificate_profile(store, upsert)
-}
-
-fn preflight_input(message: &str) -> CertificateError {
+pub(super) fn preflight_input(message: &str) -> CertificateError {
     CertificateError::preflight(message.to_string(), Diagnostic::new(FailureCode::Unknown))
 }
 
@@ -346,7 +242,7 @@ fn resolve_keystore_path_for_save(
     Ok(input.keystore_path.trim().to_string())
 }
 
-fn build_managed_file_name(value: &str, ks_type: Option<&str>) -> String {
+pub(super) fn build_managed_file_name(value: &str, ks_type: Option<&str>) -> String {
     let mut stem = sanitize_file_name(value);
     if stem.is_empty() {
         stem = "keystore".to_string();
@@ -393,51 +289,9 @@ fn current_timestamp() -> i64 {
         .as_secs() as i64
 }
 
-fn classify_create_keystore_error(stderr: &str) -> String {
-    let raw = stderr.trim();
-    let lower = raw.to_lowercase();
-
-    let reason = if lower.contains("alias") && lower.contains("already exists")
-        || raw.contains("别名") && raw.contains("已经存在")
-        || raw.contains("别名") && raw.contains("已存在")
-    {
-        "证书 Alias 已存在，请换一个 Alias 或文件名"
-    } else if lower.contains("key password must be at least 6 characters")
-        || lower.contains("password must be at least 6 characters")
-        || lower.contains("password is too short")
-        || raw.contains("密码至少")
-        || raw.contains("口令至少")
-    {
-        "证书密码不符合 keytool 要求，Keystore 密码和 Key 密码至少需要 6 个字符"
-    } else if lower.contains("incorrect avas format")
-        || lower.contains("invalid name")
-        || lower.contains("distinguished name")
-        || raw.contains("专有名称")
-        || raw.contains("名称无效")
-    {
-        "证书主题信息格式不正确，请检查 CN、OU、O、L、ST、C 等字段"
-    } else if lower.contains("permission denied")
-        || lower.contains("access is denied")
-        || raw.contains("权限")
-        || raw.contains("拒绝访问")
-    {
-        "没有权限写入证书文件，请检查应用数据目录权限"
-    } else if lower.contains("no such file")
-        || lower.contains("cannot find")
-        || raw.contains("没有那个文件")
-        || raw.contains("系统找不到")
-    {
-        "证书保存目录不存在或不可访问"
-    } else {
-        "创建证书失败，请检查证书名称、Alias、密码和主题信息"
-    };
-
-    reason.to_string()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{classify_create_keystore_error, resolve_alias, validation_from_aliases};
+    use super::{resolve_alias, validation_from_aliases};
     use shield_core::diagnostic::FailureCode;
 
     fn aliases(values: &[&str]) -> Vec<String> {
@@ -487,44 +341,5 @@ mod tests {
     #[test]
     fn alias_不存在时返回空() {
         assert_eq!(resolve_alias(&aliases(&["release"]), "debug"), None);
-    }
-
-    #[test]
-    fn 创建证书_alias_已存在提示更明确() {
-        let message = classify_create_keystore_error(
-            "keytool error: java.lang.Exception: Alias <release> already exists",
-        );
-        assert!(message.starts_with("证书 Alias 已存在"));
-    }
-
-    #[test]
-    fn 创建证书_密码过短提示更明确() {
-        let message = classify_create_keystore_error(
-            "keytool error: Key password must be at least 6 characters",
-        );
-        assert!(message.starts_with("证书密码不符合 keytool 要求"));
-    }
-
-    #[test]
-    fn 创建证书_dname_非法提示更明确() {
-        let message = classify_create_keystore_error(
-            "keytool error: java.io.IOException: Incorrect AVAs format",
-        );
-        assert!(message.starts_with("证书主题信息格式不正确"));
-    }
-
-    #[test]
-    fn 创建证书_目录权限错误提示更明确() {
-        let message = classify_create_keystore_error(
-            "keytool error: java.io.FileNotFoundException: Permission denied",
-        );
-        assert!(message.starts_with("没有权限写入证书文件"));
-    }
-
-    #[test]
-    fn 创建证书_未知错误不回传原始工具输出() {
-        let message = classify_create_keystore_error("keytool error: unknown failure");
-        assert!(message.starts_with("创建证书失败"));
-        assert!(!message.contains("unknown failure"));
     }
 }

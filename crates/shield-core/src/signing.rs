@@ -1,11 +1,12 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use tempfile::TempDir;
 
-use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
-use crate::utils::{find_java, java_command};
-use crate::zipalign::align_apk;
+mod diagnostic;
+mod runner;
+use diagnostic::classify_apksigner_error;
+pub(crate) use diagnostic::fixed_failure;
+#[cfg(any(windows, test))]
+pub(crate) use runner::run_default as sign_apk_default;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeystoreType {
@@ -74,127 +75,25 @@ pub fn sign_apk(opts: &SignOptions) -> Result<()> {
 
 pub fn sign_apk_with_progress(
     opts: &SignOptions,
-    mut on_progress: impl FnMut(SigningProgressStep) -> std::result::Result<(), String>,
+    on_progress: impl FnMut(SigningProgressStep) -> std::result::Result<(), String>,
 ) -> Result<()> {
-    on_progress(SigningProgressStep::Prepare).map_err(anyhow::Error::msg)?;
-    let apksigner = match &opts.apksigner_path {
-        Some(p) if p.exists() => p.clone(),
-        Some(p) => anyhow::bail!("配置的 apksigner.jar 路径不存在: {}", p.display()),
-        None => find_apksigner()
-            .map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?,
-    };
+    #[cfg(windows)]
+    return sign_apk_default(opts, on_progress);
+    #[cfg(not(windows))]
+    runner::run(opts, None, on_progress)
+}
 
-    let java = find_java().map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?;
-
-    let ks_path_str = opts
-        .keystore_path
-        .to_str()
-        .context("keystore 路径包含非法字符")?;
-    let apksigner_str = apksigner
-        .to_str()
-        .context("apksigner 路径包含非法字符")?
-        .to_string();
-    let ks_pass_arg = format!("env:{}", crate::java_process::KS_PASS_ENV);
-    let key_pass_arg = format!("env:{}", crate::java_process::KEY_PASS_ENV);
-
-    let v = &opts.signing_versions;
-    let temp_dir = TempDir::new().context("创建签名临时目录失败")?;
-    let aligned_input = temp_dir.path().join("aligned.apk");
-    on_progress(SigningProgressStep::Align).map_err(anyhow::Error::msg)?;
-    std::fs::copy(&opts.apk_path, &aligned_input)
-        .with_context(|| format!("复制待签名 APK 到临时目录失败: {}", opts.apk_path.display()))?;
-    align_apk(&aligned_input)
-        .context("内置 APK 对齐失败")
-        .map_err(|err| {
-            Diagnostic::from_error(&err)
-                .or_code(FailureCode::AlignmentFailed)
-                .attach(err)
-        })?;
-
-    let final_output = opts
-        .output_path
-        .clone()
-        .unwrap_or_else(|| opts.apk_path.clone());
-    let sign_output = if final_output == opts.apk_path {
-        temp_dir.path().join("signed.apk")
-    } else {
-        final_output.clone()
-    };
-
-    let aligned_input_str = aligned_input
-        .to_str()
-        .context("临时 APK 路径包含非法字符")?;
-    let sign_output_str = sign_output.to_str().context("签名输出路径包含非法字符")?;
-
-    let mut cmd_args = vec![
-        "-jar",
-        &apksigner_str,
-        "sign",
-        "--ks-type",
-        opts.keystore_type.as_str(),
-        "--ks",
-        ks_path_str,
-        "--ks-key-alias",
-        &opts.key_alias,
-        "--ks-pass",
-        &ks_pass_arg,
-        "--key-pass",
-        &key_pass_arg,
-        "--v1-signing-enabled",
-        bool_str(v.v1),
-        "--v2-signing-enabled",
-        bool_str(v.v2),
-        "--v3-signing-enabled",
-        bool_str(v.v3),
-        "--v4-signing-enabled",
-        bool_str(v.v4),
-        "--out",
-        sign_output_str,
-    ];
-
-    cmd_args.push(aligned_input_str);
-
-    on_progress(SigningProgressStep::Sign).map_err(anyhow::Error::msg)?;
-    let output = java_command(&java)
-        .args(&cmd_args)
-        .env(crate::java_process::KS_PASS_ENV, &opts.keystore_password)
-        .env(crate::java_process::KEY_PASS_ENV, &opts.key_password)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .context("启动 apksigner 失败，请确认 Java 可用")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let code = output.status.code().unwrap_or(-1);
-        return Err(Diagnostic::from_tool_streams(
-            ToolName::Apksigner,
-            output.status.code(),
-            &output.stdout,
-            &output.stderr,
-        )
-        .attach(anyhow::anyhow!(
-            "签名失败（apksigner 退出码 {code}）：{}",
-            classify_apksigner_error(&stderr, &stdout)
-        )));
-    }
-
-    if sign_output != final_output {
-        if final_output.exists() {
-            std::fs::remove_file(&final_output)
-                .with_context(|| format!("删除旧的签名输出失败: {}", final_output.display()))?;
-        }
-        std::fs::rename(&sign_output, &final_output).with_context(|| {
-            format!(
-                "写回最终签名 APK 失败: {} -> {}",
-                sign_output.display(),
-                final_output.display()
-            )
-        })?;
-    }
-
-    Ok(())
+/// 显式适配入口：Java 及 opts.apksigner_path 必须已选定，不重新搜索全局工具。
+/// 借用工作根及其材料由调用方确认停止后回收；不承诺同步硬超时或整组停止。
+/// 保留普通签名的 V4 与输出覆盖语义，受控任务仍由外层限制为 V1～V3。
+/// 原地签名要求借用工作根与输入同卷；不在跨卷失败时删除原包或自动改选工作根。
+pub fn sign_apk_with_context(
+    context: &crate::JavaToolContext,
+    java: &Path,
+    opts: &SignOptions,
+    on_progress: impl FnMut(SigningProgressStep) -> std::result::Result<(), String>,
+) -> Result<()> {
+    runner::run(opts, Some((context, java)), on_progress)
 }
 
 fn bool_str(b: bool) -> &'static str {
@@ -224,97 +123,6 @@ pub fn check_apksigner(custom: Option<&Path>) -> (bool, Option<String>) {
         Ok(_) => (true, None),
         Err(e) => (false, Some(e.to_string())),
     }
-}
-
-fn classify_apksigner_error(stderr: &str, stdout: &str) -> String {
-    let raw = sanitize_tool_output(if stderr.trim().is_empty() {
-        stdout
-    } else {
-        stderr
-    });
-    let lower = raw.to_lowercase();
-
-    let reason = if lower.contains("keystore was tampered with")
-        || lower.contains("password was incorrect")
-        || lower.contains("password is incorrect")
-        || lower.contains("keystore password was incorrect")
-        || raw.contains("密码不正确")
-        || raw.contains("口令不正确")
-        || raw.contains("密码错误")
-    {
-        "Keystore 密码不正确，请检查证书密码"
-    } else if lower.contains("cannot recover key")
-        || lower.contains("failed to recover key")
-        || lower.contains("key password was incorrect")
-        || lower.contains("given final block not properly padded")
-        || raw.contains("无法恢复密钥")
-    {
-        "Key 密码不正确；如果 Key 密码与 Keystore 密码相同，可在证书配置中留空 Key 密码"
-    } else if lower.contains("no key with alias")
-        || lower.contains("alias") && lower.contains("does not exist")
-        || lower.contains("failed to find")
-        || raw.contains("别名") && raw.contains("不存在")
-    {
-        "证书 Alias 不存在，请在证书页重新识别 Alias 或重新导入证书"
-    } else if lower.contains("invalid keystore format")
-        || lower.contains("unrecognized keystore format")
-        || lower.contains("toderinputstream rejects tag type")
-        || lower.contains("derinputstream.getlength")
-        || raw.contains("无效的密钥库格式")
-        || raw.contains("无法识别的密钥库格式")
-    {
-        "证书格式与选择的 JKS/PKCS12 类型不匹配，或 keystore 文件已损坏"
-    } else if lower.contains("no such file")
-        || lower.contains("file not found")
-        || lower.contains("cannot find")
-        || raw.contains("系统找不到")
-        || raw.contains("没有那个文件")
-    {
-        "找不到输入 APK、输出目录或 Keystore 文件，请确认文件仍在原路径"
-    } else if lower.contains("permission denied")
-        || lower.contains("access is denied")
-        || raw.contains("权限")
-        || raw.contains("拒绝访问")
-    {
-        "没有权限读取输入文件或写入输出文件，请检查文件权限与输出目录"
-    } else if lower.contains("not a valid apk")
-        || lower.contains("invalid apk")
-        || lower.contains("malformed apk")
-        || lower.contains("zip")
-        || lower.contains("failed to parse")
-    {
-        "输入文件不是有效 APK，或 APK 结构已经损坏"
-    } else if lower.contains("min-sdk-version")
-        || lower.contains("minimum supported platform version")
-        || lower.contains("failed to determine")
-    {
-        "无法识别 APK 的 minSdkVersion；请确认 AndroidManifest.xml 有效，必要时先用 Android 构建工具重新生成 APK"
-    } else if lower.contains("java.lang.unsupportedclassversionerror")
-        || lower.contains("unsupported major.minor version")
-    {
-        "当前 Java 版本过低，请安装并使用完整 JDK 8+"
-    } else {
-        "apksigner 未返回可识别的错误类型"
-    };
-
-    if raw.is_empty() {
-        reason.to_string()
-    } else {
-        format!("{reason}。apksigner 输出：{raw}")
-    }
-}
-
-fn sanitize_tool_output(raw: &str) -> String {
-    raw.split_whitespace()
-        .map(|part| {
-            if part.starts_with("pass:") {
-                "pass:******"
-            } else {
-                part
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 #[cfg(test)]
@@ -370,42 +178,5 @@ mod tests {
         let (ok, msg) = check_apksigner(Some(tmp.path()));
         assert!(ok);
         assert!(msg.is_none());
-    }
-
-    #[test]
-    fn apksigner_密码错误提示更明确() {
-        let message = classify_apksigner_error(
-            "Failed to load signer: Keystore was tampered with, or password was incorrect",
-            "",
-        );
-        assert!(message.starts_with("Keystore 密码不正确"));
-    }
-
-    #[test]
-    fn apksigner_key_密码错误提示更明确() {
-        let message = classify_apksigner_error(
-            "java.security.UnrecoverableKeyException: Cannot recover key",
-            "",
-        );
-        assert!(message.starts_with("Key 密码不正确"));
-    }
-
-    #[test]
-    fn apksigner_alias_不存在提示更明确() {
-        let message = classify_apksigner_error("No key with alias release in keystore", "");
-        assert!(message.starts_with("证书 Alias 不存在"));
-    }
-
-    #[test]
-    fn apksigner_非法_apk_提示更明确() {
-        let message = classify_apksigner_error("Failed to parse APK: not a valid APK", "");
-        assert!(message.starts_with("输入文件不是有效 APK"));
-    }
-
-    #[test]
-    fn apksigner_输出会脱敏_pass_参数() {
-        let message = classify_apksigner_error("failed with --ks-pass pass:secret123", "");
-        assert!(message.contains("pass:******"));
-        assert!(!message.contains("secret123"));
     }
 }

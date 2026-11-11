@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 真实资源使 SDK 夹具拥有正常资源包；空资源表不能用于 apktool 重建验收。 -->
+<resources>
+    <string name="adapter_fixture_name">原生工具回归夹具</string>
+</resources>

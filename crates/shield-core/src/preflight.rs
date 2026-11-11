@@ -82,6 +82,33 @@ struct ArchiveFacts {
 
 pub fn preflight_apk(path: &Path, options: PreflightOptions<'_>) -> Result<PreflightReport> {
     let outcome = check_apk(path, options.apksigner_path)?;
+    evaluate(path, &options, outcome, || {
+        extract_apk_cert_fingerprint(path, options.apksigner_path)
+    })
+}
+
+/// 复用预检业务，所有验签只使用已选 Java／JAR；不补选全局工具。
+pub fn preflight_apk_with_context(
+    context: &crate::JavaToolContext,
+    java: &Path,
+    path: &Path,
+    options: PreflightOptions<'_>,
+) -> Result<PreflightReport> {
+    let signer = options
+        .apksigner_path
+        .context("显式预检必须提供 apksigner")?;
+    let outcome = crate::check_apk_with_context(context, java, path, signer)?;
+    evaluate(path, &options, outcome, || {
+        crate::extract_apk_cert_fingerprint_with_context(context, java, path, signer)
+    })
+}
+
+fn evaluate(
+    path: &Path,
+    options: &PreflightOptions<'_>,
+    outcome: crate::ApkCheckOutcome,
+    fingerprint: impl FnOnce() -> Result<String>,
+) -> Result<PreflightReport> {
     let archive = inspect_archive(path)?;
     let mut checks = evaluate_archive(
         &archive,
@@ -93,7 +120,7 @@ pub fn preflight_apk(path: &Path, options: PreflightOptions<'_>) -> Result<Prefl
 
     if outcome.is_signed {
         if let Some(expected) = options.expected_output_cert_fingerprint {
-            match extract_apk_cert_fingerprint(path, options.apksigner_path) {
+            match fingerprint() {
                 Ok(actual) if normalize_fingerprint(&actual) == normalize_fingerprint(expected) => {
                     checks.push(check("certificate", PreflightSeverity::Ready, None));
                 }

@@ -1,5 +1,8 @@
 //! 开发特性专用闭环；临时证书只用于测试副本，不能视为业务签名或设备兼容验收。
-#![cfg(all(feature = "agent-executor", target_os = "macos"))]
+#![cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux")
+))]
 use serde_json::{json, Value};
 use std::fs;
 use std::io::Write;

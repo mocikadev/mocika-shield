@@ -1,31 +1,137 @@
-//! 自动化入口适配：默认只读；macOS 开发特性复用共享资料与受控执行，不复制存储规则。
+//! 自动化入口适配：默认只读；桌面开发特性复用共享资料与受控执行，不复制存储规则。
+#[cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+mod adapter;
 mod args;
 mod doctor;
+mod java_tools;
 mod plan;
 mod preflight;
-// 默认只在测试中使用；macOS 共包入口显式启用执行特性，既有公开版尚不包含。
-#[cfg(all(unix, any(test, all(feature = "agent-executor", target_os = "macos"))))]
-mod publication;
 mod resources;
-#[cfg(all(feature = "agent-executor", target_os = "macos"))]
-mod shared_plan;
-#[cfg(all(feature = "agent-executor", target_os = "macos"))]
-mod sign_plan;
 mod snapshot;
-// 协议与生命周期保持私有，正常构建不开放工作进程入口。
+// 源码的桌面执行特性显式开启；Unix 的既有默认单元测试继续保留。
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod cancellation;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod event_output;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod executable;
+#[cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+pub(crate) mod execution;
 #[cfg(all(test, unix))]
 mod executor_contract_tests;
-#[cfg(all(target_os = "macos", any(test, feature = "agent-executor")))]
-mod native_group;
-#[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod java_environment;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+pub(crate) mod native_group;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod private_json;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+mod publication;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+pub(crate) mod random_id;
+#[cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+mod shared_plan;
+#[cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+mod sign_plan;
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
+pub(crate) mod task_files;
+#[cfg(any(
+    test,
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
 mod task_lifecycle;
-#[cfg(all(unix, any(test, all(feature = "agent-executor", target_os = "macos"))))]
+#[cfg(any(
+    all(unix, test),
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
 mod task_materials;
-#[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+#[cfg(all(
+    feature = "mcp-server",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+pub(crate) mod transport;
+#[cfg(all(windows, feature = "agent-executor"))]
+mod windows_job;
+#[cfg(any(
+    test,
+    all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )
+))]
 mod worker_protocol;
-
-#[cfg(all(feature = "agent-executor", target_os = "macos"))]
-pub(crate) mod execution;
 
 pub(crate) use args::{DoctorArgs, PlanProtectArgs, PreflightArgs};
 
@@ -51,7 +157,10 @@ struct CheckResult {
 struct CheckError {
     code: &'static str,
     message: &'static str,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     cleanup_complete: Option<bool>,
 }
 
@@ -60,11 +169,17 @@ impl CheckError {
         Self {
             code,
             message,
-            #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+            #[cfg(all(
+                feature = "agent-executor",
+                any(target_os = "macos", target_os = "linux", windows)
+            ))]
             cleanup_complete: None,
         }
     }
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     fn with_cleanup(mut self, complete: bool) -> Self {
         self.cleanup_complete = Some(complete);
         self

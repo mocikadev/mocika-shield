@@ -1,0 +1,91 @@
+package TOOL_PACKAGE;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Arrays;
+
+// 仅测试固定公开入口、加载器和输出边界，不是正式工具或故障注入开关。
+public final class TOOL_MAIN {
+    public static void main(String[] args) throws Exception {
+        if (args[0].equals("verify")) {
+            String mode = new String(Files.readAllBytes(Paths.get(args[2])), StandardCharsets.UTF_8);
+            System.out.println("Signer #1 certificate SHA-256 digest: "
+                + new String(new char[64]).replace('\0', '1'));
+            if (mode.equals("invalid-utf8")) {
+                System.out.write(0xff);
+                System.out.flush();
+            } else {
+                byte[] data = new byte[4096];
+                Arrays.fill(data, (byte) 'x');
+                for (int i = 0; i < 64; i++) {
+                    if (mode.equals("stderr-flood")) {
+                        System.err.write(data);
+                    } else {
+                        System.out.write(data);
+                    }
+                }
+            }
+        } else if (args[0].equals("exit")) {
+            System.exit(17);
+        } else if (args[0].equals("throw")) {
+            throw new Exception("不得回显的原始异常或口令");
+        } else if (args[0].equals("flood")) {
+            byte[] data = new byte[4096];
+            Arrays.fill(data, (byte) 'x');
+            for (int i = 0; i < 64; i++) {
+                System.out.write(data);
+                System.err.write(data);
+            }
+        } else if (args[0].equals("late")) {
+            new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        Thread.sleep(100);
+                        System.out.print(resource());
+                    } catch (Exception error) {
+                        throw new AssertionError(error);
+                    }
+                }
+            }).start();
+        } else {
+            if (System.in.read() != -1 || args.length != 5
+                    || !args[1].equals("中文 空格&引号\"反斜杠\\")
+                    || !args[2].equals("") || !args[3].equals("补充😀")
+                    || !new String(Files.readAllBytes(Paths.get(args[4])), StandardCharsets.UTF_8)
+                        .equals("文件实际内容")) {
+                throw new IllegalStateException();
+            }
+            if (System.getenv("MOCIKA_SHIELD_TOOL_KS_PASS") != null
+                    || System.getenv("MOCIKA_SHIELD_TOOL_KEY_PASS") != null) {
+                throw new IllegalStateException();
+            }
+            System.out.print(resource());
+            System.err.print("中文错误流");
+        }
+    }
+
+    private static String resource() throws Exception {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader != TOOL_MAIN.class.getClassLoader()) {
+            throw new IllegalStateException();
+        }
+        try (InputStream input = loader.getResourceAsStream("probe.txt")) {
+            byte[] expected = "中文资源一致".getBytes(StandardCharsets.UTF_8);
+            byte[] actual = new byte[expected.length];
+            int offset = 0;
+            while (offset < actual.length) {
+                int count = input.read(actual, offset, actual.length - offset);
+                if (count < 0) {
+                    throw new IllegalStateException();
+                }
+                offset += count;
+            }
+            if (input.read() != -1 || !Arrays.equals(expected, actual)) {
+                throw new IllegalStateException();
+            }
+            return new String(actual, StandardCharsets.UTF_8);
+        }
+    }
+}

@@ -6,7 +6,7 @@ mod runner;
 mod server;
 mod session;
 mod tools;
-mod transport;
+use crate::automation::transport;
 
 use clap::{Args, Subcommand};
 use policy::Policy;
@@ -89,7 +89,7 @@ pub(crate) fn run(args: McpArgs, config: Option<&Path>, home: Option<&Path>) -> 
         }
     };
     let result = runtime.block_on(serve(policy, allow_execution));
-    // macOS 标准流底层可能仍有阻塞线程，不使其阻止已完成业务清场后的退出。
+    // 标准流底层可能仍有阻塞线程，不使其阻止已完成业务清场后的退出。
     runtime.shutdown_timeout(Duration::from_secs(1));
     result
 }

@@ -1,11 +1,11 @@
 //! 私有材料包候选：固定角色、流式身份核对及无密码索引，不解释配置或执行工具。
-use super::snapshot::FileSnapshot;
-use rustix::fs::{openat, Mode, OFlags, CWD};
+use super::{snapshot::FileSnapshot, task_files};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, File, OpenOptions};
+#[cfg(test)]
+use std::fs;
+use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,6 +17,7 @@ pub(super) enum Role {
     Apktool,
     Apksigner,
     Resources,
+    JavaAdapter,
 }
 
 const ROLES: [Role; 6] = [
@@ -36,6 +37,36 @@ const SHARED_ROLES: [Role; 5] = [
 ];
 const SIGN_ROLES: [Role; 3] = [Role::Input, Role::Keystore, Role::Apksigner];
 const SIGN_CONFIG_ROLES: [Role; 4] = [Role::Input, Role::Config, Role::Keystore, Role::Apksigner];
+const ADAPTER_PROTECT: [Role; 6] = [
+    Role::Input,
+    Role::Keystore,
+    Role::Apktool,
+    Role::Apksigner,
+    Role::Resources,
+    Role::JavaAdapter,
+];
+const ADAPTER_PROTECT_CONFIG: [Role; 7] = [
+    Role::Input,
+    Role::Config,
+    Role::Keystore,
+    Role::Apktool,
+    Role::Apksigner,
+    Role::Resources,
+    Role::JavaAdapter,
+];
+const ADAPTER_SIGN: [Role; 4] = [
+    Role::Input,
+    Role::Keystore,
+    Role::Apksigner,
+    Role::JavaAdapter,
+];
+const ADAPTER_SIGN_CONFIG: [Role; 5] = [
+    Role::Input,
+    Role::Config,
+    Role::Keystore,
+    Role::Apksigner,
+    Role::JavaAdapter,
+];
 
 fn roles(version: u32, has_config: bool) -> Result<&'static [Role], MaterialError> {
     match (version, has_config) {
@@ -43,6 +74,10 @@ fn roles(version: u32, has_config: bool) -> Result<&'static [Role], MaterialErro
         (2, false) => Ok(&SHARED_ROLES),
         (3, false) => Ok(&SIGN_ROLES),
         (3, true) => Ok(&SIGN_CONFIG_ROLES),
+        (4, false) => Ok(&ADAPTER_PROTECT),
+        (4, true) => Ok(&ADAPTER_PROTECT_CONFIG),
+        (5, false) => Ok(&ADAPTER_SIGN),
+        (5, true) => Ok(&ADAPTER_SIGN_CONFIG),
         _ => Err(MaterialError::InvalidBundle),
     }
 }
@@ -56,6 +91,7 @@ impl Role {
             Self::Apktool => "apktool",
             Self::Apksigner => "apksigner",
             Self::Resources => "resources",
+            Self::JavaAdapter => "java_adapter",
         }
     }
     fn filename(self) -> &'static str {
@@ -66,6 +102,7 @@ impl Role {
             Self::Apktool => "apktool.jar",
             Self::Apksigner => "apksigner.jar",
             Self::Resources => "resources.zip",
+            Self::JavaAdapter => "java-adapter.jar",
         }
     }
 }
@@ -114,7 +151,13 @@ impl MaterialBundle {
         Self::create_version(parent, sources, 1, checkpoint)
     }
 
-    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(any(
+        test,
+        all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        )
+    ))]
     pub fn create_shared(
         parent: &Path,
         sources: &[(Role, &FileSnapshot)],
@@ -146,8 +189,9 @@ impl MaterialBundle {
             return Err(MaterialError::InvalidSet);
         }
         checkpoint()?;
-        let root = fs::canonicalize(parent)?.join("materials");
-        fs::DirBuilder::new().mode(0o700).create(&root)?;
+        let root = task_files::resolved(parent)?.join("materials");
+        task_files::private_directory(&root)?;
+        let directory = task_files::open_directory(&root)?;
         let mut entries = Vec::new();
         for &role in roles {
             let snapshot = sources
@@ -158,25 +202,22 @@ impl MaterialBundle {
             if snapshot.role != role.name() {
                 return Err(MaterialError::InvalidSet);
             }
-            if fs::canonicalize(&snapshot.lookup_path)? != snapshot.path {
+            if task_files::resolved(&snapshot.lookup_path)? != snapshot.path {
                 return Err(MaterialError::SourceChanged);
             }
             let mut source = regular(&snapshot.path)?;
             if source.metadata()?.len() != snapshot.size {
                 return Err(MaterialError::SourceChanged);
             }
-            let mut output = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(root.join(role.filename()))?;
+            let mut output =
+                task_files::create_at(&directory, &root, std::ffi::OsStr::new(role.filename()))?;
             let (bytes, hash) = stream(&mut source, snapshot.size, &mut checkpoint, |chunk| {
                 output.write_all(chunk).map_err(Into::into)
             })?;
             let actual_hex: String = hash.iter().map(|byte| format!("{byte:02x}")).collect();
             if bytes != snapshot.size
                 || actual_hex != snapshot.sha256
-                || fs::canonicalize(&snapshot.lookup_path)? != snapshot.path
+                || task_files::resolved(&snapshot.lookup_path)? != snapshot.path
             {
                 return Err(MaterialError::SourceChanged);
             }
@@ -193,14 +234,11 @@ impl MaterialBundle {
             entries,
         };
         let bytes = serde_json::to_vec(&manifest).map_err(|_| MaterialError::InvalidBundle)?;
-        let mut index = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(root.join("materials.json"))?;
+        let mut index =
+            task_files::create_at(&directory, &root, std::ffi::OsStr::new("materials.json"))?;
         index.write_all(&bytes)?;
         index.sync_all()?;
-        File::open(&root)?.sync_all()?;
+        task_files::complete_materials(&directory)?;
         Ok(Self {
             root,
             digest: Sha256::digest(bytes).into(),
@@ -215,7 +253,10 @@ impl MaterialBundle {
         self.digest
     }
 
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub fn verify_sources(
         root: &Path,
         sources: &[(Role, &FileSnapshot)],
@@ -224,7 +265,13 @@ impl MaterialBundle {
         Self::verify_sources_version(root, sources, 1, checkpoint)
     }
 
-    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(any(
+        test,
+        all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        )
+    ))]
     pub fn verify_shared_sources(
         root: &Path,
         sources: &[(Role, &FileSnapshot)],
@@ -233,7 +280,13 @@ impl MaterialBundle {
         Self::verify_sources_version(root, sources, 2, checkpoint)
     }
 
-    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(any(
+        test,
+        all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        )
+    ))]
     pub(super) fn verify_sources_version(
         root: &Path,
         sources: &[(Role, &FileSnapshot)],
@@ -319,6 +372,17 @@ impl MaterialBundle {
         {
             return Err(MaterialError::InvalidBundle);
         }
+        // 固定材料目录不得夹带额外文件；工具输出与适配请求应写在外层工作根。
+        let names = std::fs::read_dir(root)?
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect::<Result<Vec<_>, _>>()?;
+        if names.len() != expected.len() + 1
+            || names.iter().any(|name| {
+                name != "materials.json" && !expected.iter().any(|role| name == role.filename())
+            })
+        {
+            return Err(MaterialError::InvalidBundle);
+        }
         for entry in manifest.entries {
             let mut file = regular(&root.join(entry.role.filename()))?;
             validate_private_file(&file)?;
@@ -335,41 +399,15 @@ impl MaterialBundle {
 }
 
 pub(super) fn validate_directory(path: &Path) -> Result<(), MaterialError> {
-    let metadata = fs::symlink_metadata(path)?;
-    if !metadata.is_dir()
-        || metadata.permissions().mode() & 0o077 != 0
-        || metadata.uid() != rustix::process::geteuid().as_raw()
-    {
-        return Err(MaterialError::InvalidBundle);
-    }
-    Ok(())
+    task_files::validate_directory(path).map_err(|_| MaterialError::InvalidBundle)
 }
 
 fn regular(path: &Path) -> Result<File, MaterialError> {
-    let file = File::from(
-        openat(
-            CWD,
-            path,
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(io::Error::from)?,
-    );
-    if !file.metadata()?.is_file() {
-        return Err(MaterialError::InvalidBundle);
-    }
-    Ok(file)
+    task_files::regular(path).map_err(Into::into)
 }
 
 fn validate_private_file(file: &File) -> Result<(), MaterialError> {
-    let metadata = file.metadata()?;
-    if metadata.nlink() != 1
-        || metadata.permissions().mode() & 0o077 != 0
-        || metadata.uid() != rustix::process::geteuid().as_raw()
-    {
-        return Err(MaterialError::InvalidBundle);
-    }
-    Ok(())
+    task_files::validate_private_file(file).map_err(|_| MaterialError::InvalidBundle)
 }
 
 fn stream(

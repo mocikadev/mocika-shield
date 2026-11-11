@@ -2,25 +2,32 @@
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, Metadata};
 use std::io::{Read, Write};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
+mod identity;
 mod shared;
+use identity::{identity, stamp, Identity};
 use shared::SharedAccess;
 
 pub(super) type Result<T> = std::result::Result<T, &'static str>;
 
-#[derive(Clone, PartialEq, Eq)]
-struct Identity {
-    dev: u64,
-    ino: u64,
+fn physical(path: &Path) -> std::io::Result<PathBuf> {
+    fs::canonicalize(path).map(|path| shield_core::utils::strip_unc_prefix(&path))
 }
-impl Identity {
-    fn of(meta: &Metadata) -> Self {
-        Self {
-            dev: meta.dev(),
-            ino: meta.ino(),
-        }
+fn redirected(meta: &Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        meta.file_attributes() & 0x400 != 0
     }
+    #[cfg(unix)]
+    meta.file_type().is_symlink()
+}
+fn directory(path: &Path) -> Result<File> {
+    #[cfg(windows)]
+    let file = crate::automation::task_files::inspect_directory(path);
+    #[cfg(unix)]
+    let file = File::open(path);
+    file.map_err(|_| "ROOT_INVALID")
 }
 
 struct Root {
@@ -32,25 +39,28 @@ impl Root {
         if !path.is_absolute() {
             return Err("ROOT_INVALID");
         }
-        let path = fs::canonicalize(path).map_err(|_| "ROOT_INVALID")?;
+        let path = physical(path).map_err(|_| "ROOT_INVALID")?;
         if path.parent().is_none() {
             return Err("ROOT_INVALID");
         }
-        let meta = fs::metadata(&path).map_err(|_| "ROOT_INVALID")?;
+        let file = directory(&path)?;
+        let meta = file.metadata().map_err(|_| "ROOT_INVALID")?;
         if !meta.is_dir() {
             return Err("ROOT_INVALID");
         }
         Ok(Self {
             path,
-            identity: Identity::of(&meta),
+            identity: identity(&file, &meta)?,
         })
     }
 
     fn check(&self) -> Result<()> {
         let meta = fs::symlink_metadata(&self.path).map_err(|_| "ROOT_CHANGED")?;
+        let file = directory(&self.path).map_err(|_| "ROOT_CHANGED")?;
         if !meta.is_dir()
-            || Identity::of(&meta) != self.identity
-            || fs::canonicalize(&self.path).map_err(|_| "ROOT_CHANGED")? != self.path
+            || redirected(&meta)
+            || identity(&file, &meta).map_err(|_| "ROOT_CHANGED")? != self.identity
+            || physical(&self.path).map_err(|_| "ROOT_CHANGED")? != self.path
         {
             return Err("ROOT_CHANGED");
         }
@@ -63,6 +73,10 @@ impl Root {
 
     fn resolve_mode(&self, relative: &str, output: bool, published: bool) -> Result<PathBuf> {
         self.check()?;
+        #[cfg(windows)]
+        if relative.contains(['\\', ':']) {
+            return Err("PATH_NOT_ALLOWED");
+        }
         if relative.is_empty()
             || relative.len() > 2048
             || relative.chars().any(char::is_control)
@@ -81,6 +95,8 @@ impl Root {
             let Component::Normal(name) = component else {
                 return Err("PATH_NOT_ALLOWED");
             };
+            #[cfg(windows)]
+            crate::automation::task_files::validate_name(name).map_err(|_| "PATH_NOT_ALLOWED")?;
             if output
                 && (name
                     .to_string_lossy()
@@ -94,7 +110,7 @@ impl Root {
             let last = index + 1 == components.len();
             match fs::symlink_metadata(&path) {
                 Ok(meta) => {
-                    if meta.file_type().is_symlink() {
+                    if redirected(&meta) {
                         return Err("PATH_NOT_ALLOWED");
                     }
                     if last {
@@ -131,27 +147,36 @@ impl PinnedFile {
         if !path.is_absolute() {
             return Err("TRUSTED_FILE_INVALID");
         }
-        let physical = fs::canonicalize(path).map_err(|_| "TRUSTED_FILE_INVALID")?;
+        let physical = physical(path).map_err(|_| "TRUSTED_FILE_INVALID")?;
         // 保留原查找位置，使配置中的相对路径语义不因链接发生变化。
-        let mut file = File::open(&physical).map_err(|_| "TRUSTED_FILE_INVALID")?;
+        #[cfg(windows)]
+        let opened = crate::automation::task_files::regular(&physical);
+        #[cfg(unix)]
+        let opened = File::open(&physical);
+        let mut file = opened.map_err(|_| "TRUSTED_FILE_INVALID")?;
         let meta = file.metadata().map_err(|_| "TRUSTED_FILE_INVALID")?;
         if !meta.is_file() || meta.len() > limit {
             return Err("TRUSTED_FILE_INVALID");
         }
+        let before = stamp(&file, &meta)?;
         let mut hash = Sha256::new();
         let count = std::io::copy(&mut (&mut file).take(limit + 1), &mut HashWriter(&mut hash))
             .map_err(|_| "TRUSTED_FILE_INVALID")?;
         let after = file.metadata().map_err(|_| "TRUSTED_FILE_INVALID")?;
-        if count != meta.len() || count > limit || stamp(&meta) != stamp(&after) {
+        if count != meta.len() || count > limit || before != stamp(&file, &after)? {
             return Err("TRUSTED_FILE_CHANGED");
         }
-        if fs::canonicalize(path).map_err(|_| "TRUSTED_FILE_CHANGED")? != physical {
+        if self::physical(path).map_err(|_| "TRUSTED_FILE_CHANGED")? != physical {
+            return Err("TRUSTED_FILE_CHANGED");
+        }
+        #[cfg(windows)]
+        if !crate::automation::task_files::same_entry(&physical, &file) {
             return Err("TRUSTED_FILE_CHANGED");
         }
         Ok(Self {
             path: path.to_owned(),
             physical,
-            identity: Identity::of(&after),
+            identity: identity(&file, &after)?,
             digest: hash.finalize().into(),
         })
     }
@@ -168,17 +193,6 @@ impl PinnedFile {
     }
 }
 
-fn stamp(meta: &Metadata) -> (u64, u64, u64, i64, i64, i64, i64) {
-    (
-        meta.dev(),
-        meta.ino(),
-        meta.len(),
-        meta.mtime(),
-        meta.mtime_nsec(),
-        meta.ctime(),
-        meta.ctime_nsec(),
-    )
-}
 struct HashWriter<'a>(&'a mut Sha256);
 impl Write for HashWriter<'_> {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {

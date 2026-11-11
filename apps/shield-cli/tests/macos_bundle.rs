@@ -66,6 +66,7 @@ fn 源码目录外应用内cli共享资源并独立完成规划加固签名() {
         "Contents/MacOS/mocika-shield",
         "Contents/Resources/tools/apktool.jar",
         "Contents/Resources/tools/apksigner.jar",
+        "Contents/Resources/tools/java-adapter.jar",
         "Contents/Resources/resources/resources.zip",
         "Contents/Resources/resources/resources-api19.zip",
     ];

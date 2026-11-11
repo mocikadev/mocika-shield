@@ -1,4 +1,7 @@
 //! 共享证书用例、存储和安全模型；不依赖入口框架。
+mod creation;
+#[cfg(test)]
+mod creation_tests;
 mod crypto;
 mod error;
 mod keytool;
@@ -6,12 +9,13 @@ mod managed;
 mod models;
 mod service;
 mod store;
+pub use creation::{create_managed_certificate, create_managed_certificate_with_context};
 pub use error::CertificateError;
 pub use keytool::query_keystore_aliases;
 pub use models::*;
 pub use service::{
-    create_managed_certificate, resolve_signing_certificate, save_certificate_profile,
-    validate_certificate_input, verify_saved_certificate, CertificateOutcome,
+    resolve_signing_certificate, save_certificate_profile, validate_certificate_input,
+    verify_saved_certificate, CertificateOutcome,
 };
 pub use store::{
     BoundSigningIdentity, CertificateBinding, CertificateBindingError, CertificateStoreState,

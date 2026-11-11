@@ -1,13 +1,16 @@
-//! Unix 单 APK 暂存与无覆盖发布；不负责启动进程或证明 APK 合格。
+//! 单 APK 字节固化与无覆盖提交；原生文件细节归任务文件模块，不证明进程已停止。
 //! 调用发布前必须确认整组工作进程已停止，并完成签名、证书、加固标记及对齐验收。
-use super::snapshot;
-use rustix::fs::{linkat, openat, AtFlags, Mode, OFlags};
+use super::{
+    snapshot,
+    task_files::{self, WorkDirectory},
+};
 use sha2::{Digest, Sha256};
-use std::fs::{self, File};
+#[cfg(test)]
+use std::fs;
+use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use tempfile::{NamedTempFile, TempDir};
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PublicationCheckpoint {
@@ -48,8 +51,7 @@ pub(super) struct Publication {
     lookup: PathBuf,
     target: PathBuf,
     parent: File,
-    directory: File,
-    work: Option<TempDir>,
+    work: Option<WorkDirectory>,
     cleanup_result: Option<bool>,
     cleanup_protected: bool,
 }
@@ -62,6 +64,8 @@ impl Publication {
         {
             return Err(PublicationError::OutputInvalid);
         }
+        task_files::validate_name(output.file_name().ok_or(PublicationError::OutputInvalid)?)
+            .map_err(|_| PublicationError::OutputInvalid)?;
         let lookup = if output.is_absolute() {
             output.to_owned()
         } else {
@@ -69,27 +73,12 @@ impl Publication {
         };
         let target = inspect_output(&lookup)?;
         let parent_path = target.parent().ok_or(PublicationError::OutputChanged)?;
-        let parent = File::open(parent_path)?;
-        let work = tempfile::Builder::new()
-            .prefix(".mocika-task-")
-            .permissions(fs::Permissions::from_mode(0o700))
-            .tempdir_in(parent_path)?;
-        let directory = File::from(
-            openat(
-                &parent,
-                work.path()
-                    .file_name()
-                    .ok_or(PublicationError::OutputChanged)?,
-                OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                Mode::empty(),
-            )
-            .map_err(io::Error::from)?,
-        );
+        let parent = task_files::open_directory(parent_path)?;
+        let work = WorkDirectory::new(parent_path, &parent)?;
         let publication = Self {
             lookup,
             target,
             parent,
-            directory,
             work: Some(work),
             cleanup_result: None,
             cleanup_protected: false,
@@ -102,7 +91,14 @@ impl Publication {
     pub fn work_dir(&self) -> Result<&Path, PublicationError> {
         self.work
             .as_ref()
-            .map(TempDir::path)
+            .map(WorkDirectory::path)
+            .ok_or(PublicationError::InvalidArtifact)
+    }
+
+    fn directory(&self) -> Result<&File, PublicationError> {
+        self.work
+            .as_ref()
+            .map(WorkDirectory::directory)
             .ok_or(PublicationError::InvalidArtifact)
     }
 
@@ -134,16 +130,16 @@ impl Publication {
         // 这是最后一个可取消点。调用方据此进入提交临界区，直到收到确定回执才定终态。
         checkpoint(PublicationCheckpoint::BeforeCommit)?;
         self.cleanup_protected = true;
-        // 相对已固定的目录句柄链接，原子创建最终名字；绝不回退到覆盖或直接复制。
-        let linked = linkat(
-            &self.directory,
+        // 向固定目录句柄原子提交最终名字；原生后端不覆盖、不退回直接复制。
+        let linked = task_files::commit_no_replace(
+            self.directory()?,
             source_name,
+            sealed.as_file(),
             &self.parent,
             target_name,
-            AtFlags::empty(),
         );
         if let Err(error) = linked {
-            if io::Error::from(error).kind() == io::ErrorKind::AlreadyExists {
+            if error.kind() == io::ErrorKind::AlreadyExists {
                 self.cleanup_protected = false;
                 return Err(PublicationError::OutputExists);
             }
@@ -157,7 +153,7 @@ impl Publication {
         // 从此处起已经提交，后续失败只能成为回执中的附加状态，不能返回无输出错误。
         let location_confirmed =
             self.parent_matches() && same_directory_entry(&self.target, sealed.as_file());
-        let directory_synced = self.parent.sync_all().is_ok();
+        let directory_synced = task_files::sync_directory(&self.parent);
         drop(sealed);
         let cleanup_complete = self.cleanup();
         Ok(PublicationReceipt {
@@ -174,34 +170,20 @@ impl Publication {
         expected: [u8; 32],
         checkpoint: &mut impl FnMut(PublicationCheckpoint) -> Result<(), PublicationError>,
     ) -> Result<(NamedTempFile, u64, [u8; 32]), PublicationError> {
-        // NONBLOCK 防止特殊文件在确认类型前阻塞；NOFOLLOW 拒绝链接产物。
-        let mut artifact = File::from(
-            openat(
-                &self.directory,
-                "signed.apk",
-                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-                Mode::empty(),
-            )
-            .map_err(|_| PublicationError::InvalidArtifact)?,
-        );
+        let mut artifact = task_files::artifact(self.directory()?, self.work_dir()?)
+            .map_err(|_| PublicationError::InvalidArtifact)?;
         let metadata = artifact.metadata()?;
-        if !metadata.is_file() || metadata.len() == 0 || metadata.nlink() != 1 {
-            return Err(PublicationError::InvalidArtifact);
-        }
-        // 用父进程新建的独立 inode 固化最终字节，避免沿用工作进程曾持有的写句柄。
+        // 用父进程新建的独立文件固化最终字节，避免沿用工作进程曾持有的写句柄。
         let mut sealed =
             tempfile::Builder::new()
                 .prefix(".ready-")
                 .make_in(self.work_dir()?, |path| {
                     let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
-                    openat(
-                        &self.directory,
+                    task_files::create_at(
+                        self.directory().map_err(|_| io::ErrorKind::InvalidData)?,
+                        self.work_dir().map_err(|_| io::ErrorKind::InvalidData)?,
                         name,
-                        OFlags::RDWR | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC,
-                        Mode::RUSR | Mode::WUSR,
                     )
-                    .map(File::from)
-                    .map_err(io::Error::from)
                 })?;
         let mut hash = Sha256::new();
         let mut bytes = 0;
@@ -226,7 +208,7 @@ impl Publication {
 
     fn recheck(&self) -> Result<(), PublicationError> {
         if !self.parent_matches()
-            || !same_directory_entry(self.work_dir()?, &self.directory)
+            || !same_directory_entry(self.work_dir()?, self.directory()?)
             || inspect_output(&self.lookup)? != self.target
         {
             return Err(PublicationError::OutputChanged);
@@ -238,7 +220,7 @@ impl Publication {
         let Some(parent) = self.lookup.parent() else {
             return false;
         };
-        let Ok(resolved) = fs::canonicalize(parent) else {
+        let Ok(resolved) = task_files::resolved(parent) else {
             return false;
         };
         self.target.parent() == Some(resolved.as_path())
@@ -258,7 +240,7 @@ impl Publication {
         let Some(work) = self.work.take() else {
             return self.cleanup_result.unwrap_or(true);
         };
-        if self.cleanup_protected || !same_directory_entry(work.path(), &self.directory) {
+        if self.cleanup_protected || !same_directory_entry(work.path(), work.directory()) {
             // 身份不符就不递归清理该路径，避免碰到被替换的目录。
             let _ = work.keep();
             self.cleanup_result = Some(false);
@@ -287,12 +269,13 @@ fn inspect_output(path: &Path) -> Result<PathBuf, PublicationError> {
 }
 
 fn same_directory_entry(path: &Path, file: &File) -> bool {
-    let (Ok(current), Ok(expected)) = (fs::symlink_metadata(path), file.metadata()) else {
-        return false;
-    };
-    current.dev() == expected.dev() && current.ino() == expected.ino()
+    task_files::same_entry(path, file)
 }
 
 #[cfg(test)]
 #[path = "publication_tests.rs"]
 mod tests;
+
+#[cfg(all(test, windows))]
+#[path = "publication_windows_tests.rs"]
+mod windows_tests;

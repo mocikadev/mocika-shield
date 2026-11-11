@@ -31,6 +31,8 @@ for name in apktool_3.0.1.jar apksigner.jar; do
   [[ -f "$ROOT/tools/$name" ]] || { echo "缺少工具：tools/$name" >&2; exit 1; }
 done
 
+python3 "$ROOT/scripts/build_java_adapter.py"
+
 TAURI_ARGS=(--bundles app)
 if [[ "$BUILD_UNIVERSAL" == universal ]]; then
   for target in aarch64-apple-darwin x86_64-apple-darwin; do
@@ -62,6 +64,7 @@ lipo "$CLI_BIN" -verify_arch "${ARCHES[@]}"
 # 资源只保留一份；先比对实际打包内容，避免对过期或不完整的应用重新签名。
 cmp "$ROOT/tools/apktool_3.0.1.jar" "$APP_DIR/Contents/Resources/tools/apktool.jar"
 cmp "$ROOT/tools/apksigner.jar" "$APP_DIR/Contents/Resources/tools/apksigner.jar"
+cmp "$ROOT/tools/java-adapter/build/java-adapter.jar" "$APP_DIR/Contents/Resources/tools/java-adapter.jar"
 for name in resources.zip resources-api19.zip; do
   cmp "$RESOURCE_DIR/$name" "$APP_DIR/Contents/Resources/resources/$name"
 done

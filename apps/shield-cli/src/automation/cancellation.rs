@@ -1,13 +1,42 @@
 //! 仅在新命令生命周期内登记取消；信号处理器不清场，stdin 不接受密码或命令。
-use super::*;
-use std::sync::atomic::{AtomicI32, AtomicU8};
+use serde::Deserialize;
 use std::thread::JoinHandle;
+use std::{
+    io::Read,
+    sync::{
+        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+#[cfg(unix)]
+#[path = "cancellation/unix.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "cancellation/windows.rs"]
+mod platform;
+use platform::Signals;
 
-static SIGNAL: AtomicI32 = AtomicI32::new(0);
+/// MCP 只借用控制台信号登记，不安装同步 stdin 读线程或第二套业务取消状态。
+#[cfg(all(windows, feature = "mcp-server"))]
+pub(super) struct SignalWatch {
+    _signals: Signals,
+}
+#[cfg(all(windows, feature = "mcp-server"))]
+impl SignalWatch {
+    pub fn install() -> Result<Self, ()> {
+        Ok(Self {
+            _signals: Signals::install()?,
+        })
+    }
+    pub fn interrupted(&self) -> bool {
+        platform::signal_received()
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(super) enum Cause {
+pub(crate) enum Cause {
     None = 0,
     Input = 1,
     Closed = 2,
@@ -17,7 +46,7 @@ pub(super) enum Cause {
 }
 
 #[derive(Clone)]
-pub(super) struct Cancel {
+pub(crate) struct Cancel {
     flag: Arc<AtomicBool>,
     cause: Arc<AtomicU8>,
 }
@@ -46,47 +75,7 @@ impl Cancel {
     }
 }
 
-extern "C" fn signal_handler(signal: libc::c_int) {
-    let _ = SIGNAL.compare_exchange(0, signal, Ordering::Relaxed, Ordering::Relaxed);
-}
-
-struct Signals {
-    old: [(libc::c_int, libc::sigaction); 2],
-}
-impl Signals {
-    fn install() -> Result<Self, ()> {
-        // macOS 的 sigaction 只在独立 CLI 父进程中安装，恢复先前的处理方式。
-        unsafe {
-            let mut action: libc::sigaction = std::mem::zeroed();
-            action.sa_sigaction = signal_handler as *const () as usize;
-            libc::sigemptyset(&mut action.sa_mask);
-            let mut first = std::mem::zeroed();
-            let mut second = std::mem::zeroed();
-            SIGNAL.store(0, Ordering::SeqCst);
-            if libc::sigaction(libc::SIGINT, &action, &mut first) != 0 {
-                return Err(());
-            }
-            if libc::sigaction(libc::SIGTERM, &action, &mut second) != 0 {
-                libc::sigaction(libc::SIGINT, &first, std::ptr::null_mut());
-                return Err(());
-            }
-            Ok(Self {
-                old: [(libc::SIGINT, first), (libc::SIGTERM, second)],
-            })
-        }
-    }
-}
-impl Drop for Signals {
-    fn drop(&mut self) {
-        for (signal, action) in &self.old {
-            unsafe {
-                libc::sigaction(*signal, action, std::ptr::null_mut());
-            }
-        }
-    }
-}
-
-pub(super) struct Controls {
+pub(crate) struct Controls {
     cancel: Cancel,
     done: Arc<AtomicBool>,
     watcher: Option<JoinHandle<()>>,
@@ -103,18 +92,10 @@ impl Controls {
             .name("自动化取消监督".into())
             .spawn(move || {
                 while !ended.load(Ordering::SeqCst) {
-                    if SIGNAL.load(Ordering::Relaxed) != 0 {
+                    if platform::signal_received() {
                         watched.request(Cause::Signal);
                     }
-                    let mut descriptor = libc::pollfd {
-                        fd: libc::STDOUT_FILENO,
-                        events: 0,
-                        revents: 0,
-                    };
-                    let broken = unsafe { libc::poll(&mut descriptor, 1, 0) } > 0
-                        && descriptor.revents & (libc::POLLHUP | libc::POLLERR | libc::POLLNVAL)
-                            != 0;
-                    if broken {
+                    if platform::output_closed() {
                         watched.request(Cause::Output);
                     }
                     std::thread::sleep(Duration::from_millis(5));
@@ -223,3 +204,7 @@ mod tests {
         assert!(cancel.cause() == Cause::Invalid);
     }
 }
+
+#[cfg(test)]
+#[path = "cancellation/process_tests.rs"]
+mod process_tests;

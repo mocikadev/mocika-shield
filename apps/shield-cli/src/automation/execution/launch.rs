@@ -12,6 +12,14 @@ pub(super) struct Launcher<F> {
     executor: Option<Executable>,
 }
 
+// 仅表达启动边界的资源责任，不另建业务任务状态机。
+pub(super) enum LaunchError {
+    /// 没有活动工作端：尚未启动，或已确认停止，可由拥有者显式清理暂存。
+    Inactive(CheckError),
+    /// 启动或停止无法确认，拥有者必须保留目录，不能靠析构宣称清理完成。
+    Unconfirmed,
+}
+
 fn changed(err: CheckError) -> CheckError {
     if matches!(err.code, "TASK_TIMEOUT" | "TASK_CANCELLED") {
         err
@@ -52,7 +60,30 @@ impl<F: FnMut() -> Command> Launcher<F> {
         tools: Option<&Tools>,
         deadline: Instant,
         cancel: &AtomicBool,
-    ) -> Result<(ManagedGroup, Pump), CheckError> {
+    ) -> Result<(ManagedGroup, Pump), LaunchError> {
+        let (command, id) = self
+            .prepare(request, mode, root, tools, deadline, cancel)
+            .map_err(LaunchError::Inactive)?;
+        let mut group = ManagedGroup::spawn(command, id).map_err(|_| LaunchError::Unconfirmed)?;
+        let Some(stdout) = group.take_stdout() else {
+            return Err(if group.stop(std::time::Duration::from_secs(2)).is_ok() {
+                LaunchError::Inactive(error("WORKER_START_FAILED"))
+            } else {
+                LaunchError::Unconfirmed
+            });
+        };
+        Ok((group, Pump::new(stdout, id)))
+    }
+
+    fn prepare(
+        &mut self,
+        request: &Request,
+        mode: Mode,
+        root: &Path,
+        tools: Option<&Tools>,
+        deadline: Instant,
+        cancel: &AtomicBool,
+    ) -> Result<(Command, [u8; 16]), CheckError> {
         checkpoint(deadline, cancel)?;
         if ["JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS"]
             .iter()
@@ -60,15 +91,8 @@ impl<F: FnMut() -> Command> Launcher<F> {
         {
             return Err(error("JAVA_OPTIONS_NOT_SUPPORTED"));
         }
-        let java_home = root
-            .to_str()
-            .filter(|path| {
-                !path
-                    .chars()
-                    .any(|ch| ch == '"' || ch == '\\' || ch.is_control())
-            })
-            .ok_or_else(|| error("INVALID_REQUEST"))?;
         let mut command = (self.command)();
+        crate::automation::java_environment::apply(&mut command, root)?;
         let program = Path::new(command.get_program());
         if !program.is_absolute() {
             return Err(error("EXECUTOR_CHANGED"));
@@ -109,21 +133,9 @@ impl<F: FnMut() -> Command> Launcher<F> {
             .arg(root)
             .arg("--task-id")
             .arg(hex(&id))
-            .env("TMPDIR", root)
-            .env("TMP", root)
-            .env("TEMP", root)
-            .env(
-                "JAVA_TOOL_OPTIONS",
-                format!("\"-Duser.home={java_home}\" \"-Djava.io.tmpdir={java_home}\""),
-            )
             .env_remove("RUST_LOG");
         // 构造参数之后再次检查，缩小启动前窗口；这仍不是按文件描述符原子执行。
         self.recheck(deadline, cancel)?;
-        let mut group =
-            ManagedGroup::spawn(command, id).map_err(|_| error("WORKER_START_FAILED"))?;
-        let stdout = group
-            .take_stdout()
-            .ok_or_else(|| error("WORKER_START_FAILED"))?;
-        Ok((group, Pump::new(stdout, id)))
+        Ok((command, id))
     }
 }

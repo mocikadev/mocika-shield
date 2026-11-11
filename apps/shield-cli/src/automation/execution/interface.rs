@@ -4,7 +4,7 @@ use clap::Subcommand;
 use serde_json::Value;
 use std::time::Duration;
 
-mod control;
+use crate::automation::cancellation as control;
 mod output;
 mod result;
 use control::{Cause, Controls};
@@ -122,14 +122,10 @@ pub(crate) fn run_agent(args: AgentArgs, config: Option<&Path>, home: Option<&Pa
         Ok(controls) => controls,
         Err(()) => return output::initial_failure(operation, "SIGNAL_SETUP_FAILED"),
     };
-    let mut random = [0u8; 16];
-    if std::fs::File::open("/dev/urandom")
-        .and_then(|mut file| file.read_exact(&mut random))
-        .is_err()
-    {
+    let Ok(task_id) = crate::automation::random_id::create() else {
         return output::initial_failure(operation, "TASK_ID_UNAVAILABLE");
-    }
-    let Ok(mut events) = Events::new(operation, Some(hex(&random)), controls.clone_signal()) else {
+    };
+    let Ok(mut events) = Events::new(operation, Some(task_id), controls.clone_signal()) else {
         return 3;
     };
     events.started();

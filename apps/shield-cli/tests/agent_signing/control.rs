@@ -11,6 +11,7 @@ struct Gate {
     root: tempfile::TempDir,
     child: Option<Child>,
     real_java: Option<PathBuf>,
+    completion_deadline: Option<Instant>,
 }
 impl Gate {
     fn new() -> Self {
@@ -46,9 +47,16 @@ impl Gate {
             root,
             child: None,
             real_java: None,
+            completion_deadline: None,
         }
     }
     fn start(&mut self, timeout: u64, control: bool) {
+        self.spawn(timeout, control);
+        self.wait_ready();
+    }
+    fn spawn(&mut self, timeout: u64, control: bool) {
+        // 从启动到确认停止之前都保留夹具；断言失败不能抢删可能仍活动的材料。
+        self.root.disable_cleanup(true);
         let p = self.root.path();
         let mut cmd = command_timeout(
             p,
@@ -64,16 +72,21 @@ impl Gate {
         if let Some(java) = &self.real_java {
             cmd.env("SHIELD_SIGN_REAL_JAVA", java);
         }
+        self.completion_deadline = Some(Instant::now() + Duration::from_secs(timeout + 10));
         self.child = Some(
             cmd.env("PATH", p.join("bin"))
                 .env_remove("JAVA_HOME")
                 .env("SHIELD_SIGN_GATE", p)
                 .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
+                // 用本夹具文件持续接收，不能在等待进程退出时把事件管道留到满缓冲。
+                .stdout(fs::File::create(p.join("events.jsonl")).unwrap())
+                .stderr(fs::File::create(p.join("errors.txt")).unwrap())
                 .spawn()
                 .unwrap(),
         );
+    }
+    fn wait_ready(&mut self) {
+        let p = self.root.path();
         let until = Instant::now() + Duration::from_secs(10);
         while !(p.join("heartbeat").metadata().is_ok_and(|m| m.len() > 0)
             && (self.real_java.is_none()
@@ -81,28 +94,67 @@ impl Gate {
                     .metadata()
                     .is_ok_and(|m| m.len() > 0)))
         {
+            if self.child.as_mut().unwrap().try_wait().unwrap().is_some() {
+                let output = self.output();
+                let value = result(output, false);
+                panic!(
+                    "到达故障门槛前已退出：状态={}，分类={}，耗时={}毫秒",
+                    value["status"], value["code"], value["elapsed_ms"]
+                );
+            }
             assert!(Instant::now() < until, "准备工作进程未到达故障门槛");
             std::thread::sleep(Duration::from_millis(10));
         }
     }
     fn finish(&mut self, exit: i32, code: &str) {
-        let output = self.child.take().unwrap().wait_with_output().unwrap();
+        self.finish_checked(exit, code, true);
+    }
+    fn output(&mut self) -> Output {
+        let status = self.child.take().unwrap().wait().unwrap();
+        let capture = |name| {
+            let path = self.root.path().join(name);
+            assert!(path.metadata().unwrap().len() <= 128 * 1024, "测试事件超限");
+            fs::read(path).unwrap()
+        };
+        Output {
+            status,
+            stdout: capture("events.jsonl"),
+            stderr: capture("errors.txt"),
+        }
+    }
+    fn finish_checked(&mut self, exit: i32, code: &str, require_tool: bool) -> bool {
+        while self.child.as_mut().unwrap().try_wait().unwrap().is_none() {
+            assert!(
+                Instant::now() < self.completion_deadline.unwrap(),
+                "任务在总期限及收尾宽限之后仍未退出"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let output = self.output();
         assert_eq!(output.status.code(), Some(exit));
         let value = result(output, false);
         assert_eq!(value["code"], code);
         assert_eq!(value["output_state"], "not_published");
+        assert_eq!(value["cleanup_state"], "complete");
         assert!(!self.root.path().join("output.apk").exists());
-        let before = fs::read(self.root.path().join("heartbeat")).unwrap();
-        std::thread::sleep(Duration::from_millis(100));
-        assert_eq!(
-            fs::read(self.root.path().join("heartbeat")).unwrap(),
-            before
+        let heartbeat = self.root.path().join("heartbeat");
+        let tool_started = heartbeat.try_exists().unwrap();
+        assert!(
+            !require_tool || tool_started,
+            "本测试必须确认工具实际运行过"
         );
+        if tool_started {
+            let before = fs::read(&heartbeat).unwrap();
+            std::thread::sleep(Duration::from_millis(100));
+            assert_eq!(fs::read(heartbeat).unwrap(), before);
+        }
         assert!(fs::read_dir(self.root.path()).unwrap().all(|e| !e
             .unwrap()
             .file_name()
             .to_string_lossy()
             .starts_with(".mocika-")));
+        self.root.disable_cleanup(false);
+        tool_started
     }
 }
 impl Drop for Gate {
@@ -127,8 +179,17 @@ fn 准备期间信号取消停止真实工具且不发布() {
 #[test]
 fn 准备期间超时停止真实工具且不发布() {
     let mut gate = Gate::new();
-    gate.start(3, false);
+    // 本例必须先确认工具挂起；启动检查有独立余量，不再假定调试构建三秒内到达工具。
+    // 任务仍使用从启动开始的固定总期限，不在就绪后重置；原三秒边界由下例单独验证。
+    gate.start(15, false);
     gate.finish(124, "TASK_TIMEOUT");
+}
+#[test]
+fn 准备总期限不假定工具已启动() {
+    let mut gate = Gate::new();
+    gate.spawn(3, false);
+    let tool_started = gate.finish_checked(124, "TASK_TIMEOUT", false);
+    eprintln!("三秒总期限：已确认超时且无交付、清理完成；工具实际启动={tool_started}");
 }
 #[test]
 fn 准备期间标准输入取消和断开都不发布() {

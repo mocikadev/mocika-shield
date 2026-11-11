@@ -168,7 +168,13 @@ impl Task {
     }
 
     /// 只有父端创建任务时能选择签名验收，工作进程的字段不能改变任务种类。
-    #[cfg(any(test, all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(any(
+        test,
+        all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        )
+    ))]
     pub fn new_sign(
         now: Instant,
         timeout: Duration,

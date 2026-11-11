@@ -1,5 +1,5 @@
 //! MCP 共享来源的协议、权限与真实执行验收；只操作自有隔离资料。
-#![cfg(all(feature = "mcp-server", target_os = "macos"))]
+#![cfg(all(feature = "mcp-server", any(target_os = "macos", target_os = "linux")))]
 use serde_json::{json, Value};
 use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
@@ -107,6 +107,7 @@ impl TestProgram {
                 "Contents/MacOS/mocika-shield",
                 "Contents/Resources/tools/apktool.jar",
                 "Contents/Resources/tools/apksigner.jar",
+                "Contents/Resources/tools/java-adapter.jar",
                 "Contents/Resources/resources/resources.zip",
                 "Contents/Resources/resources/resources-api19.zip",
                 "Contents/_CodeSignature/CodeResources",

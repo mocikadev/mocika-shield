@@ -3597,6 +3597,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml 0.8.2",
+ "windows-sys 0.61.2",
  "zip",
 ]
 
@@ -3610,6 +3611,7 @@ dependencies = [
  "directories",
  "dunce",
  "hkdf",
+ "libc",
  "log",
  "rand 0.9.4",
  "serde",
@@ -3620,6 +3622,7 @@ dependencies = [
  "thiserror 2.0.18",
  "walkdir",
  "which",
+ "windows-sys 0.61.2",
  "zip",
  "zstd",
 ]

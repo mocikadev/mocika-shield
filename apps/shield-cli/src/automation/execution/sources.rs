@@ -77,6 +77,9 @@ impl Sources {
         match self {
             Self::Protect(s) => {
                 snapshot::recheck_checked(&protect_refs(s)?, &mut || checkpoint(deadline, cancel))?;
+                if let Some(binding) = &s.java_adapter {
+                    binding.recheck(&mut || checkpoint(deadline, cancel))?;
+                }
                 if let Some(shared) = &s.shared {
                     shared.recheck()?;
                 }
@@ -84,6 +87,9 @@ impl Sources {
             }
             Self::Sign(s) => {
                 snapshot::recheck_checked(&s.files(), &mut || checkpoint(deadline, cancel))?;
+                if let Some(binding) = &s.java_adapter {
+                    binding.recheck(&mut || checkpoint(deadline, cancel))?;
+                }
                 s.recheck_record()?;
                 checkpoint(deadline, cancel)
             }
@@ -97,11 +103,22 @@ impl Sources {
     ) -> Result<(), CheckError> {
         let check = || checkpoint(deadline, cancel).map_err(|_| MaterialError::Interrupted);
         let verified = match self {
+            Self::Protect(s) if s.java_adapter.is_some() => MaterialBundle::verify_sources_version(
+                root,
+                &s.materials(),
+                s.material_version(),
+                check,
+            ),
             Self::Protect(s) if s.shared.is_some() => {
                 MaterialBundle::verify_shared_sources(root, &s.materials(), check)
             }
             Self::Protect(s) => MaterialBundle::verify_sources(root, &s.materials(), check),
-            Self::Sign(s) => MaterialBundle::verify_sources_version(root, &s.materials(), 3, check),
+            Self::Sign(s) => MaterialBundle::verify_sources_version(
+                root,
+                &s.materials(),
+                s.material_version(),
+                check,
+            ),
         };
         verified.map_err(|_| error("MATERIAL_INVALID"))?;
         checkpoint(deadline, cancel)
@@ -128,6 +145,7 @@ impl Sources {
 }
 
 fn protect_refs(sources: &plan::Sources) -> Result<Vec<&snapshot::FileSnapshot>, CheckError> {
+    crate::automation::adapter::require(sources.java_adapter.as_ref())?;
     if sources.config.is_none() && sources.shared.is_none() {
         return Err(error("SOURCE_PROOF_INVALID"));
     }
