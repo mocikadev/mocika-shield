@@ -108,7 +108,13 @@ App sharing is independent of anonymous statistics. Reports are maintainer-only 
 | Architecture and internals | [Documentation index](docs/README.md) |
 | Future work | [Roadmap](docs/process/roadmap.md) |
 
-Detailed guides are currently primarily in Chinese. The CLI is source-built; Releases contain desktop GUI packages only. Build `make build-stub` first, then `make build-cli` or `make build-gui`. Refer to the build guide for dependencies and platform-specific steps.
+Detailed guides are currently primarily in Chinese. Releases do not provide a separate CLI archive; the `1.5.0` preview bundles the CLI with the desktop GUI. Build `make build-stub` first, then `make build-cli` or `make build-gui`. Refer to the build guide for dependencies and platform-specific steps.
+
+## AI Agent Integration (Preview)
+
+Starting with `1.5.0-beta.1`, the Windows, macOS, and Linux previews bundle a CLI and local stdio MCP server for controlled protection, standalone signing, and certificate management. They share the GUI's local configuration and certificates without requiring the GUI to remain open. Stable `1.4.3` does not include these new interfaces.
+
+The optional Skill lives in [skills/mocika-shield/](skills/mocika-shield/SKILL.md) and is installed and updated independently, not bundled with the app. See [Agent setup](docs/ops/agent-setup.md) for command paths, MCP configuration, and tested boundaries; client-specific registration and interaction still require validation.
 
 ## Feedback and Community
 

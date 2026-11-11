@@ -1,6 +1,6 @@
 # 本地 Agent 接入与 Skill 安装
 
-> **公开 1.4.3 安装包尚不包含新增 Agent 入口。** 使用当前开发共包产物，核对命令帮助和工具发现，不只看版本号。macOS 本机与 Linux／Windows CI 的实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
+> **新增 Agent 入口面向 `1.5.0-beta.1` 及后续预览版，稳定版 `1.4.3` 尚不包含。** 使用对应预览版或开发共包产物，核对命令帮助和工具发现，不只看版本号。macOS 本机与 Linux／Windows CI 的实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
 
 ## 选择入口与共享资料
 
