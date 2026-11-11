@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 原生平台签名夹具：只包含清单，不承载业务代码，不代表设备安装或加固回归。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.mocika.shield.agentsigningfixture"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
+    <application android:hasCode="false" android:label="原生签名夹具" />
+</manifest>

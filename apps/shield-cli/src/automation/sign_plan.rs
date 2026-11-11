@@ -6,9 +6,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use shield_core::{
-    extract_keystore_cert_fingerprint, inspect_signing_input, normalize_fingerprint,
-};
+use shield_core::{inspect_signing_input, normalize_fingerprint};
 use shield_services::{
     certificates::{CertificateBinding, CertificateSelection, CertificateStoreState},
     paths::ApplicationPaths,
@@ -79,6 +77,8 @@ pub(super) struct Sources {
     pub apksigner: snapshot::FileSnapshot,
     pub content_sha256: [u8; 32],
     pub certificate_binding: Option<[u8; 32]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub java_adapter: Option<super::adapter::Binding>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -97,6 +97,7 @@ impl Sources {
                 &self.keytool,
                 &self.apksigner,
             ])
+            .chain(self.java_adapter.iter().map(|b| b.snapshot()))
             .collect()
     }
     pub fn recheck_record(&self) -> Result<(), CheckError> {
@@ -107,6 +108,7 @@ impl Sources {
     }
     pub fn matches(&self, request: &Request, has_config: bool) -> Result<(), CheckError> {
         request.validate()?;
+        super::adapter::require(self.java_adapter.as_ref())?;
         let paths = request.paths()?;
         if paths.certificate_database() != self.database
             || paths.keystore_dir() != self.keystore_dir
@@ -144,7 +146,19 @@ impl Sources {
             (Role::Keystore, &self.keystore),
             (Role::Apksigner, &self.apksigner),
         ]);
+        values.extend(
+            self.java_adapter
+                .iter()
+                .map(|b| (Role::JavaAdapter, b.snapshot())),
+        );
         values
+    }
+    pub fn material_version(&self) -> u32 {
+        if self.java_adapter.is_some() {
+            5
+        } else {
+            3
+        }
     }
 }
 
@@ -161,6 +175,7 @@ pub(super) fn prepare(
     output: &Path,
     config_path: Option<&Path>,
     request: &Request,
+    workspace: &Path,
 ) -> Result<Prepared, CheckError> {
     request.validate()?;
     if ["MOCIKA_SHIELD_KS_PASS", "MOCIKA_SHIELD_KEY_PASS"]
@@ -248,19 +263,31 @@ pub(super) fn prepare(
         .map(Ok)
         .unwrap_or_else(shield_core::utils::find_apksigner)
         .map_err(CheckError::from_core)?;
+    #[cfg(windows)]
+    let java_adapter = Some(super::adapter::select()?);
+    #[cfg(not(windows))]
+    let java_adapter: Option<super::adapter::Binding> = None;
+    let bound = java_adapter
+        .as_ref()
+        .map(|binding| super::adapter::Bound::new(binding, &binding.snapshot().path, workspace))
+        .transpose()?;
+    let keytool = snapshot::file("keytool", java.keytool_path.as_deref().ok_or_else(invalid)?)?;
+    let java = snapshot::file("java", java.java_path.as_deref().ok_or_else(invalid)?)?;
+    let tools = super::java_tools::Tools::new(&java.path, bound.as_ref().map(|b| &b.context));
     let content = inspect_signing_input(input, || Ok(())).map_err(|_| {
         CheckError::new(
             "SIGNING_INPUT_INVALID",
             "无法确认 APK 内容或加固绑定，不会降级处理。",
         )
     })?;
-    let fingerprint = extract_keystore_cert_fingerprint(
-        &sign.keystore,
-        &sign.key_alias,
-        &sign.keystore_password,
-        Some(super::plan::keystore_type(sign.keystore_type)),
-    )
-    .map_err(CheckError::from_core)?;
+    let fingerprint = tools
+        .certificate(
+            &sign.keystore,
+            &sign.key_alias,
+            &sign.keystore_password,
+            super::plan::keystore_type(sign.keystore_type),
+        )
+        .map_err(CheckError::from_core)?;
     let certificate = certificate_digest(&fingerprint)?;
     if content
         .certificate_binding
@@ -271,9 +298,12 @@ pub(super) fn prepare(
             "证书与加固包绑定不符，拒绝产生无法启动的包。",
         ));
     }
-    let checked = shield_core::check_apk(input, Some(&signer)).map_err(CheckError::from_core)?;
+    let checked = tools
+        .inspect(input, &signer)
+        .map_err(CheckError::from_core)?;
     let warning = if checked.is_signed {
-        let previous = shield_core::extract_apk_cert_fingerprint(input, Some(&signer))
+        let previous = tools
+            .fingerprint(input, &signer)
             .map_err(CheckError::from_core)?;
         normalize_fingerprint(&previous) != normalize_fingerprint(&fingerprint)
     } else {
@@ -290,18 +320,23 @@ pub(super) fn prepare(
         },
         input: snapshot::file("input", input)?,
         keystore: snapshot::file("keystore", &sign.keystore)?,
-        java: snapshot::file("java", java.java_path.as_deref().ok_or_else(invalid)?)?,
-        keytool: snapshot::file("keytool", java.keytool_path.as_deref().ok_or_else(invalid)?)?,
+        java,
+        keytool,
         apksigner: snapshot::file("apksigner", &signer)?,
         content_sha256: content.content_sha256,
         certificate_binding: content.certificate_binding,
+        java_adapter,
     };
     sources.matches(request, config_path.is_some())?;
     snapshot::recheck(&sources.files())?;
+    if let Some(binding) = &sources.java_adapter {
+        binding.recheck(&mut || Ok(()))?;
+    }
     if target != snapshot::output(output)? {
         return Err(changed());
     }
-    let identity = serde_json::json!({"plan_schema_version":4,"operation":"sign","tool_version":env!("CARGO_PKG_VERSION"),
+    let schema = if sources.java_adapter.is_some() { 6 } else { 4 };
+    let identity = serde_json::json!({"plan_schema_version":schema,"operation":"sign","tool_version":env!("CARGO_PKG_VERSION"),
         "sources":sources,"output":target,"certificate_sha256":certificate,"alias":sign.key_alias,"keystore_type":super::plan::keystore_type(sign.keystore_type)});
     let digest = Sha256::digest(serde_json::to_vec(&identity).map_err(|_| invalid())?).into();
     Ok(Prepared {

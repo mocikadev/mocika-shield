@@ -5,85 +5,46 @@ use super::snapshot::{self, FileSnapshot};
 use super::{CheckError, CheckResponse, CheckResult, PlanProtectArgs, Status};
 use crate::args::{EnvironmentPolicyArg, KeystoreTypeArg, ProtectArgs, SignArgs};
 use crate::config::{CliConfig, ResolvedProtectArgs, ResolvedSignArgs};
-use serde::Serialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use shield_core::utils::{ensure_keytool, find_apksigner, find_apktool};
-use shield_core::{
-    extract_keystore_cert_fingerprint, preflight_apk, EnvironmentPolicy, PreflightOptions,
-    RuntimeProfile,
-};
+use shield_core::{EnvironmentPolicy, PreflightOptions, RuntimeProfile};
 use std::path::{Path, PathBuf};
 
-#[derive(Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Sources {
-    pub config: Option<FileSnapshot>,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shared: Option<super::shared_plan::SharedIdentity>,
-    pub input: FileSnapshot,
-    pub keystore: FileSnapshot,
-    pub java: FileSnapshot,
-    pub keytool: FileSnapshot,
-    pub apktool: FileSnapshot,
-    pub apksigner: FileSnapshot,
-    pub resources: FileSnapshot,
-}
-
-impl Sources {
-    pub fn recheck(&self) -> Result<(), CheckError> {
-        snapshot::recheck(&self.files())?;
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
-        if let Some(shared) = &self.shared {
-            shared.recheck()?;
-        }
-        Ok(())
-    }
-    pub fn files(&self) -> Vec<&FileSnapshot> {
-        self.config
-            .iter()
-            .chain([
-                &self.input,
-                &self.keystore,
-                &self.java,
-                &self.keytool,
-                &self.apktool,
-                &self.apksigner,
-                &self.resources,
-            ])
-            .collect()
-    }
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
-    pub fn materials(&self) -> Vec<(super::task_materials::Role, &FileSnapshot)> {
-        use super::task_materials::Role;
-        let mut values = vec![(Role::Input, &self.input)];
-        if let Some(config) = &self.config {
-            values.push((Role::Config, config));
-        }
-        values.extend([
-            (Role::Keystore, &self.keystore),
-            (Role::Apktool, &self.apktool),
-            (Role::Apksigner, &self.apksigner),
-            (Role::Resources, &self.resources),
-        ]);
-        values
-    }
-}
+mod sources;
+pub(super) use sources::Sources;
 
 pub(super) struct PreparedPlan {
     pub result: CheckResult,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub sources: Sources,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub protect: ResolvedProtectArgs,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub sign: ResolvedSignArgs,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub profile: RuntimeProfile,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub certificate: String,
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
     pub digest: [u8; 32],
 }
 
@@ -93,7 +54,7 @@ pub(super) enum Assessment {
 }
 
 pub(super) fn check(args: PlanProtectArgs, config: Option<&Path>) -> CheckResponse {
-    match prepare(args, config, false)? {
+    match prepare(args, config, false, None)? {
         Assessment::Blocked(result) => Ok(result),
         Assessment::Prepared(plan) => Ok(plan.result),
     }
@@ -103,6 +64,7 @@ pub(super) fn prepare(
     args: PlanProtectArgs,
     config: Option<&Path>,
     executable: bool,
+    workspace: Option<&Path>,
 ) -> Result<Assessment, CheckError> {
     let config = config.ok_or_else(|| {
         CheckError::new(
@@ -117,8 +79,16 @@ pub(super) fn prepare(
     // 保持旧分支的早期拒绝顺序：无效输出／V4 不能因缺少 Java 被改报工具错误。
     outputs(&args.output, sign.v4)?;
     let (profile, profile_name) = args.runtime_profile.resolve();
-    let sources = sources(Some(config_snapshot), &protect, &sign, profile)?;
-    prepare_resolved(args, protect, sign, sources, executable, profile_name)
+    let sources = sources(Some(config_snapshot), &protect, &sign, profile, workspace)?;
+    prepare_resolved(
+        args,
+        protect,
+        sign,
+        sources,
+        executable,
+        profile_name,
+        workspace,
+    )
 }
 
 pub(super) fn prepare_resolved(
@@ -128,30 +98,74 @@ pub(super) fn prepare_resolved(
     sources: Sources,
     executable: bool,
     profile_name: &str,
+    workspace: Option<&Path>,
 ) -> Result<Assessment, CheckError> {
     check_executable_signing(&sign, executable)?;
     let (profile, _) = args.runtime_profile.resolve();
-    #[cfg(all(feature = "agent-executor", target_os = "macos"))]
-    let schema = if sources.shared.is_some() { 3 } else { 2 };
-    #[cfg(not(all(feature = "agent-executor", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
+    let schema = if sources.java_adapter.is_some() {
+        5
+    } else if sources.shared.is_some() {
+        3
+    } else {
+        2
+    };
+    #[cfg(not(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )))]
     let schema = 2;
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
+    let bound = sources
+        .java_adapter
+        .as_ref()
+        .map(|binding| {
+            super::adapter::Bound::new(
+                binding,
+                &binding.snapshot().path,
+                workspace.ok_or_else(super::adapter::invalid)?,
+            )
+        })
+        .transpose()?;
+    #[cfg(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    ))]
+    let context = bound.as_ref().map(|b| &b.context);
+    #[cfg(not(all(
+        feature = "agent-executor",
+        any(target_os = "macos", target_os = "linux", windows)
+    )))]
+    let context = {
+        let _ = workspace;
+        None
+    };
+    let tools = super::java_tools::Tools::new(&sources.java.path, context);
     let outputs = outputs(&args.output, sign.v4)?;
-    let certificate = extract_keystore_cert_fingerprint(
-        &sources.keystore.path,
-        &sign.key_alias,
-        &sign.keystore_password,
-        Some(keystore_type(sign.keystore_type)),
-    )
-    .map_err(CheckError::from_core)?;
-    let report = preflight_apk(
-        &sources.input.path,
-        PreflightOptions {
-            runtime_profile: profile,
-            apksigner_path: Some(&sources.apksigner.path),
-            expected_output_cert_fingerprint: Some(&certificate),
-        },
-    )
-    .map_err(CheckError::from_core)?;
+    let certificate = tools
+        .certificate(
+            &sources.keystore.path,
+            &sign.key_alias,
+            &sign.keystore_password,
+            keystore_type(sign.keystore_type),
+        )
+        .map_err(CheckError::from_core)?;
+    let report = tools
+        .preflight(
+            &sources.input.path,
+            PreflightOptions {
+                runtime_profile: profile,
+                apksigner_path: Some(&sources.apksigner.path),
+                expected_output_cert_fingerprint: Some(&certificate),
+            },
+        )
+        .map_err(CheckError::from_core)?;
     let verdict = status(report.verdict);
     let native_abis = report.facts.native_abis.clone();
     let preflight = report_data(report, profile_name)?;
@@ -227,17 +241,35 @@ pub(super) fn prepare_resolved(
             status: verdict,
             data,
         },
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         sources,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         protect,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         sign,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         profile,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         certificate,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         digest: digest.into(),
     })))
 }
@@ -313,7 +345,9 @@ pub(super) fn sources(
     protect: &ResolvedProtectArgs,
     sign: &ResolvedSignArgs,
     profile: RuntimeProfile,
+    workspace: Option<&Path>,
 ) -> Result<Sources, CheckError> {
+    let _ = workspace;
     let java = ensure_keytool().map_err(|_| {
         CheckError::new(
             "DEPENDENCY_NOT_READY",
@@ -336,7 +370,10 @@ pub(super) fn sources(
     }
     Ok(Sources {
         config,
-        #[cfg(all(feature = "agent-executor", target_os = "macos"))]
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
         shared: None,
         input: snapshot::file("input", &protect.input)?,
         keystore: snapshot::file("keystore", &sign.keystore)?,
@@ -351,6 +388,21 @@ pub(super) fn sources(
             "resources",
             &resources::select(protect.resources.clone(), profile)?,
         )?,
+        #[cfg(all(
+            feature = "agent-executor",
+            any(target_os = "macos", target_os = "linux", windows)
+        ))]
+        java_adapter: {
+            #[cfg(windows)]
+            {
+                workspace.map(|_| super::adapter::select()).transpose()?
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = workspace;
+                None
+            }
+        },
     })
 }
 

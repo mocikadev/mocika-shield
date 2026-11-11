@@ -1,6 +1,9 @@
 //! 只验证本机文件边界；构造字节不是实际 APK，不证明工作进程停止或签名合格。
 use super::*;
+#[cfg(unix)]
 use std::os::unix::fs::{symlink, PermissionsExt};
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
 use std::sync::{Arc, Barrier};
 
 const CONTENT: &[u8] = "完整产物的测试字节，不是实际 APK".as_bytes();
@@ -33,12 +36,14 @@ fn 同目录私有暂存且提交前没有最终文件() {
     let work = publication.work_dir().unwrap().to_owned();
     assert_eq!(
         work.parent(),
-        Some(fs::canonicalize(root.path()).unwrap().as_path())
+        Some(task_files::resolved(root.path()).unwrap().as_path())
     );
+    #[cfg(unix)]
     assert_eq!(
         fs::metadata(&work).unwrap().permissions().mode() & 0o777,
         0o700
     );
+    task_files::validate_directory(&work).unwrap();
     assert!(!publication.target.exists());
     drop(publication);
     assert!(!work.exists());
@@ -51,7 +56,7 @@ fn 完整提交固化字节并返回单独的收尾状态() {
     let mut publication = prepared(root.path());
     let target = publication.target.clone();
     let source = publication.work_dir().unwrap().join("signed.apk");
-    let source_inode = fs::metadata(&source).unwrap().ino();
+    let source_identity = task_files::file_identity(&File::open(&source).unwrap()).unwrap();
     let receipt = publication
         .publish_after_stop(digest(CONTENT), |_| Ok(()))
         .unwrap();
@@ -59,9 +64,15 @@ fn 完整提交固化字节并返回单独的收尾状态() {
     assert_eq!(receipt.bytes, CONTENT.len() as u64);
     assert_eq!(receipt.sha256, digest(CONTENT));
     assert!(receipt.location_confirmed);
+    #[cfg(unix)]
     assert!(receipt.directory_synced);
+    #[cfg(windows)]
+    assert!(!receipt.directory_synced);
     assert!(receipt.cleanup_complete);
-    assert_ne!(fs::metadata(target).unwrap().ino(), source_inode);
+    assert_ne!(
+        task_files::file_identity(&File::open(target).unwrap()).unwrap(),
+        source_identity
+    );
     assert!(publication.cleanup());
     assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
 }
@@ -122,14 +133,18 @@ fn 错误摘要失败且清理只涉及本次目录() {
 
 #[test]
 fn 缺失空文件目录及链接产物不能发布() {
-    for kind in [
+    #[cfg(unix)]
+    let kinds = [
         "missing",
         "empty",
         "directory",
         "symlink",
         "hardlink",
         "fifo",
-    ] {
+    ];
+    #[cfg(windows)]
+    let kinds = ["missing", "empty", "directory", "symlink", "hardlink"];
+    for kind in kinds {
         let root = tempfile::tempdir().unwrap();
         let mut publication = Publication::new(&root.path().join("output.apk")).unwrap();
         let candidate = publication.work_dir().unwrap().join("signed.apk");
@@ -140,6 +155,7 @@ fn 缺失空文件目录及链接产物不能发布() {
             "directory" => fs::create_dir(&candidate).unwrap(),
             "symlink" => symlink(&original, &candidate).unwrap(),
             "hardlink" => fs::hard_link(&original, &candidate).unwrap(),
+            #[cfg(unix)]
             "fifo" => assert!(shield_core::utils::no_window_command("mkfifo")
                 .arg(&candidate)
                 .status()
@@ -276,6 +292,7 @@ fn 两个并发任务只有一个能够提交() {
 }
 
 #[test]
+#[cfg(unix)]
 fn 父目录链接改向拒绝且不写入新目录() {
     let root = tempfile::tempdir().unwrap();
     let first = root.path().join("原目录");
@@ -297,6 +314,7 @@ fn 父目录链接改向拒绝且不写入新目录() {
 }
 
 #[test]
+#[cfg(unix)]
 fn 父目录同路径换成新目录也拒绝() {
     let root = tempfile::tempdir().unwrap();
     let parent = root.path().join("输出");
@@ -316,6 +334,7 @@ fn 父目录同路径换成新目录也拒绝() {
 }
 
 #[test]
+#[cfg(unix)]
 fn 暂存目录被替换后不递归删除替代目录() {
     let root = tempfile::tempdir().unwrap();
     let mut publication = prepared(root.path());
@@ -334,6 +353,7 @@ fn 暂存目录被替换后不递归删除替代目录() {
 }
 
 #[test]
+#[cfg(unix)]
 #[ignore = "需要普通用户权限及支持目录权限的本地文件系统，显式验证提交后清理失败"]
 fn 提交后清理失败不能误报没有输出() {
     let root = tempfile::tempdir().unwrap();

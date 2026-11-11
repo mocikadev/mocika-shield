@@ -1,12 +1,10 @@
-//! macOS 开发特性的受控自动化入口；内部工作消息不是跨版本服务协议。
+//! 桌面开发特性的受控自动化入口；内部工作消息不是跨版本服务协议。
 use super::args::Profile;
 use super::{CheckError, PlanProtectArgs};
 use clap::Args;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::OpenOptions;
-use std::io::{Read, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -16,7 +14,8 @@ use std::time::Instant;
 
 mod channel;
 mod controller;
-mod identity;
+use super::executable as identity;
+use super::private_json::{read as read_json, write as write_json};
 mod interface;
 mod launch;
 mod sources;
@@ -116,6 +115,9 @@ impl Request {
         Ok(())
     }
     fn bootstrap_version(&self) -> u32 {
+        if cfg!(windows) {
+            return if self.sign.is_some() { 6 } else { 5 };
+        }
         if self.sign.is_some() {
             4
         } else if self.shared.is_some() {
@@ -125,6 +127,9 @@ impl Request {
         }
     }
     fn proof_version(&self) -> u32 {
+        if cfg!(windows) {
+            return if self.sign.is_some() { 5 } else { 4 };
+        }
         if self.sign.is_some() {
             3
         } else if self.shared.is_some() {
@@ -211,49 +216,6 @@ fn parse_hex<const N: usize>(value: &str) -> Result<[u8; N], CheckError> {
         *slot = u8::from_str_radix(pair, 16).map_err(|_| error("INVALID_DIGEST"))?;
     }
     Ok(bytes)
-}
-
-fn read_json<T: DeserializeOwned>(path: &Path, limit: u64) -> Result<(T, Vec<u8>), CheckError> {
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(path)
-        .map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    let metadata = file.metadata().map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    if !metadata.is_file()
-        || metadata.nlink() != 1
-        || metadata.uid() != rustix::process::geteuid().as_raw()
-        || metadata.permissions().mode() & 0o077 != 0
-        || metadata.len() > limit
-    {
-        return Err(error("PRIVATE_FILE_INVALID"));
-    }
-    let mut bytes = Vec::new();
-    file.take(limit + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    if bytes.len() as u64 > limit {
-        return Err(error("PRIVATE_FILE_INVALID"));
-    }
-    let value = serde_json::from_slice(&bytes).map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    Ok((value, bytes))
-}
-
-fn write_json(path: &Path, value: &impl Serialize) -> Result<[u8; 32], CheckError> {
-    let bytes = serde_json::to_vec(value).map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    if bytes.len() > 65536 {
-        return Err(error("PRIVATE_FILE_INVALID"));
-    }
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(path)
-        .map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    file.write_all(&bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|_| error("PRIVATE_FILE_INVALID"))?;
-    Ok(Sha256::digest(bytes).into())
 }
 
 fn checkpoint(deadline: Instant, cancel: &AtomicBool) -> Result<(), CheckError> {

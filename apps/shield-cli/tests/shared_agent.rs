@@ -1,5 +1,8 @@
 //! 共享受控命令专项；使用隔离资料，不读取或写入维护者配置。
-#![cfg(all(feature = "agent-executor", target_os = "macos"))]
+#![cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux")
+))]
 use serde_json::{json, Value};
 use shield_services::{
     certificates::{CertificatePreferencesPatch, CertificateStoreState, CertificateUpsertInput},
@@ -139,6 +142,7 @@ fn 真实共享受控双模式默认切换及材料变更() {
                 "Contents/MacOS/mocika-shield",
                 "Contents/Resources/tools/apktool.jar",
                 "Contents/Resources/tools/apksigner.jar",
+                "Contents/Resources/tools/java-adapter.jar",
                 "Contents/Resources/resources/resources.zip",
                 "Contents/Resources/resources/resources-api19.zip",
             ]

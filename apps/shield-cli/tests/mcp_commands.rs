@@ -1,5 +1,5 @@
 //! 真实标准输入输出协议回归；夹具不代表用户 APK 或宿主 Agent 已验收。
-#![cfg(all(feature = "mcp-server", target_os = "macos"))]
+#![cfg(all(feature = "mcp-server", any(target_os = "macos", target_os = "linux")))]
 use serde_json::json;
 use std::fs;
 use std::os::unix::fs::{symlink, PermissionsExt};
@@ -27,13 +27,6 @@ fn fixture() -> tempfile::TempDir {
     )
     .unwrap();
     dir
-}
-fn heartbeat(root: &Path) {
-    let deadline = Instant::now() + Duration::from_secs(6);
-    while !root.join("heartbeat").is_file() {
-        assert!(Instant::now() < deadline, "检查子进程未启动");
-        std::thread::sleep(Duration::from_millis(10));
-    }
 }
 fn stopped(root: &Path) {
     assert!(
@@ -139,7 +132,7 @@ fn 取消和并发调用不丢失检查清场责任() {
     let dir = fixture();
     let mut session = Session::new(dir.path(), None, 15, true);
     session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"shield_doctor","arguments":{}}}));
-    heartbeat(dir.path());
+    session.wait_file(&dir.path().join("heartbeat"), 2, Duration::from_secs(15));
     assert_eq!(
         session.call(3, "shield_doctor", json!({}))["code"],
         "SERVER_BUSY"
@@ -156,7 +149,7 @@ fn 输入断开会停止检查后代而非遗留后台任务() {
     let dir = fixture();
     let mut session = Session::new(dir.path(), None, 15, true);
     session.send(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"shield_doctor","arguments":{}}}));
-    heartbeat(dir.path());
+    session.wait_file(&dir.path().join("heartbeat"), 2, Duration::from_secs(15));
     session.close();
     stopped(dir.path());
 }
@@ -308,7 +301,7 @@ fn 受控计划超时保留超时原因并停止其证书工具() {
         "arguments":{"input":"中文 样本.apk","output":"out.apk"},"_meta":{"progressToken":"准备门槛"}}}),
     );
     session.wait_stage("prepare");
-    heartbeat(dir.path());
+    session.wait_file(&dir.path().join("heartbeat"), 3, Duration::from_secs(10));
     let result = session.receive(3)["result"]["structuredContent"].clone();
     assert_eq!(result["status"], "timed_out", "超时回执不符：{result}");
     assert_eq!(result["code"], "TASK_TIMEOUT");
@@ -332,7 +325,7 @@ fn 受控计划断开后先收尾且不生成最终文件() {
     let started = Instant::now();
     session.wait_stage("prepare");
     let prepared = started.elapsed();
-    heartbeat(dir.path());
+    session.wait_file(&dir.path().join("heartbeat"), 3, Duration::from_secs(15));
     eprintln!(
         "准备通知等待：{prepared:?}；证书工具等待：{:?}",
         started.elapsed() - prepared

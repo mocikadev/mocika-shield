@@ -161,6 +161,7 @@ pub(super) fn prepare(
     mut args: PlanProtectArgs,
     config_path: Option<&Path>,
     request: &SharedRequest,
+    workspace: &Path,
 ) -> Result<plan::Assessment, CheckError> {
     request.validate()?;
     if ["MOCIKA_SHIELD_KS_PASS", "MOCIKA_SHIELD_KEY_PASS"]
@@ -299,13 +300,27 @@ pub(super) fn prepare(
             ..Default::default()
         })
         .map_err(|_| invalid())?;
-    let mut sources = plan::sources(config_snapshot, &protect, &sign, profile.resolve().0)?;
+    let mut sources = plan::sources(
+        config_snapshot,
+        &protect,
+        &sign,
+        profile.resolve().0,
+        Some(workspace),
+    )?;
     sources.shared = Some(SharedIdentity {
         database: paths.certificate_database(),
         keystore_dir: paths.keystore_dir(),
         binding,
     });
-    plan::prepare_resolved(args, protect, sign, sources, true, profile.resolve().1)
+    plan::prepare_resolved(
+        args,
+        protect,
+        sign,
+        sources,
+        true,
+        profile.resolve().1,
+        Some(workspace),
+    )
 }
 
 fn invalid() -> CheckError {

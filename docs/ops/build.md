@@ -7,7 +7,7 @@
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
 | Rust | 当前稳定版；桌面共享库声明至少 1.89 | 含 rustup；完整依赖图以锁定构建为准 |
-| Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均需在 PATH |
+| Java / JDK | 17 | 桌面适配资源构建固定使用完整 JDK 17，且 `java`、`javac`、`keytool` 均需在 PATH；用户运行仍支持 Java 8 |
 | Android SDK | Platform 35 | 需设置 `ANDROID_HOME` |
 | Android build-tools | 35.0.0 | 提供 `d8` 等 Android 构建工具 |
 | Android NDK | 29.0.14206865 + 25.2.9519653 | 标准资源使用 r29；Android 4.4 兼容资源使用 r25c |
@@ -60,34 +60,45 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ```bash
 make build-cli
-# 等价于：cargo build --release -p shield-cli
+# 仅编译 Rust 部分：cargo build --release -p shield-cli
 ```
 
 输出（Linux / macOS）：`target/release/shield`
 输出（Windows）：`target\release\shield.exe`
+
+`make build-cli` 会先用构建 JDK 17 生成 Java 8 字节码适配资源，并放到 `target/lib/java-adapter.jar`，供 release 模式的 CLI 相邻定位；普通 `cargo build`／单元检查不会隐式调用 javac。源码调试运行 Windows 工具前可显式执行 `make build-java-adapter`。这是构建要求，用户运行仍支持 Java 8，不需要 javac。
 
 ### 3. 构建 shield-gui（Tauri 桌面应用）
 
 ```bash
 make build-gui
 # macOS：bash scripts/build-macos-app.sh
-# Linux / Windows：cd apps/shield-gui && cargo tauri build --no-bundle
+# Linux / Windows：先 python3 scripts/prepare_desktop_cli.py，再进入 GUI 目录：
+# cargo tauri build --no-bundle --config ../../target/desktop-cli/tauri-sidecar.json
 ```
 
 Linux 首次构建前请先安装 Tauri 所需系统依赖，见 [environment.md](environment.md#linux-构建依赖)。
 
-输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，不启动 GUI 即可调用。CLI 共用应用内工具与两套资源，显式启用 `mcp-server`（包含原自动化执行特性）；MCP 不自启动，须由宿主显式调用 `mcp serve`，默认只读。共享命令通过本地服务复用 GUI 的配置与证书，不要求 GUI 常驻；构建本身不安装到应用目录或修改系统 PATH。默认 `make build-cli` 仍不启用这些特性，当前公开的 1.4.3 安装包没有这些新入口，最简接入见[使用说明](agent-setup.md)。
+输出（macOS）：`target/release/bundle/macos/MocikaShield.app`，内含独立 `Contents/MacOS/shield`，无需启动 GUI。共包 CLI 启用 `mcp-server`，复用 GUI 配置和证书；MCP 不自启动，默认只读。构建不安装应用或修改 PATH，`make build-cli` 默认不启用这些特性。使用方式见[Agent 接入](agent-setup.md)。
 
 输出（Linux）：`target/release/mocika-shield`
 输出（Windows）：`target\\release\\mocika-shield.exe`
 
+Linux／Windows 的 `make build-gui` 用 `scripts/prepare_desktop_cli.py` 准备原生 x64 `mocika-shield-cli`（Windows 带 `.exe`）和生成的 Tauri 配置，材料放在忽略的 `target/desktop-cli/`。普通 Cargo 检查不依赖这些材料。调试 GUI 包须给准备器与 Tauri 同时传 `--debug`；准备器不支持交叉构建或自定义 `CARGO_TARGET_DIR`。
+
+安装时须保留完整应用目录，不只复制可执行文件。三平台命令和资源路径见[共包布局](../design/agent-desktop-platforms.md#桌面共包)，实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
+
 macOS 共包构建先验证既有标准/工控资源版本，再编译 CLI 和 GUI、核对两者架构与实际资源，最后完成内层 CLI 与整个 `.app` 的 adhoc 签名和校验；不要事后向已经交付的应用复制二进制。`bash scripts/build-macos-app.sh universal` 可构建通用架构，须先安装两个 Apple Rust target；通用架构仍需单独实测。首次构建前在 `apps/shield-gui` 执行 `npm ci`。此入口固定使用仓库 `target`，不接受 `CARGO_TARGET_DIR`。
 
-Skill 独立放在根目录 `skills/mocika-shield/`，由用户通过所用 Agent 或管理工具安装、升级，不随应用打包；App 构建不依赖该目录。构建会拒绝旧技能资源残留，不把开发期旧共包内容带入最终签名。CLI 仍在 `.app` 内独立运行。安装、路径定位及外部配置说明见 [Agent 接入](agent-setup.md)。
+三平台构建会用 JDK 17 生成并校验共用 `tools/java-adapter.jar`，维护用 CLI 包放在 `lib/`。用户运行仍支持 Java 8，不运行时编译或联网补资源，不将桌面 JAR 放进 Android 壳 ZIP。
 
-如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等安装产物，请使用下方发布脚本；macOS 发布脚本复用同一共包入口制作 DMG，其他平台共包尚未接入。
+Skill 放根目录 `skills/mocika-shield/`，独立安装、升级，不随应用打包；构建拒绝旧 Skill 共包残留。接入配置见[使用说明](agent-setup.md)。
+
+如需生成 `.AppImage`、`.deb`、`.dmg`、NSIS `.exe` 等安装产物，请使用下方发布脚本；macOS 发布脚本复用同一共包入口制作 DMG，Linux／Windows 复用上述准备器与 Tauri 外部二进制配置。`SKIP_CLI_RELEASE=1` 仅跳过独立维护压缩包，不跳过 GUI 内 CLI。
 
 > **本机测试规则**：实际验证 GUI 效果、签名、加固等完整桌面流程须使用应用包。macOS 的 `make build-gui` 现在直接交付 `.app`；其他平台仍不可把裸二进制当作完整安装包。
+
+维护者可对开发分支手动运行 CI 的 `agent_bundles` 范围，生成并验收 Linux deb／AppImage 与 Windows NSIS。它复用已核验的固定 1.4.3 双壳，不重建壳、不改版本或发布；只留存 GUI 安装包，不上传测试 APK 和证书。新版本需先审查固定资源来源，不能在版本不匹配时绕过检查。对已生成并解包／安装的目录可运行 `python3 scripts/verify_desktop_bundle.py <目录> --platform linux`（或 `windows`／`macos`），核对与当前构建的资源及入口；原生及业务实际结果统一见[平台验收](../process/agent-desktop-platforms-plan.md)。
 
 ## 发布包构建
 

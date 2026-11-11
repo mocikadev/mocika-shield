@@ -9,19 +9,28 @@ on:
   workflow_dispatch:
     inputs:
       validation_scope:
-        description: "手动验证范围：完整检查或仅 Windows 资源构建"
+        description: "手动验证范围：完整、Windows 工具、Agent 原生／桌面产物、进程或 Java"
         type: choice
         required: false
         default: all
         options:
           - all
           - windows_resources
+          - agent_platforms
+          - agent_bundles
+          - agent_windows_processes
+          - agent_processes
+          - agent_java
+          - windows_paths
+          - windows_protection
+          - windows_defaults
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # 路径与加固专项各自独立，不取消仍在采集的其他平台证据。
+  group: ci-${{ github.ref }}${{ inputs.validation_scope == 'windows_paths' && '-windows-paths' || inputs.validation_scope == 'windows_protection' && '-windows-protection' || inputs.validation_scope == 'windows_defaults' && '-windows-defaults' || inputs.validation_scope == 'agent_bundles' && '-agent-bundles' || '' }}
   cancel-in-progress: true
 
 env:
@@ -53,7 +62,7 @@ jobs:
           set -euo pipefail
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             case "$VALIDATION_SCOPE" in
-              all|windows_resources) ;;
+              all|windows_resources|agent_platforms|agent_bundles|agent_windows_processes|agent_processes|agent_java|windows_paths|windows_protection|windows_defaults) ;;
               *) echo "错误：未知的手动验证范围" >&2; exit 1 ;;
             esac
             echo "run_checks=true" >> "$GITHUB_OUTPUT"
@@ -96,6 +105,578 @@ jobs:
 
       - name: 运行发布与统计脚本测试
         run: python3 -m unittest discover -s scripts/tests -v
+
+  windows-protection:
+    name: Windows 加固与默认工具专项
+    if: github.event_name == 'workflow_dispatch' && (inputs.validation_scope == 'windows_protection' || inputs.validation_scope == 'windows_defaults')
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+      - name: 配置夹具构建与验证 Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: 配置真实夹具所需 Android 工具
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+      - name: 构建正式适配资源与自有真实 DEX 夹具
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_java_adapter.py
+          python scripts/build_protection_test_apk.py --jdk "$JAVA_HOME" --sdk "$ANDROID_HOME" --output target/java-adapter-protection-apk
+          {
+            echo "SHIELD_TEST_PROTECT_APK=$GITHUB_WORKSPACE/target/java-adapter-protection-apk/unsigned.apk"
+            echo "SHIELD_TEST_APK=$GITHUB_WORKSPACE/target/java-adapter-protection-apk/unsigned.apk"
+            echo "SHIELD_TEST_APKSIGNER=$GITHUB_WORKSPACE/tools/apksigner.jar"
+            echo "SHIELD_TEST_ZIPALIGN=$ANDROID_HOME/build-tools/35.0.0/zipalign.exe"
+          } >> "$GITHUB_ENV"
+      - name: 只读提取固定发布包的 Android 资源
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download v1.4.3 --repo mocikadev/mocika-shield --pattern MocikaShield_1.4.3_linux_amd64.deb --dir target/protection-materials
+          python scripts/extract_protection_test_resources.py target/protection-materials/MocikaShield_1.4.3_linux_amd64.deb target/protection-resources
+          {
+            echo "SHIELD_TEST_STANDARD_RESOURCES=$GITHUB_WORKSPACE/target/protection-resources/resources.zip"
+            echo "SHIELD_TEST_API19_RESOURCES=$GITHUB_WORKSPACE/target/protection-resources/resources-api19.zip"
+          } >> "$GITHUB_ENV"
+      - name: 核心严格检查
+        run: cargo clippy -p shield-core --all-targets --locked -- -D warnings
+      - name: Java 17 完整加固与取消写回边界
+        if: inputs.validation_scope == 'windows_protection'
+        run: cargo test -p shield-core --locked --lib protect_api::context_tests -- --include-ignored --test-threads=1 --show-output
+      - name: Java 17 普通默认签名加固与失败保留
+        if: inputs.validation_scope == 'windows_defaults'
+        run: cargo test -p shield-core --locked --lib ordinary_apk_tests -- --include-ignored --test-threads=1 --show-output
+      - name: Java 17 普通原地签名同卷与显式异卷拒绝
+        if: inputs.validation_scope == 'windows_defaults'
+        run: cargo test -p shield-core --locked --lib 异卷原地签名在对齐和工具启动前拒绝且原包不变 -- --ignored --test-threads=1 --show-output
+      - name: Java 17 普通证书默认适配
+        run: cargo test -p shield-core --locked --lib keytool::ordinary_tests -- --ignored --test-threads=1 --show-output
+      - name: Java 17 默认新建保存失败保留证书
+        run: cargo test -p shield-services --locked --lib 默认新建入库失败 -- --ignored --test-threads=1 --show-output
+      - name: Windows 共享入口身份与材料严格检查
+        run: cargo clippy -p shield-cli --features mcp-server --all-targets --locked -- -D warnings
+      - name: Windows 共享入口普通回归
+        run: cargo test -p shield-cli --features mcp-server --locked --bin shield -- --test-threads=1
+      - name: Java 17 完整 MCP 加固及签名取消闭环
+        if: inputs.validation_scope == 'windows_protection'
+        run: cargo test -p shield-cli --features mcp-server --locked --test agent_desktop -- --ignored --test-threads=1 --show-output
+      - name: Java 17 普通 CLI 共享签名加固闭环
+        if: inputs.validation_scope == 'windows_defaults'
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test agent_desktop ordinary::
+          -- --ignored --test-threads=1 --show-output
+      - name: 配置 Java 8 对照
+        if: ${{ !cancelled() }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: "8"
+      - name: Java 8 完整加固与取消写回边界
+        if: ${{ !cancelled() && inputs.validation_scope == 'windows_protection' }}
+        run: cargo test -p shield-core --locked --lib protect_api::context_tests -- --include-ignored --test-threads=1 --show-output
+      - name: Java 8 普通默认签名加固与失败保留
+        if: ${{ !cancelled() && inputs.validation_scope == 'windows_defaults' }}
+        run: cargo test -p shield-core --locked --lib ordinary_apk_tests -- --include-ignored --test-threads=1 --show-output
+      - name: Java 8 普通原地签名同卷与显式异卷拒绝
+        if: ${{ !cancelled() && inputs.validation_scope == 'windows_defaults' }}
+        run: cargo test -p shield-core --locked --lib 异卷原地签名在对齐和工具启动前拒绝且原包不变 -- --ignored --test-threads=1 --show-output
+      - name: Java 8 普通证书默认适配
+        if: ${{ !cancelled() }}
+        run: cargo test -p shield-core --locked --lib keytool::ordinary_tests -- --ignored --test-threads=1 --show-output
+      - name: Java 8 默认新建保存失败保留证书
+        if: ${{ !cancelled() }}
+        run: cargo test -p shield-services --locked --lib 默认新建入库失败 -- --ignored --test-threads=1 --show-output
+      - name: Java 8 完整 MCP 加固及签名取消闭环
+        if: ${{ !cancelled() && inputs.validation_scope == 'windows_protection' }}
+        run: cargo test -p shield-cli --features mcp-server --locked --test agent_desktop -- --ignored --test-threads=1 --show-output
+      - name: Java 8 普通 CLI 共享签名加固闭环
+        if: ${{ !cancelled() && inputs.validation_scope == 'windows_defaults' }}
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test agent_desktop ordinary::
+          -- --ignored --test-threads=1 --show-output
+
+  windows-paths:
+    name: Windows 工具路径对照
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'windows_paths'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置显式 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 构建并校验正式 Java 8 适配资源
+        run: python scripts/build_java_adapter.py
+
+      - name: 配置真实签名夹具所需 Android 工具
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: 生成固定入口签名与重建用自有 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/java-adapter-signing
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2.exe" compile \
+            --dir tests/fixtures/agent-signing/res \
+            -o target/java-adapter-signing/resources.zip
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2.exe" link \
+            --manifest tests/fixtures/agent-signing/AndroidManifest.xml \
+            -I "$ANDROID_HOME/platforms/android-35/android.jar" \
+            target/java-adapter-signing/resources.zip \
+            -o target/java-adapter-signing/unsigned.apk
+          {
+            echo "SHIELD_TEST_APK=$GITHUB_WORKSPACE/target/java-adapter-signing/unsigned.apk"
+            echo "SHIELD_TEST_ZIPALIGN=$ANDROID_HOME/build-tools/35.0.0/zipalign.exe"
+          } >> "$GITHUB_ENV"
+
+      - name: 正式适配资源核心严格检查
+        run: cargo clippy -p shield-core -p shield-services --all-targets --locked -- -D warnings
+
+      - name: 安全短名与原生目录身份负向验证
+        run: cargo test -p shield-core --locked --lib java_directory::tests -- --test-threads=1 --show-output
+
+      - name: 私有访问控制与权限放宽负向验证
+        run: cargo test -p shield-core --locked --lib windows_private::tests -- --test-threads=1 --show-output
+
+      - name: 共享短名与执行器严格检查
+        run: cargo clippy -p shield-cli --features agent-executor --all-targets --locked -- -D warnings
+
+      - name: 原生文件与活动目录锁及执行器回归
+        run: cargo test -p shield-cli --features agent-executor --locked --bin shield -- --test-threads=1 --show-output
+
+      - name: Java 17 路径与无损传参原型对照
+        run: >-
+          cargo test -p shield-cli --locked --test windows_tool_paths
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 17 正式适配引导与私有输入
+        run: >-
+          cargo test -p shield-core --locked --lib java_adapter::tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 17 正式助手租约与整组停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::java_tests::正式助手的只读输入不混用租约且取消超时断开停止后代
+          -- --ignored --exact --test-threads=1 --show-output
+
+      - name: Java 17 隔离资料库新建及保存边界
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-services --locked --lib certificates::creation_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 17 新建三阶段故障及整组停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::certificate_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 17 真实签名验签窗口及故障停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::signing_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 17 真实解包及原生重建停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::apktool_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: 配置显式 Java 8
+        if: ${{ !cancelled() }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: "8"
+
+      - name: Java 8 路径与证书内容对照
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --locked --test windows_tool_paths
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 8 正式适配引导与私有输入
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-core --locked --lib java_adapter::tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 8 正式助手租约与整组停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::java_tests::正式助手的只读输入不混用租约且取消超时断开停止后代
+          -- --ignored --exact --test-threads=1 --show-output
+
+      - name: Java 8 隔离资料库新建及保存边界
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-services --locked --lib certificates::creation_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 8 新建三阶段故障及整组停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::certificate_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 8 真实签名验签窗口及故障停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::signing_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+      - name: Java 8 真实解包及原生重建停止
+        if: ${{ !cancelled() }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::native_group::tests::apktool_tests
+          -- --include-ignored --test-threads=1 --show-output
+
+  agent-platforms:
+    name: Agent 原生专项（${{ matrix.os }}）
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'agent_platforms'
+    strategy:
+      fail-fast: false
+      matrix:
+        # 三平台显式启用完整源码入口；安装包及设备验收不属于此专项。
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 原生编译与进程后代停止回归
+        run: cargo test -p shield-cli --features mcp-server --locked --bin shield -- --test-threads=1
+
+      - name: 构建正式适配资源供 Windows 受控工具使用
+        if: runner.os == 'Windows'
+        run: python scripts/build_java_adapter.py
+
+      - name: 完整入口全目标严格检查
+        run: cargo clippy -p shield-cli --features mcp-server --all-targets --locked -- -D warnings
+
+      - name: 桌面共包布局的原生子进程检查
+        if: runner.os != 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test -p shield-core --locked --lib bundle_resources
+          cargo test -p shield-core --locked --lib java_adapter::resource_location
+          cargo test -p shield-cli --features mcp-server --locked --test desktop_bundle
+
+      - name: Windows 默认与独立执行器特性严格检查
+        if: runner.os == 'Windows'
+        run: |
+          cargo clippy -p shield-cli --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo clippy -p shield-cli --features agent-executor --all-targets --locked -- -D warnings
+
+      - name: 核对短准备期限的真实终态
+        if: runner.os != 'Windows'
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test agent_signing
+          control::准备总期限不假定工具已启动 -- --exact --show-output
+
+      - name: 协议发现与共享资料及受控任务回归
+        if: runner.os != 'Windows'
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked
+          --test automation --test automation_plan
+          --test agent_commands --test shared_agent --test agent_signing
+          --test mcp_commands --test mcp_shared --test mcp_management --test mcp_signing
+          -- --test-threads=1
+
+      - name: Windows 共享独立签名门禁
+        if: runner.os == 'Windows'
+        run: cargo test -p shield-cli --features mcp-server --locked --test agent_signing -- --test-threads=1
+
+      - name: 配置签名夹具所需 Android 工具
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: 生成自有最小签名夹具
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/agent-platform-smoke
+          exe_suffix=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then exe_suffix=".exe"; fi
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2$exe_suffix" link \
+            --manifest tests/fixtures/agent-signing/AndroidManifest.xml \
+            -I "$ANDROID_HOME/platforms/android-35/android.jar" \
+            -o target/agent-platform-smoke/unsigned.apk
+          {
+            echo "SHIELD_TEST_APK=$GITHUB_WORKSPACE/target/agent-platform-smoke/unsigned.apk"
+            echo "SHIELD_TEST_APKSIGNER=$GITHUB_WORKSPACE/tools/apksigner.jar"
+            echo "SHIELD_TEST_ZIPALIGN=$ANDROID_HOME/build-tools/35.0.0/zipalign$exe_suffix"
+          } >> "$GITHUB_ENV"
+
+      - name: 隔离证书的真实受控签名与独立验签
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test agent_signing
+          真实一次调用默认和编号签名不需要预览且原包资料不变 -- --ignored --exact --test-threads=1
+
+      - name: 真实 MCP 生命周期与签名闭环
+        if: runner.os != 'Windows'
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test mcp_signing
+          certificates::真实创建导入校验签名删除在同会话完成且文件保留 -- --ignored --exact --test-threads=1
+
+      - name: 证书工具取消超时与断开清场
+        if: runner.os != 'Windows'
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test mcp_signing
+          certificates::创建运行中取消超时断开不遗留后代且未知结果不能重试 -- --ignored --exact --test-threads=1
+
+      - name: 三平台真实 MCP 签名及原生故障清场
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test agent_desktop
+          -- --ignored --skip 真实共享规划加固签名与绑定验收保持同一会话
+          --skip ordinary:: --test-threads=1 --show-output
+
+  agent-bundles:
+    name: 桌面共包实际产物验收（${{ matrix.os }}）
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'agent_bundles'
+    strategy:
+      fail-fast: false
+      matrix:
+        # 与正式发布运行机保持一致，避免在更高 glibc 上打包后误判向下兼容。
+        os: [ubuntu-22.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+      - name: 配置构建 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: 配置前端工具
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: 配置自有夹具所需 Android 工具
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+      - name: 安装 Linux 桌面打包依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config patchelf libfuse2
+      - name: 安装 Windows 打包工具
+        if: runner.os == 'Windows'
+        run: choco install nsis -y --no-progress
+      - name: 配置 Tauri 构建工具
+        run: cargo install tauri-cli --locked
+      - name: 复用固定发布壳并生成自有样本
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/desktop-bundle-input
+          gh release download v1.4.3 --repo mocikadev/mocika-shield --pattern 'MocikaShield_1.4.3_linux_amd64.deb' --dir target/desktop-bundle-input
+          python scripts/extract_protection_test_resources.py target/desktop-bundle-input/MocikaShield_1.4.3_linux_amd64.deb shield-stub/build/outputs/resources
+          python scripts/build_protection_test_apk.py --jdk "$JAVA_HOME" --sdk "$ANDROID_HOME" --output target/desktop-bundle-fixture
+          suffix=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then suffix=".exe"; fi
+          {
+            echo "SHIELD_TEST_APK=$GITHUB_WORKSPACE/target/desktop-bundle-fixture/unsigned.apk"
+            echo "SHIELD_TEST_APKSIGNER=$GITHUB_WORKSPACE/tools/apksigner.jar"
+            echo "SHIELD_TEST_ZIPALIGN=$ANDROID_HOME/build-tools/35.0.0/zipalign$suffix"
+          } >> "$GITHUB_ENV"
+      - name: 准备同包 CLI
+        run: python scripts/prepare_desktop_cli.py
+      - name: 安装前端依赖
+        working-directory: apps/shield-gui
+        run: npm ci
+      - name: 生成 Linux 实际安装包
+        if: runner.os == 'Linux'
+        working-directory: apps/shield-gui
+        run: cargo tauri build --bundles deb,appimage --config ../../target/desktop-cli/tauri-sidecar.json
+      - name: 生成 Windows 实际安装包
+        if: runner.os == 'Windows'
+        working-directory: apps/shield-gui
+        run: cargo tauri build --bundles nsis --config ../../target/desktop-cli/tauri-sidecar.json
+      - name: 解包 Linux 产物并核对实际资源
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t debs < <(find target/release/bundle/deb -maxdepth 1 -name '*.deb')
+          mapfile -t images < <(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage')
+          [[ "${#debs[@]}" == 1 && "${#images[@]}" == 1 ]]
+          base="$RUNNER_TEMP/桌面包 验收"
+          mkdir -p "$base/deb" "$base/image"
+          dpkg-deb -x "${debs[0]}" "$base/deb"
+          image="$(realpath "${images[0]}")"
+          (cd "$base/image" && "$image" --appimage-extract >/dev/null)
+          python scripts/verify_desktop_bundle.py "$base/deb" --platform linux
+          python scripts/verify_desktop_bundle.py "$base/image/squashfs-root" --platform linux
+          echo "SHIELD_PACKAGED_CLI=$base/deb/usr/bin/mocika-shield-cli" >> "$GITHUB_ENV"
+          echo "SHIELD_APPIMAGE_CLI=$base/image/squashfs-root/usr/bin/mocika-shield-cli" >> "$GITHUB_ENV"
+      - name: 在隔离运行机安装并核对 Windows 产物
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem target/release/bundle/nsis -Filter '*.exe')
+          if ($installers.Count -ne 1) { throw '安装包数量不正确' }
+          $destination = Join-Path $env:RUNNER_TEMP '桌面包 验收\windows'
+          # NSIS 的 /D 必须最后传递且不带引号，包含空格的绝对路径也遵循此规则。
+          $process = Start-Process -FilePath $installers[0].FullName -ArgumentList "/S /D=$destination" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw '静默安装失败' }
+          python scripts/verify_desktop_bundle.py $destination --platform windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "SHIELD_PACKAGED_CLI=$destination\mocika-shield-cli.exe" >> $env:GITHUB_ENV
+      - name: 实际包内证书双模式加固签名及 MCP
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --test desktop_bundle installed::
+          -- --ignored --test-threads=1 --show-output
+      - name: 实际 AppImage 解包目录的业务闭环
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHIELD_PACKAGED_CLI="$SHIELD_APPIMAGE_CLI" cargo test -p shield-cli --features mcp-server --locked --test desktop_bundle installed:: -- --ignored --test-threads=1 --show-output
+      - name: 留存本次 GUI 安装包供维护核对
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-desktop-bundle-${{ runner.os }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/nsis/*.exe
+
+  agent-windows-processes:
+    name: Windows 进程后端基础专项
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'agent_windows_processes'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 原生 Job 归属与整组停止回归
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::windows_job::tests -- --test-threads=1 --show-output
+
+      - name: Windows 执行器特性全目标严格检查
+        run: cargo clippy -p shield-cli --features agent-executor --all-targets --locked -- -D warnings
+
+  agent-processes:
+    name: Agent 原生文件与标准流专项（${{ matrix.os }}）
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'agent_processes'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 原生编译与文件及标准流回归
+        run: >-
+          cargo test -p shield-cli --features mcp-server --locked --bin shield
+          -- --test-threads=1 --show-output
+
+      - name: 标准流与执行器特性全目标严格检查
+        run: cargo clippy -p shield-cli --features mcp-server --all-targets --locked -- -D warnings
+
+  agent-java:
+    name: Agent 工具身份与 Java 专项（${{ matrix.os }}）
+    if: github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'agent_java'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 原生身份与文件及进程回归
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          -- --test-threads=1 --show-output
+
+      - name: 执行器特性全目标严格检查
+        run: cargo clippy -p shield-cli --features agent-executor --all-targets --locked -- -D warnings
+
+      - name: 配置 Java 8 探针
+        uses: actions/setup-java@v5
+        with:
+          # Corretto 提供 macOS arm64 的 Java 8，不强行使用不存在的 Temurin 产物。
+          distribution: corretto
+          java-version: "8"
+
+      - name: Java 8 原始属性字节往返
+        id: java8_probe
+        env:
+          SHIELD_TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::java_environment::tests::真实jdk中文空格目录属性往返一致
+          -- --ignored --exact --show-output
+
+      - name: 配置 Java 17 探针
+        id: java17_setup
+        if: ${{ !cancelled() && steps.java8_probe.outcome != 'skipped' }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Java 17 原始属性字节往返
+        if: ${{ !cancelled() && steps.java17_setup.outcome == 'success' }}
+        env:
+          SHIELD_TEST_JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: >-
+          cargo test -p shield-cli --features agent-executor --locked --bin shield
+          automation::java_environment::tests::真实jdk中文空格目录属性往返一致
+          -- --ignored --exact --show-output
 
   full-quality:
     name: 完整代码质量检查
@@ -212,7 +793,9 @@ jobs:
 
       - name: 检查 Linux Tauri bundle
         working-directory: apps/shield-gui
-        run: cargo tauri build --bundles appimage,deb --debug
+        run: |
+          python3 ../../scripts/prepare_desktop_cli.py --debug
+          cargo tauri build --bundles appimage,deb --debug --config ../../target/desktop-cli/tauri-sidecar.json
 
   stub:
     name: Android 壳构建

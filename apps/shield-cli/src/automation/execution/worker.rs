@@ -11,7 +11,6 @@ use crate::automation::{
 };
 use shield_core::diagnostic::{Diagnostic, FailureCode};
 use shield_core::{
-    check_apk, extract_apk_cert_fingerprint, preflight_apk, protect_apk, sign_apk_with_progress,
     EnvironmentPolicy, KeystoreType, PreflightOptions, PreflightSeverity, ProgressStep,
     ProtectOptions, SignOptions, SigningVersions,
 };
@@ -110,8 +109,14 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
                 request.plan_args(),
                 request.config.as_deref(),
                 shared,
+                &args.root,
             ),
-            None => plan::prepare(request.plan_args(), request.config.as_deref(), true),
+            None => plan::prepare(
+                request.plan_args(),
+                request.config.as_deref(),
+                true,
+                Some(&args.root),
+            ),
         }?;
         let plan = match assessment {
             Assessment::Blocked(_) => return Err(WorkerError::Policy(Rejection::PlanBlocked)),
@@ -120,7 +125,7 @@ pub(super) fn run(args: WorkerArgs) -> i32 {
         match bootstrap.mode {
             Mode::Plan => {
                 let proof = PlanProof {
-                    format_version: if plan.sources.shared.is_some() { 2 } else { 1 },
+                    format_version: request.proof_version(),
                     warning: plan.result.status == crate::automation::Status::Warning,
                     sources: sources::Sources::Protect(Box::new(plan.sources)),
                 };
@@ -174,7 +179,14 @@ fn execute(
     executor: &identity::Executable,
 ) -> Result<(), WorkerError> {
     let sources = &plan.sources;
-    let bundle = if sources.shared.is_some() {
+    let bundle = if sources.java_adapter.is_some() {
+        MaterialBundle::create_version(
+            root,
+            &sources.materials(),
+            sources.material_version(),
+            || Ok(()),
+        )
+    } else if sources.shared.is_some() {
         MaterialBundle::create_shared(root, &sources.materials(), || Ok(()))
     } else {
         MaterialBundle::create(root, &sources.materials(), || Ok(()))
@@ -185,8 +197,19 @@ fn execute(
         .map_err(|_| WorkerError::Policy(Rejection::MaterialInvalid))?;
     let input = bundle.path(Role::Input);
     let signer = bundle.path(Role::Apksigner);
+    let bound = sources
+        .java_adapter
+        .as_ref()
+        .map(|binding| {
+            crate::automation::adapter::Bound::new(binding, &bundle.path(Role::JavaAdapter), root)
+        })
+        .transpose()?;
+    let java_tools = crate::automation::java_tools::Tools::new(
+        &sources.java.path,
+        bound.as_ref().map(|b| &b.context),
+    );
     tools.recheck(&mut || Ok(()))?;
-    let report = preflight_apk(
+    let report = java_tools.preflight(
         &input,
         PreflightOptions {
             runtime_profile: plan.profile,
@@ -227,10 +250,15 @@ fn execute(
     let tool_changed = Arc::new(AtomicBool::new(false));
     let changed_progress = tool_changed.clone();
     let progress_tools = tools.clone();
-    let protected = protect_apk(
+    let progress_adapter = bound.as_ref().map(|b| b.guard());
+    let protected = java_tools.protect(
         &options,
         move |event| {
-            if progress_tools.recheck(&mut || Ok(())).is_err() {
+            if progress_tools.recheck(&mut || Ok(())).is_err()
+                || progress_adapter
+                    .as_ref()
+                    .is_some_and(|guard| guard.recheck().is_err())
+            {
                 changed_progress.store(true, Ordering::SeqCst);
                 cancelled_progress.store(true, Ordering::SeqCst);
                 return;
@@ -272,6 +300,9 @@ fn execute(
     })?;
     executor.worker()?;
     tools.recheck(&mut || Ok(()))?;
+    if let Some(bound) = &bound {
+        bound.recheck()?;
+    }
     send(writer, Message::Progress { stage: Stage::Sign })?;
     let options = SignOptions {
         apk_path: unsigned,
@@ -292,7 +323,15 @@ fn execute(
             v4: false,
         },
     };
-    sign_apk_with_progress(&options, |_| Ok(()))?;
+    java_tools.sign(&options, |_| {
+        tools
+            .recheck(&mut || Ok(()))
+            .map_err(|_| "工具发生变化".to_owned())?;
+        if let Some(bound) = &bound {
+            bound.recheck().map_err(|_| "适配材料发生变化".to_owned())?;
+        }
+        Ok(())
+    })?;
     tools.recheck(&mut || Ok(()))?;
     send(
         writer,
@@ -300,8 +339,11 @@ fn execute(
             stage: Stage::Verify,
         },
     )?;
-    let checked = check_apk(&signed, Some(&signer))?;
-    let certificate = extract_apk_cert_fingerprint(&signed, Some(&signer))?;
+    if let Some(bound) = &bound {
+        bound.recheck()?;
+    }
+    let checked = java_tools.inspect(&signed, &signer)?;
+    let certificate = java_tools.fingerprint(&signed, &signer)?;
     if !checked.already_protected {
         return Err(WorkerError::Policy(Rejection::ProtectionMissing));
     }

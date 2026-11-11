@@ -30,7 +30,7 @@ fn resource_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
 
 fn appimage_resource_dir() -> Option<PathBuf> {
     let appdir = std::env::var("APPDIR").ok()?;
-    Some(PathBuf::from(appdir).join("usr/lib/mocika-shield"))
+    Some(PathBuf::from(appdir).join("usr/lib/MocikaShield"))
 }
 
 pub(crate) fn find_apktool_path(app: &tauri::AppHandle) -> Option<PathBuf> {

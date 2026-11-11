@@ -31,6 +31,7 @@ echo "✓ shield-stub 构建完成"
 echo "=> 编译 CLI..."
 cd "$PROJECT_ROOT"
 cargo build --release -p shield-cli
+python3 "$PROJECT_ROOT/scripts/build_java_adapter.py"
 echo "✓ CLI 编译完成"
 
 # 4. 复制shield可执行文件
@@ -41,6 +42,9 @@ echo "✓ shield -> release/bin/shield"
 
 # 5. 复制工具JAR文件
 echo "=> 复制工具..."
+
+# 桌面 Java 参数适配资源
+cp "$PROJECT_ROOT/tools/java-adapter/build/java-adapter.jar" "$RELEASE_DIR/lib/java-adapter.jar"
 
 # apktool.jar
 if [ -f "$PROJECT_ROOT/tools/apktool_3.0.1.jar" ]; then
@@ -86,6 +90,7 @@ mocika-shield-x.y.z/
 │   └── shield          # 可执行文件
 ├── lib/
 │   ├── apktool.jar     # APK反编译工具
+│   ├── java-adapter.jar # Java参数适配工具
 │   └── apksigner.jar   # APK签名工具
 ├── resources/
 │   └── resources.zip   # shield-stub 产物（壳DEX + Native库）

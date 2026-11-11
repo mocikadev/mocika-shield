@@ -162,6 +162,7 @@ package_cli() {
 
   cp "$CLI_BIN" "$CLI_PKG_DIR/bin/shield"
   chmod +x "$CLI_PKG_DIR/bin/shield"
+  cp "$ROOT/tools/java-adapter/build/java-adapter.jar" "$CLI_PKG_DIR/lib/java-adapter.jar"
 
   if [[ -f "$ROOT/tools/apktool_3.0.1.jar" ]]; then
     cp "$ROOT/tools/apktool_3.0.1.jar" "$CLI_PKG_DIR/lib/apktool.jar"
@@ -206,6 +207,7 @@ macOS ${ARCH_LABEL} 版本。
 mocika-shield-cli-${VERSION}-macos-${ARCH_LABEL}/
 ├── bin/shield          # 可执行文件
 ├── lib/
+│   ├── java-adapter.jar
 │   ├── apktool.jar
 │   └── apksigner.jar
 ├── resources/

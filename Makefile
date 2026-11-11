@@ -13,7 +13,7 @@ else
   CLEAN_CMD      := rm -rf
 endif
 
-.PHONY: build-cli build-stub audit-stub-dex build-gui build-all \
+.PHONY: build-cli build-java-adapter build-stub audit-stub-dex build-gui build-all \
         release release-linux release-windows \
         release-macos release-macos-universal \
         bump-version test clean help
@@ -22,6 +22,7 @@ help:
 	@echo "用法: make <目标>"
 	@echo ""
 	@echo "  build-cli              编译 shield-cli（当前平台 release）"
+	@echo "  build-java-adapter     构建 Java 8 适配资源（源码 Windows 证书及受控工具需要，构建需 JDK 17）"
 	@echo "  build-stub             构建 shield-stub（Android AAR + 资源包）"
 	@echo "  audit-stub-dex         输出 Stub DEX 指标并检查膨胀上限（需先 build-stub）"
 	@echo "  build-gui              构建 GUI（macOS 为带独立 CLI 的 .app；需先 build-stub）"
@@ -35,10 +36,15 @@ help:
 	@echo "  test                   运行 shield-services + shield-core + shield-cli 单元测试"
 	@echo "  clean                  清理所有构建产物"
 
-build-cli:
+build-cli: build-java-adapter
 	@echo "🦀 编译 shield-cli..."
 	cargo build --release -p shield-cli
+	mkdir -p target/lib
+	cp tools/java-adapter/build/java-adapter.jar target/lib/java-adapter.jar
 	@echo "✅ 产物: $(CLI_BIN)"
+
+build-java-adapter:
+	$(PYTHON) scripts/build_java_adapter.py
 
 build-stub:
 	@echo "🤖 构建 shield-stub..."
@@ -65,7 +71,8 @@ ifeq ($(shell uname -s 2>/dev/null),Darwin)
 	bash scripts/build-macos-app.sh
 	@echo "✅ 产物: target/release/bundle/macos/MocikaShield.app"
 else
-	cd apps/shield-gui && cargo tauri build --no-bundle
+	$(PYTHON) scripts/prepare_desktop_cli.py
+	cd apps/shield-gui && cargo tauri build --no-bundle --config ../../target/desktop-cli/tauri-sidecar.json
 ifeq ($(OS),Windows_NT)
 	@echo "✅ 产物: target/release/mocika-shield.exe"
 else

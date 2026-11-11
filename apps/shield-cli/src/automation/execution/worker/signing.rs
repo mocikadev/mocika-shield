@@ -18,11 +18,12 @@ pub(super) fn run(
         &request.output,
         request.config.as_deref(),
         sign_request,
+        root,
     )?;
     match bootstrap.mode {
         Mode::Plan => {
             let proof = PlanProof {
-                format_version: 3,
+                format_version: request.proof_version(),
                 warning: plan.warning,
                 sources: sources::Sources::Sign(Box::new(plan.sources)),
             };
@@ -64,14 +65,19 @@ fn execute(
     let sources = &plan.sources;
     tools.matches_files(&sources.java, &sources.keytool)?;
     tools.recheck(&mut || Ok(()))?;
-    let bundle = MaterialBundle::create_version(root, &sources.materials(), 3, || Ok(()))
-        .map_err(|_| WorkerError::Policy(Rejection::MaterialInvalid))?;
+    let bundle = MaterialBundle::create_version(
+        root,
+        &sources.materials(),
+        sources.material_version(),
+        || Ok(()),
+    )
+    .map_err(|_| WorkerError::Policy(Rejection::MaterialInvalid))?;
     snapshot::recheck(&sources.files())?;
     sources.recheck_record()?;
     MaterialBundle::verify_sources_version(
         &root.join("materials"),
         &sources.materials(),
-        3,
+        sources.material_version(),
         || Ok(()),
     )
     .map_err(|_| WorkerError::Policy(Rejection::MaterialInvalid))?;
@@ -84,6 +90,17 @@ fn execute(
     }
     let signed = root.join("signed.apk");
     let signer = bundle.path(Role::Apksigner);
+    let bound = sources
+        .java_adapter
+        .as_ref()
+        .map(|binding| {
+            crate::automation::adapter::Bound::new(binding, &bundle.path(Role::JavaAdapter), root)
+        })
+        .transpose()?;
+    let java_tools = crate::automation::java_tools::Tools::new(
+        &sources.java.path,
+        bound.as_ref().map(|b| &b.context),
+    );
     let options = SignOptions {
         apk_path: input,
         output_path: Some(signed.clone()),
@@ -103,11 +120,14 @@ fn execute(
             v4: false,
         },
     };
-    sign_apk_with_progress(&options, |step| {
+    java_tools.sign(&options, |step| {
         executor.worker().map_err(|_| "执行器发生变化".to_owned())?;
         tools
             .recheck(&mut || Ok(()))
             .map_err(|_| "签名工具发生变化".to_owned())?;
+        if let Some(bound) = &bound {
+            bound.recheck().map_err(|_| "适配材料发生变化".to_owned())?;
+        }
         let stage = match step {
             shield_core::SigningProgressStep::Prepare => Stage::CheckTools,
             shield_core::SigningProgressStep::Align => Stage::Align,
@@ -122,11 +142,14 @@ fn execute(
         },
     )?;
     tools.recheck(&mut || Ok(()))?;
-    let checked = check_apk(&signed, Some(&signer))?;
+    if let Some(bound) = &bound {
+        bound.recheck()?;
+    }
+    let checked = java_tools.inspect(&signed, &signer)?;
     if !checked.is_signed {
         return Err(WorkerError::Policy(Rejection::SignatureInvalid));
     }
-    let certificate = extract_apk_cert_fingerprint(&signed, Some(&signer))?;
+    let certificate = java_tools.fingerprint(&signed, &signer)?;
     if parse_hex::<32>(&shield_core::normalize_fingerprint(&certificate))? != plan.certificate {
         return Err(WorkerError::Policy(Rejection::CertificateMismatch));
     }
@@ -143,6 +166,9 @@ fn execute(
         return Err(WorkerError::Policy(Rejection::ValidationFailed));
     }
     snapshot::recheck(&sources.files())?;
+    if let Some(bound) = &bound {
+        bound.recheck()?;
+    }
     sources.recheck_record()?;
     tools.recheck(&mut || Ok(()))?;
     executor.worker()?;

@@ -1,5 +1,5 @@
 //! MCP 单次独立签名；所有资料隔离，不修改真实宿主配置或证书库。
-#![cfg(all(feature = "mcp-server", target_os = "macos"))]
+#![cfg(all(feature = "mcp-server", any(target_os = "macos", target_os = "linux")))]
 use serde_json::{json, Value};
 use shield_services::{
     certificates::{CertificateStoreState, CertificateUpsertInput},
@@ -63,6 +63,7 @@ impl Fixture {
                 "Contents/MacOS/mocika-shield",
                 "Contents/Resources/tools/apktool.jar",
                 "Contents/Resources/tools/apksigner.jar",
+                "Contents/Resources/tools/java-adapter.jar",
                 "Contents/Resources/resources/resources.zip",
                 "Contents/Resources/resources/resources-api19.zip",
                 "Contents/_CodeSignature/CodeResources",

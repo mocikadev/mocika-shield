@@ -35,6 +35,7 @@ elif name == "cargo" and args[0] == "tauri":
     for source, dest in [
         ("tools/apktool_3.0.1.jar", "tools/apktool.jar"),
         ("tools/apksigner.jar", "tools/apksigner.jar"),
+        ("tools/java-adapter/build/java-adapter.jar", "tools/java-adapter.jar"),
         ("shield-stub/build/outputs/resources/resources.zip", "resources/resources.zip"),
         ("shield-stub/build/outputs/resources/resources-api19.zip", "resources/resources-api19.zip"),
     ]:
@@ -43,6 +44,8 @@ elif name == "cargo" and args[0] == "tauri":
         shutil.copyfile(root / source, path)
     if os.environ.get("BUNDLE_FIXTURE_STALE"):
         (app / "Resources/tools/apksigner.jar").write_bytes(b"stale")
+    if os.environ.get("BUNDLE_FIXTURE_STALE_ADAPTER"):
+        (app / "Resources/tools/java-adapter.jar").write_bytes(b"stale-adapter")
 elif name == "lipo":
     if "-create" in args:
         dest = pathlib.Path(args[args.index("-output") + 1])
@@ -72,6 +75,15 @@ class MacosAppBundleTests(unittest.TestCase):
             (self.root / directory).mkdir(parents=True)
         for name in ["build-macos-app.sh", "check_resource_version.py"]:
             shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
+        # 只验证构建编排；真实编译器／字节码由独立构建器专项验证。
+        (self.root / "scripts/build_java_adapter.py").write_text(
+            'import json, os, pathlib, sys\n'
+            'root = pathlib.Path(os.environ["BUNDLE_FIXTURE_ROOT"])\n'
+            'with (root / "calls.jsonl").open("a") as log: log.write(json.dumps(["java-adapter"]) + "\\n")\n'
+            'if os.environ.get("BUNDLE_FIXTURE_ADAPTER_FAILURE"): sys.exit(6)\n'
+            'output = root / "tools/java-adapter/build/java-adapter.jar"\n'
+            'output.parent.mkdir(parents=True, exist_ok=True)\n'
+            'output.write_bytes(b"adapter-fixture")\n', encoding="utf-8")
         (self.root / "apps/shield-cli/Cargo.toml").write_text('version = "1.4.3"\n')
         (self.root / "apps/shield-gui/src-tauri/tauri.conf.json").write_text('{"version":"1.4.3"}')
         for name in ["apktool_3.0.1.jar", "apksigner.jar"]:
@@ -112,6 +124,9 @@ class MacosAppBundleTests(unittest.TestCase):
         self.assertTrue(signatures[0][-1].endswith("Contents/MacOS/shield"))
         self.assertIn("--verify", signatures[-1])
         self.assertTrue((self.root / "target/release/bundle/macos/MocikaShield.app/Contents/MacOS/shield").is_file())
+        adapter = self.root / "target/release/bundle/macos/MocikaShield.app/Contents/Resources/tools/java-adapter.jar"
+        self.assertEqual(adapter.read_bytes(), b"adapter-fixture")
+        self.assertEqual(calls[0], ["java-adapter"])
 
     def test_通用架构分别编译后合并且核对两个可执行文件(self):
         result = self.run_bundle("universal")
@@ -158,13 +173,19 @@ class MacosAppBundleTests(unittest.TestCase):
         self.assertFalse(any(call[0] == "codesign" for call in self.calls()))
 
     def test_架构或实际资源错配不进入签名(self):
-        for defect in ["BUNDLE_FIXTURE_BAD_ARCH", "BUNDLE_FIXTURE_STALE"]:
+        for defect in ["BUNDLE_FIXTURE_BAD_ARCH", "BUNDLE_FIXTURE_STALE", "BUNDLE_FIXTURE_STALE_ADAPTER"]:
             with self.subTest(defect=defect):
                 self.env[defect] = "1"
                 self.assertNotEqual(self.run_bundle().returncode, 0)
                 self.assertFalse(any(call[0] == "codesign" for call in self.calls()))
                 self.env.pop(defect)
                 (self.root / "calls.jsonl").unlink()
+
+    def test_辅助资源生成失败不进入构建或签名(self):
+        self.env["BUNDLE_FIXTURE_ADAPTER_FAILURE"] = "1"
+        result = self.run_bundle()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), [["java-adapter"]])
 
     def test_签名失败不报告成功(self):
         self.env["BUNDLE_FIXTURE_BAD_SIGN"] = "1"

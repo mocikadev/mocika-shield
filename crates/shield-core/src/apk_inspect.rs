@@ -4,9 +4,10 @@ use std::io;
 use std::io::Read;
 use std::path::Path;
 
-use crate::diagnostic::{Diagnostic, FailureCode, ToolName};
-use crate::keytool::keytool_command;
-use crate::utils::{find_apksigner, find_java, find_keytool, java_command};
+#[cfg(not(windows))]
+use crate::utils::{find_apksigner, find_java, java_command};
+mod signature;
+pub use signature::{extract_apk_cert_fingerprint, extract_apk_cert_fingerprint_with_context};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApkCheckOutcome {
@@ -16,6 +17,76 @@ pub struct ApkCheckOutcome {
 }
 
 pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckOutcome> {
+    #[cfg(windows)]
+    return check_apk_default(path, apksigner_path);
+    #[cfg(not(windows))]
+    legacy_check(path, apksigner_path)
+}
+
+#[cfg(not(windows))]
+fn legacy_check(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckOutcome> {
+    let (already_protected, native_abis) = inspect_archive(path)?;
+    Ok(ApkCheckOutcome {
+        already_protected,
+        is_signed: check_apk_signed(path, apksigner_path)?,
+        native_abis,
+    })
+}
+
+#[cfg(any(windows, test))]
+pub(crate) fn check_apk_default(
+    path: &Path,
+    apksigner_path: Option<&Path>,
+) -> Result<ApkCheckOutcome> {
+    // 先沿原路径检查归档，损坏文件不启动 Java，也不退回 ZIP 签名标记猜测。
+    inspect_archive(path)?;
+    let signer = signature::selected_signer(apksigner_path)?;
+    let session = crate::java_adapter::LocalSession::temporary()?;
+    let result = check_apk_with_context(&session.context, &session.java, path, &signer);
+    session.finish(result)
+}
+
+/// 显式工具检查；仅原验签器明确报告无有效签名时返回 false，工具故障仍为错误。
+pub fn check_apk_with_context(
+    context: &crate::JavaToolContext,
+    java: &Path,
+    path: &Path,
+    signer: &Path,
+) -> Result<ApkCheckOutcome> {
+    let (already_protected, native_abis) = inspect_archive(path)?;
+    let path = crate::utils::strip_unc_prefix(&std::path::absolute(path)?);
+    let signer = crate::utils::strip_unc_prefix(&std::path::absolute(signer)?);
+    let output = context.run_apksigner(
+        java,
+        &signer,
+        &[
+            "verify",
+            path.to_str()
+                .ok_or_else(|| anyhow::anyhow!("APK 路径无效"))?,
+        ],
+        None,
+    )?;
+    let rejected = output.status.code() == Some(1)
+        && output
+            .stderr
+            .bytes
+            .split(|byte| *byte == b'\n')
+            .any(|line| line == b"DOES NOT VERIFY" || line == b"DOES NOT VERIFY\r");
+    if output.stdout.truncated || output.stderr.truncated || (!output.status.success() && !rejected)
+    {
+        return Err(crate::signing::fixed_failure(
+            &output,
+            "APK 验签工具失败或结果无效",
+        ));
+    }
+    Ok(ApkCheckOutcome {
+        already_protected,
+        is_signed: output.status.success(),
+        native_abis,
+    })
+}
+
+fn inspect_archive(path: &Path) -> Result<(bool, Vec<String>)> {
     let file = fs::File::open(path)
         .map_err(|err| anyhow::anyhow!("{}", classify_apk_open_error(path, &err)))?;
     let mut archive = zip::ZipArchive::new(file)
@@ -46,11 +117,7 @@ pub fn check_apk(path: &Path, apksigner_path: Option<&Path>) -> Result<ApkCheckO
     }
     native_abis.sort();
 
-    Ok(ApkCheckOutcome {
-        already_protected,
-        is_signed: check_apk_signed(path, apksigner_path)?,
-        native_abis,
-    })
+    Ok((already_protected, native_abis))
 }
 
 fn contains_valid_mshd_block(reader: &mut impl Read, total_size: u64) -> Result<bool> {
@@ -91,108 +158,20 @@ fn classify_apk_zip_error(path: &Path, err: &zip::result::ZipError) -> String {
     format!("{reason}: {}。ZIP 错误：{raw}", path.display())
 }
 
-pub fn extract_apk_cert_fingerprint(
-    apk_path: &Path,
-    apksigner_path: Option<&Path>,
-) -> Result<String> {
-    let signer = match apksigner_path {
-        Some(path) if path.exists() => path.to_path_buf(),
-        Some(path) => anyhow::bail!("配置的 apksigner.jar 路径不存在: {}", path.display()),
-        None => find_apksigner().context("提取 APK 签名证书需要 apksigner.jar")?,
-    };
-    let java = find_java().context("提取 APK 签名证书需要 Java")?;
-    let output = java_command(&java)
-        .args([
-            "-jar",
-            signer.to_str().unwrap_or(""),
-            "verify",
-            "--print-certs",
-            apk_path.to_str().unwrap_or(""),
-        ])
-        .output()
-        .context("执行 apksigner verify 失败")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let detail = if stderr.trim().is_empty() {
-            stdout.trim()
-        } else {
-            stderr.trim()
-        };
-        return Err(Diagnostic::from_tool_streams(
-            ToolName::Apksigner,
-            output.status.code(),
-            &output.stdout,
-            &output.stderr,
-        )
-        .attach(anyhow::anyhow!("APK 签名验证失败：{detail}")));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    select_single_apk_signer_fingerprint(&stdout)
-}
-
 pub fn extract_keystore_cert_fingerprint(
     ks: &Path,
     alias: &str,
     ks_pass: &str,
     ks_type: Option<&str>,
 ) -> Result<String> {
-    let keytool =
-        find_keytool().map_err(|err| Diagnostic::new(FailureCode::ToolNotFound).attach(err))?;
-
-    let mut args = vec![
-        "-list",
-        "-v",
-        "-keystore",
-        ks.to_str().unwrap_or(""),
-        "-alias",
-        alias,
-        "-storepass:env",
-        crate::java_process::KS_PASS_ENV,
-    ];
-    if let Some(kind) = ks_type {
-        args.push("-storetype");
-        args.push(kind);
-    }
-
-    let output = keytool_command(&keytool)
-        .args(&args)
-        .env(crate::java_process::KS_PASS_ENV, ks_pass)
-        .output()
-        .context("执行 keytool 失败")?;
-
-    if output.status.success() {
-        let stdout = std::str::from_utf8(&output.stdout)
-            .context("keytool 输出不是有效 UTF-8，无法安全读取证书指纹")
-            .map_err(|err| Diagnostic::new(FailureCode::ToolOutputEncodingInvalid).attach(err))?;
-        if let Some(fp) = parse_sha256_from_keytool(stdout) {
-            return Ok(fp);
-        }
-        anyhow::bail!("keytool 已执行成功，但未返回可识别的 SHA-256 指纹")
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let detail = if stderr.trim().is_empty() {
-        stdout.trim()
-    } else {
-        stderr.trim()
-    };
-    Err(Diagnostic::from_tool_streams(
-        ToolName::Keytool,
-        output.status.code(),
-        &output.stdout,
-        &output.stderr,
-    )
-    .attach(anyhow::anyhow!("无法读取 keystore 证书指纹：{detail}")))
+    crate::keytool::extract_keystore_cert_fingerprint(ks, alias, ks_pass, ks_type)
 }
 
 pub fn normalize_fingerprint(fp: &str) -> String {
     fp.to_uppercase().replace([':', ' '], "")
 }
 
+#[cfg(not(windows))]
 fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bool> {
     let signer = apksigner_path
         .map(Path::to_path_buf)
@@ -239,6 +218,7 @@ fn check_apk_signed(apk_path: &Path, apksigner_path: Option<&Path>) -> Result<bo
     Ok(false)
 }
 
+#[cfg(not(windows))]
 fn has_v2_v3_signature(apk_path: &Path) -> bool {
     use std::io::{Read, Seek, SeekFrom};
 
@@ -261,59 +241,16 @@ fn has_v2_v3_signature(apk_path: &Path) -> bool {
     buffer.windows(MAGIC.len()).any(|w| w == MAGIC)
 }
 
-fn parse_sha256_from_keytool(output: &str) -> Option<String> {
-    for line in output.lines() {
-        let trimmed = line.trim();
-        if trimmed.to_uppercase().contains("SHA256") && trimmed.contains(':') {
-            let after_label = trimmed.split_once(':')?.1;
-            let clean = after_label.replace([':', ' '], "").to_uppercase();
-            if clean.len() == 64 && clean.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Some(clean);
-            }
-        }
-    }
-    None
-}
-
-fn parse_cert_sha256_from_apksigner(output: &str) -> Vec<String> {
-    let mut fingerprints = Vec::new();
-    for line in output.lines() {
-        let upper = line.trim().to_uppercase();
-        if upper.contains("CERTIFICATE SHA-256 DIGEST") && !upper.contains("SOURCE STAMP") {
-            let Some(pos) = line.rfind(':') else {
-                continue;
-            };
-            let hex = line[pos + 1..].trim().to_uppercase();
-            if hex.len() == 64
-                && hex.chars().all(|c| c.is_ascii_hexdigit())
-                && !fingerprints.contains(&hex)
-            {
-                fingerprints.push(hex);
-            }
-        }
-    }
-    fingerprints
-}
-
-fn select_single_apk_signer_fingerprint(output: &str) -> Result<String> {
-    let fingerprints = parse_cert_sha256_from_apksigner(output);
-    match fingerprints.as_slice() {
-        [fingerprint] => Ok(fingerprint.clone()),
-        [] => anyhow::bail!("apksigner 未返回可识别的 APK 签名证书 SHA-256 指纹"),
-        _ => anyhow::bail!(
-            "检测到 {} 个 APK 内容签名证书；当前 DEXB v5 仅支持单签名 APK",
-            fingerprints.len()
-        ),
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::signature::{
+        parse_cert_sha256_from_apksigner, select_single_apk_signer_fingerprint,
+    };
     use super::{
         classify_apk_open_error, classify_apk_zip_error, contains_valid_mshd_block,
-        normalize_fingerprint, parse_cert_sha256_from_apksigner, parse_sha256_from_keytool,
-        select_single_apk_signer_fingerprint,
+        normalize_fingerprint,
     };
+    use crate::keytool::parse_sha256_from_keytool;
     use std::io::{self, Cursor};
     use std::path::Path;
 

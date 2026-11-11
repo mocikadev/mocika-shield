@@ -118,6 +118,29 @@ impl Session {
     pub fn raw(&mut self, bytes: &[u8]) {
         self.input.as_mut().unwrap().write_all(bytes).unwrap();
     }
+
+    pub fn wait_file(&mut self, path: &Path, request: u64, timeout: Duration) {
+        let deadline = Instant::now() + timeout;
+        while !path.is_file() {
+            assert!(Instant::now() < deadline, "请求期限内检查子进程未就绪");
+            match self.output.recv_timeout(Duration::from_millis(10)) {
+                Ok(value) => {
+                    assert_ne!(
+                        value["id"].as_u64(),
+                        Some(request),
+                        "检查子进程就绪前请求已结束：{value}"
+                    );
+                    if let Some(id) = value["id"].as_u64() {
+                        self.pending.insert(id, value);
+                    } else {
+                        self.notifications.push(value);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => panic!("检查子进程就绪前协议已断开"),
+            }
+        }
+    }
     pub fn wait_stage(&mut self, stage: &str) {
         let until = Instant::now() + Duration::from_secs(60);
         loop {

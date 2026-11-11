@@ -1,6 +1,6 @@
 //! 父端开发验证编排：全部 Java 在隔离工作进程内，父端只核对字节/身份并无覆盖提交。
 use super::identity::Tools;
-use super::launch::Launcher;
+use super::launch::{LaunchError, Launcher};
 use super::*;
 use crate::automation::{
     publication::{Publication, PublicationCheckpoint, PublicationError},
@@ -9,20 +9,21 @@ use crate::automation::{
     worker_protocol::{Message, Rejection},
 };
 use serde_json::{json, Value};
-use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 use std::time::Duration;
 
 #[cfg(test)]
 #[path = "publication_guard_tests.rs"]
 mod publication_guard_tests;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "signing_tests.rs"]
 mod signing_tests;
 #[cfg(test)]
+mod startup_tests;
+#[cfg(all(test, unix))]
 #[path = "../../../tests/support/execution_fixture.rs"]
 mod test_fixture;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "controller_tests.rs"]
 mod tests;
 
@@ -63,16 +64,24 @@ fn planning(
     cancel: &AtomicBool,
     launcher: &mut Launcher<impl FnMut() -> Command>,
 ) -> Result<Planned, CheckError> {
-    checkpoint(deadline, cancel)?;
+    checkpoint(deadline, cancel).map_err(|e| e.with_cleanup(true))?;
     let target = snapshot::output(&request.output)?;
     let parent = target.parent().ok_or_else(|| error("INVALID_REQUEST"))?;
-    let root = tempfile::Builder::new()
-        .prefix(".mocika-plan-")
-        .permissions(std::fs::Permissions::from_mode(0o700))
-        .tempdir_in(parent)
+    let directory = crate::automation::task_files::open_directory(parent)
+        .map_err(|_| error("WORKER_START_FAILED"))?;
+    let root = crate::automation::task_files::WorkDirectory::new(parent, &directory)
         .map_err(|_| error("WORKER_START_FAILED"))?;
     let (mut group, pump) =
-        launcher.spawn(request, Mode::Plan, root.path(), None, deadline, cancel)?;
+        match launcher.spawn(request, Mode::Plan, root.path(), None, deadline, cancel) {
+            Ok(started) => started,
+            Err(LaunchError::Inactive(error)) => {
+                return Err(error.with_cleanup(root.close().is_ok()))
+            }
+            Err(LaunchError::Unconfirmed) => {
+                let _ = root.keep();
+                return Err(error("STOP_UNCONFIRMED"));
+            }
+        };
     let result = (|| {
         let mut hello = false;
         let mut stage = None;
@@ -179,7 +188,7 @@ pub(super) fn run_controlled(
 
 // 只隔离已有子进程的构造，供测试选择显式构建的同一 CLI 并设置局部环境。
 // 请求、配置及正式命令均不能传入程序或参数，平台控制仍由 launch 独占。
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn run_with_command(
     request: Request,
     cancel: Arc<AtomicBool>,
@@ -246,14 +255,24 @@ fn run_with_options(
         None => Task::new(started, timeout, planned.digest, planned.certificate),
     }
     .map_err(|_| error("INVALID_REQUEST"))?;
-    let (mut group, pump) = launcher.spawn(
+    let launched = launcher.spawn(
         &request,
         Mode::Execute,
         &root,
         Some(&planned.tools),
         deadline,
         &cancel,
-    )?;
+    );
+    let (mut group, pump) = match launched {
+        Ok(started) => started,
+        Err(LaunchError::Inactive(error)) => {
+            return Err(error.with_cleanup(publication.cleanup()));
+        }
+        Err(LaunchError::Unconfirmed) => {
+            publication.preserve();
+            return Err(error("STOP_UNCONFIRMED"));
+        }
+    };
     if task.isolation_confirmed(Instant::now()).is_err() {
         // 启动期间耗尽期限也必须显式收尾，不能依赖进程析构后就清理活动目录。
         let stopped = group.stop(Duration::from_secs(2)).is_ok();
@@ -262,7 +281,7 @@ fn run_with_options(
             publication.preserve();
             return Err(error("STOP_UNCONFIRMED"));
         }
-        return Err(error("TASK_TIMEOUT"));
+        return Err(error("TASK_TIMEOUT").with_cleanup(publication.cleanup()));
     }
     let mut failure_code = "TASK_FAILED";
     loop {

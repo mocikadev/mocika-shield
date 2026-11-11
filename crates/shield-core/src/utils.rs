@@ -351,28 +351,9 @@ pub fn ensure_keytool() -> Result<JavaEnvironmentInfo> {
     Ok(info)
 }
 
-// 应用内入口必须使用同包资源；缺失时不能借本机开发目录掩盖不完整安装。
-#[cfg(target_os = "macos")]
-fn app_bundle_resource(exe: &Path, relative: &str) -> Result<Option<PathBuf>> {
-    let contents = exe.parent();
-    let bundle = contents.and_then(Path::parent);
-    if exe.file_name() != Some(OsStr::new("MacOS"))
-        || contents.and_then(Path::file_name) != Some(OsStr::new("Contents"))
-        || bundle.and_then(Path::extension) != Some(OsStr::new("app"))
-    {
-        return Ok(None);
-    }
-    let path = contents.unwrap().join("Resources").join(relative);
-    if !path.is_file() {
-        anyhow::bail!("应用包缺少内置资源 {relative}，请重新安装完整应用包。");
-    }
-    Ok(Some(path))
-}
-
 pub fn find_apktool() -> Result<PathBuf> {
     let exe = exe_dir();
-    #[cfg(target_os = "macos")]
-    if let Some(path) = app_bundle_resource(&exe, "tools/apktool.jar")? {
+    if let Some(path) = crate::bundle_resources::resource("tools/apktool.jar")? {
         return Ok(path);
     }
 
@@ -411,8 +392,7 @@ pub fn find_apktool() -> Result<PathBuf> {
 
 pub fn find_apksigner() -> Result<PathBuf> {
     let exe = exe_dir();
-    #[cfg(target_os = "macos")]
-    if let Some(path) = app_bundle_resource(&exe, "tools/apksigner.jar")? {
+    if let Some(path) = crate::bundle_resources::resource("tools/apksigner.jar")? {
         return Ok(path);
     }
 
@@ -452,8 +432,7 @@ pub fn find_apksigner() -> Result<PathBuf> {
 
 pub fn find_runtime_resources() -> Result<PathBuf> {
     let exe = exe_dir();
-    #[cfg(target_os = "macos")]
-    if let Some(path) = app_bundle_resource(&exe, "resources/resources.zip")? {
+    if let Some(path) = crate::bundle_resources::resource("resources/resources.zip")? {
         return Ok(path);
     }
 
@@ -497,40 +476,6 @@ mod tests {
         JavaEnvironmentInfo,
     };
     use std::path::PathBuf;
-
-    #[test]
-    #[cfg(target_os = "macos")]
-    fn 应用包定位精确资源且缺失时拒绝外部回退() {
-        let root = tempfile::tempdir().unwrap();
-        let contents = root.path().join("中文 空格.app/Contents");
-        let exe = contents.join("MacOS");
-        std::fs::create_dir_all(&exe).unwrap();
-        for relative in [
-            "tools/apktool.jar",
-            "tools/apksigner.jar",
-            "resources/resources.zip",
-        ] {
-            assert!(super::app_bundle_resource(&exe, relative).is_err());
-            let path = contents.join("Resources").join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, b"fixture").unwrap();
-            assert_eq!(
-                super::app_bundle_resource(&exe, relative).unwrap(),
-                Some(path)
-            );
-        }
-        assert!(
-            super::app_bundle_resource(&root.path().join("bin"), "tools/apktool.jar")
-                .unwrap()
-                .is_none()
-        );
-        assert!(super::app_bundle_resource(
-            &root.path().join("not-app/Contents/MacOS"),
-            "tools/apktool.jar"
-        )
-        .unwrap()
-        .is_none());
-    }
 
     #[test]
     fn parse_modern_java_version() {

@@ -1,6 +1,20 @@
 use super::*;
 use crate::automation::snapshot;
-use std::os::unix::fs::symlink;
+#[cfg(unix)]
+use std::os::unix::fs::{symlink, PermissionsExt};
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
+
+fn make_public(path: &Path, directory: bool) {
+    #[cfg(unix)]
+    fs::set_permissions(
+        path,
+        fs::Permissions::from_mode(if directory { 0o755 } else { 0o644 }),
+    )
+    .unwrap();
+    #[cfg(windows)]
+    task_files::test_make_public(path, directory);
+}
 
 struct Fixture {
     root: tempfile::TempDir,
@@ -10,12 +24,11 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let root = tempfile::Builder::new()
-            .permissions(fs::Permissions::from_mode(0o700))
-            .tempdir()
-            .unwrap();
+        let root = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let work = root.path().join("私有暂存 空格");
-        fs::DirBuilder::new().mode(0o700).create(&work).unwrap();
+        task_files::private_directory(&work).unwrap();
         let sources = ROLES
             .into_iter()
             .map(|role| {
@@ -45,6 +58,7 @@ impl Fixture {
 fn 六类材料固化且索引不包含路径和凭据() {
     let fixture = Fixture::new();
     let bundle = fixture.create();
+    #[cfg(unix)]
     assert_eq!(
         fs::metadata(&bundle.root).unwrap().permissions().mode() & 0o777,
         0o700
@@ -54,6 +68,7 @@ fn 六类材料固化且索引不包含路径和凭据() {
             fs::read(bundle.path(*role)).unwrap(),
             fs::read(&source.path).unwrap()
         );
+        #[cfg(unix)]
         assert_eq!(
             fs::metadata(bundle.path(*role))
                 .unwrap()
@@ -62,6 +77,7 @@ fn 六类材料固化且索引不包含路径和凭据() {
                 & 0o777,
             0o600
         );
+        task_files::validate_private_file(&File::open(bundle.path(*role)).unwrap()).unwrap();
     }
     let index = fs::read_to_string(bundle.root.join("materials.json")).unwrap();
     assert!(!index.contains(fixture.root.path().to_str().unwrap()));
@@ -75,6 +91,66 @@ fn 六类材料固化且索引不包含路径和凭据() {
         fs::read(bundle.path(Role::Input)).unwrap(),
         b"source later changed"
     );
+}
+
+#[test]
+fn 新适配材料独立版本不可冒充旧集合且拒绝缺项和额外文件() {
+    for version in [4, 5] {
+        for config in [false, true] {
+            for defect in 0..3 {
+                let fixture = Fixture::new();
+                let helper = fixture.root.path().join("helper.jar");
+                fs::write(&helper, "只验证固定角色，不执行此夹具").unwrap();
+                let snapshot = snapshot::file("java_adapter", &helper).ok().unwrap();
+                let mut refs = fixture
+                    .refs()
+                    .into_iter()
+                    .filter(|(role, _)| {
+                        (config || *role != Role::Config)
+                            && (version == 4 || !matches!(role, Role::Apktool | Role::Resources))
+                    })
+                    .collect::<Vec<_>>();
+                refs.push((Role::JavaAdapter, &snapshot));
+                assert!(MaterialBundle::create_version(
+                    &fixture.work,
+                    &refs,
+                    if version == 4 { 2 } else { 3 },
+                    || Ok(())
+                )
+                .is_err());
+                let bundle =
+                    MaterialBundle::create_version(&fixture.work, &refs, version, || Ok(()))
+                        .unwrap();
+                MaterialBundle::verify_sources_version(&bundle.root, &refs, version, || Ok(()))
+                    .unwrap();
+                assert!(MaterialBundle::verify_sources_version(
+                    &bundle.root,
+                    &refs,
+                    if version == 4 { 2 } else { 3 },
+                    || Ok(())
+                )
+                .is_err());
+                match defect {
+                    0 => {
+                        fs::remove_file(bundle.path(Role::JavaAdapter)).unwrap();
+                    }
+                    1 => {
+                        fs::write(bundle.root.join("unexpected.jar"), b"extra").unwrap();
+                    }
+                    _ => {
+                        refs.pop();
+                    }
+                }
+                assert!(MaterialBundle::verify_sources_version(
+                    &bundle.root,
+                    &refs,
+                    version,
+                    || Ok(())
+                )
+                .is_err());
+            }
+        }
+    }
 }
 
 #[test]
@@ -234,7 +310,7 @@ fn 不覆盖既有材料目录或非私有目标() {
         Err(MaterialError::Io(io::ErrorKind::AlreadyExists))
     ));
     assert_eq!(fs::read(marker).unwrap(), b"keep");
-    fs::set_permissions(&fixture.work, fs::Permissions::from_mode(0o755)).unwrap();
+    make_public(&fixture.work, true);
     assert!(matches!(
         MaterialBundle::create(&fixture.work, &fixture.refs(), || Ok(())),
         Err(MaterialError::InvalidBundle)
@@ -279,7 +355,7 @@ fn 索引摘要材料篡改及链接均无法通过重新读取() {
                 fs::remove_file(&file).unwrap();
                 fs::hard_link(&fixture.sources[0].1.path, &file).unwrap();
             }
-            _ => fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap(),
+            _ => make_public(&file, false),
         }
         assert!(MaterialBundle::verify(&bundle.root, bundle.digest(), || Ok(())).is_err());
     }

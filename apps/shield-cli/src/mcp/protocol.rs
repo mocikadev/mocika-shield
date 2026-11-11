@@ -200,7 +200,8 @@ fn controlled(events: &[Value], operation: &str, exit: i32) -> Result<Value> {
     {
         return Err("CLI_PROTOCOL_INVALID");
     }
-    if status == "succeeded" && safe["directory_synced"] != true {
+    // Windows 不提供目录同步保证；如实保留 false，不抹掉已确认交付的事实。
+    if status == "succeeded" && !cfg!(windows) && safe["directory_synced"] != true {
         return Err("CLI_PROTOCOL_INVALID");
     }
     if output == "published" && safe["plan"].is_null() {
@@ -471,12 +472,18 @@ mod tests {
             ("plan", Value::Null),
             ("output_state", json!("not_published")),
             ("status", json!("cancelled")),
-            ("directory_synced", json!(false)),
+            ("directory_synced", Value::Null),
         ] {
             let mut bad = result.clone();
             bad[field] = value;
             assert!(decode(encode(&bad).as_bytes(), "agent_protect", 0).is_err());
         }
+        let mut unsynced = result.clone();
+        unsynced["directory_synced"] = json!(false);
+        let decoded = decode(encode(&unsynced).as_bytes(), "agent_protect", 0);
+        assert_eq!(decoded.is_ok(), cfg!(windows));
+        #[cfg(windows)]
+        assert_eq!(decoded.unwrap()["directory_synced"], false);
         assert!(decode(format!("{started}\n").as_bytes(), "agent_protect", 0).is_err());
         assert!(decode(
             format!("{}{result}\n", encode(&result)).as_bytes(),

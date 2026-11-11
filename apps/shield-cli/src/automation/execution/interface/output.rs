@@ -1,11 +1,9 @@
 //! 有界公共事件流；写线程阻塞不能阻塞任务监督，终态发送有独立有限宽限。
 use super::*;
-use std::sync::mpsc::{self, SyncSender};
-use std::thread::JoinHandle;
+use crate::automation::event_output::Output;
 
 pub(super) struct Events {
-    sender: SyncSender<Vec<u8>>,
-    thread: JoinHandle<bool>,
+    output: Output,
     cancel: control::Cancel,
     operation: &'static str,
     task: Option<String>,
@@ -26,29 +24,11 @@ impl Events {
         operation: &'static str,
         task: Option<String>,
         cancel: control::Cancel,
-        mut writer: impl Write + Send + 'static,
+        writer: impl Write + Send + 'static,
     ) -> Result<Self, ()> {
-        let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(32);
-        let failed = cancel.clone();
-        let thread = std::thread::Builder::new()
-            .name("自动化事件输出".into())
-            .spawn(move || {
-                for bytes in receiver {
-                    if writer
-                        .write_all(&bytes)
-                        .and_then(|_| writer.flush())
-                        .is_err()
-                    {
-                        failed.request(Cause::Output);
-                        return false;
-                    }
-                }
-                true
-            })
-            .map_err(|_| ())?;
+        let output = Output::new(writer, cancel.clone())?;
         Ok(Self {
-            sender,
-            thread,
+            output,
             cancel,
             operation,
             task,
@@ -75,7 +55,7 @@ impl Events {
             return;
         }
         bytes.push(b'\n');
-        if self.sender.try_send(bytes).is_err() {
+        if !self.output.send(bytes) {
             self.reject_delivery();
         } else {
             self.sequence += 1;
@@ -124,15 +104,7 @@ impl Events {
             Ok(value) => self.send(value, "result"),
             Err(_) => self.reject_delivery(),
         }
-        drop(self.sender);
-        let deadline = Instant::now() + grace;
-        while !self.thread.is_finished() {
-            if Instant::now() >= deadline {
-                return false;
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        self.thread.join().unwrap_or(false) && self.delivery_ok
+        self.output.finish(grace) && self.delivery_ok
     }
 }
 

@@ -113,6 +113,7 @@ fn 真实共享加固双模式外部配置及签名失败不交付() {
                 "Contents/MacOS/shield",
                 "Contents/MacOS/mocika-shield",
                 "Contents/Resources/tools/apksigner.jar",
+                "Contents/Resources/tools/java-adapter.jar",
                 "Contents/Resources/tools/apktool.jar",
                 "Contents/Resources/resources/resources.zip",
                 "Contents/Resources/resources/resources-api19.zip",

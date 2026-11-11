@@ -153,7 +153,7 @@ macOS 新应用内入口先识别 `.app/Contents/MacOS`，只定位同包 `Conte
 
 `shield-gui`（Tauri 版）的查找优先级：
 
-1. **AppImage 运行时**：`$APPDIR/usr/lib/mocika-shield/tools/`
+1. **AppImage 运行时**：`$APPDIR/usr/lib/MocikaShield/tools/`
 2. **Tauri `resource_dir()`**：由 Tauri 打包时嵌入的资源目录
 3. **开发环境路径**：同 CLI
 

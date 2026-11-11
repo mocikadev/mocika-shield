@@ -1,6 +1,6 @@
 # 本地 Agent 接入与 Skill 安装
 
-> 当前主干已合入 CLI、独立 Skill、MCP 和共享资料管理，先以已验证的 macOS 开发应用包使用。**公开 1.4.3 安装包尚不包含这些新增入口。** 源码构建仍显示 1.4.3，不能只看版本号判断能力，须核对对应命令帮助和工具发现。交付状态与证据见[收口审查](../process/agent-delivery-review.md)。
+> **公开 1.4.3 安装包尚不包含新增 Agent 入口。** 使用当前开发共包产物，核对命令帮助和工具发现，不只看版本号。macOS 本机与 Linux／Windows CI 的实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
 
 ## 选择入口与共享资料
 
@@ -12,7 +12,9 @@
 
 三者可独立使用，不强制同时安装 Skill 和 MCP。GUI、CLI 和共享 MCP 复用本地 `config.toml`、`shield.db` 与证书；查询和保存通过[共享服务](../design/shared-application.md)，不让模型直接读取数据库或解密密码。GUI 无需常驻；切页、恢复焦点或下次查询时可见新偏好，活动任务仍使用固定快照。
 
-本批验收限 macOS，普通源码 CLI 默认不启用 `agent-executor`／`mcp-server`；macOS 共包脚本会显式启用。Linux／Windows、Intel／通用架构、额外 JDK 和宿主原生注册分别验收，不将当前 Mac 的结果扩写为全部通过。
+桌面共包显式启用 `mcp-server`，普通源码 CLI 默认不启用。Linux 命令为 `/usr/bin/mocika-shield-cli`，Windows 为安装目录的 `mocika-shield-cli.exe`；宿主直接配置其完整路径，现有 `shield` 路径发现脚本不会自动识别安装别名。AppImage 须保留完整 AppDir 后使用其中 `usr/bin/mocika-shield-cli`，临时挂载路径会随卸载失效。
+
+Skill 当前验证入口仍以 macOS 为准；额外宿主注册、Intel／通用架构及系统／JDK 组合不由其他平台测试外推。
 
 ## 准备完整应用
 

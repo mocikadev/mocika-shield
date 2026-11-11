@@ -1,5 +1,8 @@
 //! 公共命令进程契约；轻量夹具不证明真实 APK 合格，真实工具专项另行显式运行。
-#![cfg(all(feature = "agent-executor", target_os = "macos"))]
+#![cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux")
+))]
 use serde_json::Value;
 use std::fs;
 use std::io::Write;

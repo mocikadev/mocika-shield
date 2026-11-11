@@ -1,5 +1,5 @@
 //! 宿主固定上下文与会话证书范围；只接收已确认的新编号，不读取数据库或秘密。
-use super::{Result, Root};
+use super::{physical, redirected, Result, Root};
 use shield_services::paths::ApplicationPaths;
 use std::{
     collections::BTreeSet,
@@ -36,8 +36,7 @@ impl Directory {
     }
     fn check(&self) -> Result<()> {
         self.anchor.check()?;
-        if fs::canonicalize(&self.anchor_lookup).map_err(|_| "SHARED_CONTEXT_CHANGED")?
-            != self.anchor.path
+        if physical(&self.anchor_lookup).map_err(|_| "SHARED_CONTEXT_CHANGED")? != self.anchor.path
         {
             return Err("SHARED_CONTEXT_CHANGED");
         }
@@ -49,7 +48,7 @@ impl Directory {
         for part in tail.components() {
             current.push(part);
             match fs::symlink_metadata(&current) {
-                Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {}
+                Ok(meta) if meta.is_dir() && !redirected(&meta) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
                 _ => return Err("SHARED_CONTEXT_CHANGED"),
             }
@@ -119,7 +118,7 @@ impl SharedAccess {
         // 只查文件形态，不固定整库 inode／摘要；正常 SQLite 更新不使无关计划失效。
         for path in [self.paths.config_file(), self.paths.certificate_database()] {
             match fs::symlink_metadata(path) {
-                Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {}
+                Ok(meta) if meta.is_file() && !redirected(&meta) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 _ => return Err("SHARED_CONTEXT_CHANGED"),
             }

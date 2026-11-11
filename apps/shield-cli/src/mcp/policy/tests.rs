@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
 
 #[test]
@@ -30,9 +31,12 @@ fn 共享范围不隐式授权旧证书且不创建缺失资料或固定整库�
     assert!(policy.check().is_ok());
     fs::write(home.join("data/shield.db"), b"state 2 unrelated changes").unwrap();
     assert!(policy.check().is_ok());
-    fs::remove_file(home.join("data/shield.db")).unwrap();
-    symlink(&cli, home.join("data/shield.db")).unwrap();
-    assert_eq!(policy.check(), Err("SHARED_CONTEXT_CHANGED"));
+    #[cfg(unix)]
+    {
+        fs::remove_file(home.join("data/shield.db")).unwrap();
+        symlink(&cli, home.join("data/shield.db")).unwrap();
+        assert_eq!(policy.check(), Err("SHARED_CONTEXT_CHANGED"));
+    }
     assert!(make()
         .with_shared(Some(&output), vec!["allowed".into()])
         .is_err());
@@ -58,6 +62,7 @@ fn 路径只接受根目录内普通文件且保留中文空格() {
 }
 
 #[test]
+#[cfg(unix)]
 fn 链接和悬空链接均拒绝且不借相似前缀越界() {
     let dir = tempfile::tempdir().unwrap();
     let sibling = tempfile::tempdir().unwrap();
@@ -92,6 +97,31 @@ fn 根目录和可信文件替换后失败关闭() {
 }
 
 #[test]
+fn 同字节可信文件替换仍拒绝且目录内容更新不更换根身份() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = Root::open(dir.path()).unwrap();
+    let file = dir.path().join("工具.exe");
+    fs::write(&file, b"fixture").unwrap();
+    let pinned = PinnedFile::open(&file, 1024).unwrap();
+    fs::rename(&file, dir.path().join("旧工具.exe")).unwrap();
+    fs::write(&file, b"fixture").unwrap();
+    assert_eq!(pinned.check(1024), Err("TRUSTED_FILE_CHANGED"));
+    assert!(root.check().is_ok());
+    #[cfg(windows)]
+    for path in [
+        "a\\b.apk",
+        "a:stream.apk",
+        "CON.apk",
+        "COM1.apk",
+        "尾空格 .apk ",
+        "尾点.",
+    ] {
+        assert_eq!(root.resolve(path, true).unwrap_err(), "PATH_NOT_ALLOWED");
+    }
+}
+
+#[test]
+#[cfg(unix)]
 fn 配置链接保留查找位置但改向后拒绝且输出不能进入应用包() {
     let dir = tempfile::tempdir().unwrap();
     let original = dir.path().join("原配置");

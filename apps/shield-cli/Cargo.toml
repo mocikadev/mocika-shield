@@ -8,7 +8,7 @@ description = "Mocika Shield APK 加固命令行工具"
 repository = "git@github.com:mocikadev/mocika-shield.git"
 
 [features]
-agent-executor = ["dep:rustix", "dep:libc"]
+agent-executor = ["dep:rustix", "dep:libc", "dep:windows-sys"]
 mcp-server = ["agent-executor", "dep:rmcp", "dep:tokio", "dep:tokio-util"]
 
 [[bin]]
@@ -33,17 +33,22 @@ tempfile = "3.20"
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1", features = ["fs", "process", "stdio"], optional = true }
 
-[target.'cfg(target_os = "macos")'.dependencies]
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 libc = { version = "0.2", optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", windows))'.dependencies]
 rmcp = { version = "=3.9.0", default-features = false, features = ["server", "transport-io"], optional = true }
-tokio = { version = "1.52", features = ["rt", "macros", "process", "signal", "time", "sync", "io-util", "io-std"], optional = true }
+tokio = { version = "1.52", features = ["rt", "macros", "process", "signal", "time", "sync", "io-util", "io-std", "fs"], optional = true }
 tokio-util = { version = "0.7", optional = true }
 
 [dev-dependencies]
 tempfile = "3.20"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", optional = true, features = ["Wdk_Storage_FileSystem", "Win32_Foundation", "Win32_Globalization", "Win32_Security", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading"] }
+
 [target.'cfg(unix)'.dev-dependencies]
 rustix = { version = "1.1", features = ["fs", "process", "stdio"] }
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dev-dependencies]
 libc = "0.2"

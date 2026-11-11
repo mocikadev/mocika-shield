@@ -28,7 +28,10 @@ pub(super) fn process_running(pid: i32, group: i32) -> Result<bool, ProcessError
     Ok(info.pbi_pgid == group as u32 && info.pbi_status != libc::SZOMB)
 }
 
-pub(super) fn group_quiescent(group: i32) -> Result<bool, ProcessError> {
+pub(super) fn group_quiescent(
+    group: i32,
+    deadline: std::time::Instant,
+) -> Result<bool, ProcessError> {
     let mut pids = [0i32; 4096];
     let capacity = std::mem::size_of_val(&pids);
     // 安全：传入已初始化的有界 PID 数组，不让系统报告值驱动无界分配。
@@ -47,6 +50,9 @@ pub(super) fn group_quiescent(group: i32) -> Result<bool, ProcessError> {
         }
     }
     for &pid in &pids[..count as usize] {
+        if std::time::Instant::now() >= deadline {
+            return Err(ProcessError::Unconfirmed);
+        }
         // 调用方已用 WNOWAIT 得到组长退出的肯定证明，不向退出中的组长查询进程详情。
         if pid == group {
             continue;

@@ -1,11 +1,10 @@
 //! 单个 CLI 子进程的有界监督；MCP 不拥有 APK 提交权，也不执行 shell。
 use super::policy::{Policy, Result};
 use super::protocol::{Progress, Stream};
+use crate::automation::native_group::{CommandSpec, ManagedGroup};
 use std::ffi::OsString;
-use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::Command;
 use tokio::time::{sleep, Instant};
 use tokio_util::sync::CancellationToken;
 
@@ -38,36 +37,25 @@ pub(super) async fn run(
     if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
         return Err("TASK_TIMEOUT");
     }
-    let mut command = Command::new(policy.cli());
-    command
-        .args(&call.arguments)
-        .current_dir(policy.working_dir())
-        .stdin(if call.controlled {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    command.process_group(0);
+    let mut command = CommandSpec::new(policy.cli(), call.arguments, policy.working_dir());
     for name in [
         "JAVA_TOOL_OPTIONS",
         "_JAVA_OPTIONS",
         "JDK_JAVA_OPTIONS",
         "RUST_LOG",
     ] {
-        command.env_remove(name);
+        command.remove_env(name);
     }
     if !call.host_credentials && (!call.controlled || policy.is_shared()) {
-        command
-            .env_remove("MOCIKA_SHIELD_KS_PASS")
-            .env_remove("MOCIKA_SHIELD_KEY_PASS");
+        command.remove_env("MOCIKA_SHIELD_KS_PASS");
+        command.remove_env("MOCIKA_SHIELD_KEY_PASS");
     }
-    let mut child = command.spawn().map_err(|_| "CLI_START_FAILED")?;
-    let pid = child.id().ok_or("CLI_START_FAILED")? as i32;
-    let mut control = child.stdin.take();
-    let stdout = child.stdout.take().ok_or("CLI_START_FAILED")?;
+    let mut group = ManagedGroup::spawn_command(command).map_err(|_| "CLI_START_FAILED")?;
+    if !call.controlled {
+        group.close_input();
+    }
+    let stdout = group.take_stdout().ok_or("CLI_START_FAILED")?;
+    let stdout = super::transport::from_output(stdout);
     let (progress, mut updates) = tokio::sync::mpsc::channel(16);
     let mut reader = tokio::spawn(read_bounded(
         stdout,
@@ -79,7 +67,7 @@ pub(super) async fn run(
     let deadline =
         deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(policy.timeout_seconds));
     let mut stop: Option<(&'static str, Instant)> = None;
-    let exit = loop {
+    loop {
         while let Ok(progress) = updates.try_recv() {
             observe(progress);
         }
@@ -92,8 +80,9 @@ pub(super) async fn run(
                 }
             }
         }
-        if let Some(status) = child.try_wait().map_err(|_| "STOP_UNCONFIRMED")? {
-            break status;
+        // 不能 try_wait 提前回收组长；PID 复用后再清组可能命中无关任务。
+        if group.leader_exited().map_err(|_| "STOP_UNCONFIRMED")? {
+            break;
         }
         if stop.is_none() {
             let cause = if cancelled.is_cancelled() || shutdown.is_cancelled() {
@@ -110,36 +99,28 @@ pub(super) async fn run(
         if let Some((_, started)) = stop {
             if call.controlled {
                 // 关闭专用控制管道，请求既有父端取消整项任务；不是杀父进程代替清场。
-                drop(control.take());
+                group.close_input();
                 if started.elapsed() > Duration::from_secs(15) {
-                    let _ = child.start_kill();
-                    let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+                    let _ = group.stop(Duration::from_secs(2));
                     reader.abort();
                     return Err("STOP_UNCONFIRMED");
                 }
             } else {
-                signal_group(
-                    pid,
-                    if started.elapsed() < Duration::from_millis(500) {
-                        libc::SIGTERM
-                    } else {
-                        libc::SIGKILL
-                    },
-                );
-                if started.elapsed() > Duration::from_secs(3) {
+                // 普通检查没有工作租约，复用原生整组停止和查询，不把直属进程退出当清场。
+                if group.stop(Duration::from_secs(2)).is_err() {
                     reader.abort();
                     return Err("STOP_UNCONFIRMED");
                 }
+                break;
             }
         }
         sleep(Duration::from_millis(10)).await;
-    };
-    drop(control);
-    // 非受控检查没有工作组租约，由本层确认并回收本次独立进程组。
-    if !call.controlled && !finish_group(pid).await {
+    }
+    if group.stop(Duration::from_secs(2)).is_err() {
         reader.abort();
         return Err("STOP_UNCONFIRMED");
     }
+    let exit = group.exit_status().ok_or("CLI_EXIT_UNKNOWN")?;
     let bytes = match bytes {
         Some(bytes) => bytes,
         None => match tokio::time::timeout(Duration::from_secs(1), &mut reader).await {
@@ -205,28 +186,5 @@ async fn read_bounded(
                 return Err("CLI_OUTPUT_INVALID");
             }
         }
-    }
-}
-
-fn signal_group(pid: i32, signal: i32) {
-    if pid > 1 {
-        // 只操作由本次 spawn 创建的独立进程组，不接受客户端传入 PID。
-        unsafe {
-            libc::kill(-pid, signal);
-        }
-    }
-}
-async fn finish_group(pid: i32) -> bool {
-    let deadline = Instant::now() + Duration::from_secs(2);
-    loop {
-        let result = unsafe { libc::kill(-pid, 0) };
-        if result == -1 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) {
-            return true;
-        }
-        if Instant::now() >= deadline {
-            return false;
-        }
-        signal_group(pid, libc::SIGKILL);
-        sleep(Duration::from_millis(20)).await;
     }
 }

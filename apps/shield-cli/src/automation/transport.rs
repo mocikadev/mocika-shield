@@ -8,7 +8,17 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::time::Sleep;
 use tokio_util::sync::CancellationToken;
 
-pub(super) struct DisconnectReader<R> {
+#[cfg(unix)]
+pub(crate) fn from_output(output: std::process::ChildStdout) -> tokio::fs::File {
+    use std::os::fd::OwnedFd;
+    tokio::fs::File::from_std(std::fs::File::from(OwnedFd::from(output)))
+}
+#[cfg(windows)]
+pub(crate) fn from_output(output: std::fs::File) -> tokio::fs::File {
+    tokio::fs::File::from_std(output)
+}
+
+pub(crate) struct DisconnectReader<R> {
     pub input: R,
     pub shutdown: CancellationToken,
 }
@@ -18,6 +28,9 @@ impl<R: AsyncRead + Unpin> AsyncRead for DisconnectReader<R> {
         context: &mut Context<'_>,
         buffer: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
+        if buffer.remaining() == 0 {
+            return Poll::Ready(Ok(()));
+        }
         let this = self.get_mut();
         let before = buffer.filled().len();
         let available = buffer.remaining();
@@ -32,7 +45,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for DisconnectReader<R> {
         result
     }
 }
-pub(super) struct DeadlineWriter<W> {
+pub(crate) struct DeadlineWriter<W> {
     output: W,
     shutdown: CancellationToken,
     deadline: Option<Pin<Box<Sleep>>>,
@@ -74,8 +87,17 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for DeadlineWriter<W> {
         bytes: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
+        if bytes.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
         this.ready(context)?;
-        let result = Pin::new(&mut this.output).poll_write(context, bytes);
+        let result = match Pin::new(&mut this.output).poll_write(context, bytes) {
+            Poll::Ready(Ok(0)) if !bytes.is_empty() => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "协议输出没有写入进展",
+            ))),
+            other => other,
+        };
         this.observe(&result);
         result
     }
@@ -98,7 +120,8 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for DeadlineWriter<W> {
     }
 }
 
-pub(super) async fn monitor(shutdown: CancellationToken) {
+#[cfg(unix)]
+pub(crate) async fn monitor(shutdown: CancellationToken) {
     use tokio::signal::unix::{signal, SignalKind};
     let (Ok(mut term), Ok(mut interrupt)) = (
         signal(SignalKind::terminate()),
@@ -121,6 +144,22 @@ pub(super) async fn monitor(shutdown: CancellationToken) {
         }
     }
 }
+
+#[cfg(windows)]
+pub(crate) async fn monitor(shutdown: CancellationToken) {
+    let Ok(signals) = super::cancellation::SignalWatch::install() else {
+        shutdown.cancel();
+        return;
+    };
+    loop {
+        tokio::select! {
+            _=shutdown.cancelled()=>return,
+            _=tokio::time::sleep(Duration::from_millis(20))=>{
+                if signals.interrupted() { shutdown.cancel(); return; }
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,4 +178,62 @@ mod tests {
         );
         assert!(shutdown.is_cancelled());
     }
+
+    #[tokio::test]
+    async fn 空读取不当作断开且读尽剩余数据后才取消() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (input, mut peer) = tokio::io::duplex(8);
+        let shutdown = CancellationToken::new();
+        let mut reader = DisconnectReader {
+            input,
+            shutdown: shutdown.clone(),
+        };
+        assert_eq!(reader.read(&mut []).await.unwrap(), 0);
+        assert!(!shutdown.is_cancelled());
+        peer.write_all(b"x").await.unwrap();
+        drop(peer);
+        let mut data = [0; 1];
+        assert_eq!(reader.read(&mut data).await.unwrap(), 1);
+        assert!(!shutdown.is_cancelled());
+        assert_eq!(reader.read(&mut data).await.unwrap(), 0);
+        assert!(shutdown.is_cancelled());
+    }
+
+    struct Zero;
+    impl AsyncWrite for Zero {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            _: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            Poll::Ready(Ok(0))
+        }
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+    #[tokio::test]
+    async fn 非空写入零进展立即取消而空写入不启动期限() {
+        use tokio::io::AsyncWriteExt;
+        let shutdown = CancellationToken::new();
+        let mut writer = DeadlineWriter::new(Zero, shutdown.clone());
+        writer.allowance = Duration::from_millis(20);
+        assert_eq!(writer.write(&[]).await.unwrap(), 0);
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(!shutdown.is_cancelled());
+        assert_eq!(
+            writer.write(b"x").await.unwrap_err().kind(),
+            std::io::ErrorKind::WriteZero
+        );
+        assert!(shutdown.is_cancelled());
+    }
 }
+
+#[cfg(all(windows, test))]
+#[path = "transport/process_tests.rs"]
+mod process_tests;
+#[cfg(all(windows, test))]
+pub(super) use process_tests::run_fixture;

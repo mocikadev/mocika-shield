@@ -76,7 +76,7 @@ fn before_start(code: &'static str) -> Value {
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};

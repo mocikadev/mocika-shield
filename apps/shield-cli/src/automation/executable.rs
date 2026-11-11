@@ -1,39 +1,34 @@
 //! 可执行文件身份：发现持久替换/改向，不冻结完整工具链，不提供同权限攻击隔离。
-use super::*;
+use super::CheckError;
 use crate::automation::{
     plan::Sources,
     snapshot::{self, FileSnapshot},
 };
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-struct Stamp {
-    device: u64,
-    inode: u64,
-    mode: u32,
-    bytes: u64,
-    modified: i64,
-    modified_nanos: i64,
-    changed: i64,
-    changed_nanos: i64,
+#[cfg(unix)]
+#[path = "executable/unix.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "executable/windows.rs"]
+mod platform;
+pub(super) use platform::Stamp;
+
+// JAR 是普通数据文件，不放宽原生可执行文件的权限／扩展名门槛。
+#[cfg(all(
+    feature = "agent-executor",
+    any(target_os = "macos", target_os = "linux", windows)
+))]
+pub(super) fn regular_stamp(path: &Path) -> Result<Stamp, CheckError> {
+    platform::read_regular(path)
 }
-impl Stamp {
-    fn read(path: &Path) -> Result<Self, CheckError> {
-        let metadata = std::fs::metadata(path).map_err(|_| error("EXECUTABLE_CHANGED"))?;
-        if !metadata.is_file() || metadata.mode() & 0o111 == 0 {
-            return Err(error("EXECUTABLE_CHANGED"));
-        }
-        Ok(Self {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-            mode: metadata.mode(),
-            bytes: metadata.len(),
-            modified: metadata.mtime(),
-            modified_nanos: metadata.mtime_nsec(),
-            changed: metadata.ctime(),
-            changed_nanos: metadata.ctime_nsec(),
-        })
-    }
+
+fn error(code: &'static str) -> CheckError {
+    CheckError::new(
+        code,
+        "开发验证未完成；请在本机核对，不会回传原始日志或自动重试。",
+    )
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,14 +44,15 @@ impl Executable {
         check: &mut impl FnMut() -> Result<(), CheckError>,
     ) -> Result<Self, CheckError> {
         check()?;
-        let resolved = std::fs::canonicalize(path).map_err(|_| error("EXECUTABLE_CHANGED"))?;
-        let before = Stamp::read(&resolved)?;
+        let resolved =
+            super::task_files::resolved(path).map_err(|_| error("EXECUTABLE_CHANGED"))?;
+        let before = platform::read(&resolved)?;
         let file = snapshot::file_checked(role, path, check)?;
-        let stamp = Stamp::read(&file.path)?;
+        let stamp = platform::read(&file.path)?;
         if file.path != resolved
             || before != stamp
             || file.size != stamp.bytes
-            || std::fs::canonicalize(&file.lookup_path).ok().as_ref() != Some(&resolved)
+            || super::task_files::resolved(&file.lookup_path).ok().as_ref() != Some(&resolved)
         {
             return Err(error("EXECUTABLE_CHANGED"));
         }
@@ -79,8 +75,11 @@ impl Executable {
         check: &mut impl FnMut() -> Result<(), CheckError>,
     ) -> Result<(), CheckError> {
         check()?;
-        if std::fs::canonicalize(&self.file.lookup_path).ok().as_ref() != Some(&self.file.path)
-            || Stamp::read(&self.file.path)? != self.stamp
+        if super::task_files::resolved(&self.file.lookup_path)
+            .ok()
+            .as_ref()
+            != Some(&self.file.path)
+            || platform::read(&self.file.path)? != self.stamp
         {
             return Err(error("EXECUTABLE_CHANGED"));
         }
@@ -92,7 +91,7 @@ impl Executable {
         program: &Path,
         check: &mut impl FnMut() -> Result<(), CheckError>,
     ) -> Result<(), CheckError> {
-        if program != self.file.lookup_path {
+        if shield_core::utils::strip_unc_prefix(program) != self.file.lookup_path {
             return Err(error("EXECUTABLE_CHANGED"));
         }
         self.quick(check)
@@ -104,10 +103,10 @@ impl Executable {
         }
         self.quick(&mut || Ok(()))?;
         let current = std::env::current_exe()
-            .and_then(std::fs::canonicalize)
+            .and_then(|path| super::task_files::resolved(&path))
             .map_err(|_| error("EXECUTABLE_CHANGED"))?;
         // 从链接启动时 current_exe 的查找路径可以不同，但实际文件及摘要必须相同。
-        if current != self.file.path || Stamp::read(&current)? != self.stamp {
+        if current != self.file.path || platform::read(&current)? != self.stamp {
             return Err(error("EXECUTABLE_CHANGED"));
         }
         Ok(())
@@ -175,7 +174,7 @@ impl Tools {
     pub fn pin(&self, command: &mut std::process::Command) -> Result<(), CheckError> {
         let inherited = command
             .get_envs()
-            .find(|(key, _)| *key == "PATH")
+            .find(|(key, _)| path_key(key))
             .map(|(_, value)| value.map(std::ffi::OsStr::to_os_string))
             .unwrap_or_else(|| std::env::var_os("PATH"));
         let mut paths = vec![self
@@ -196,6 +195,18 @@ impl Tools {
     }
 }
 
+fn path_key(key: &std::ffi::OsStr) -> bool {
+    #[cfg(windows)]
+    {
+        key.to_str()
+            .is_some_and(|name| name.eq_ignore_ascii_case("PATH"))
+    }
+    #[cfg(unix)]
+    {
+        key == "PATH"
+    }
+}
+
 #[cfg(test)]
-#[path = "identity_tests.rs"]
+#[path = "executable/tests.rs"]
 mod tests;
