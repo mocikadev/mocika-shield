@@ -3,8 +3,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -100,6 +102,43 @@ class DesktopCliBundleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 BUILDER.prepare(self.root, BUILDER.TARGETS["linux"])
             run.assert_not_called()
+
+    def test_非UTF8管道下真实入口保持中文提示及退出码(self):
+        script = self.root / "scripts/prepare_desktop_cli.py"
+        script.parent.mkdir()
+        shutil.copyfile(ROOT / "scripts/prepare_desktop_cli.py", script)
+        target = BUILDER.TARGETS["win32"]
+        binary = self.root / "target" / target / "release/shield.exe"
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(binary_bytes(target))
+        # 运行真实命令入口与文件检查，只替代外部构建工具，不需要 Windows 或 JDK。
+        harness = '''
+import argparse, json, pathlib, runpy, shutil, struct, subprocess, sys, tempfile
+from unittest import mock
+script, scenario = sys.argv[1:]
+sys.argv = [script] + (["--help"] if scenario == "help" else [])
+def run(args, **options):
+    if args[0] == "rustc":
+        return subprocess.CompletedProcess(args, 0, "x86_64-pc-windows-msvc\\n", "")
+    if args[0] == "cargo" and scenario == "failure":
+        raise subprocess.CalledProcessError(7, "中文构建工具")
+    output = b"shield 1.4.3\\n" if args[1:] == ["--version"] else b""
+    return subprocess.CompletedProcess(args, 0, output, b"")
+with mock.patch.object(sys, "platform", "win32"), mock.patch.object(subprocess, "run", side_effect=run):
+    runpy.run_path(script, run_name="__main__")
+'''
+        env = dict(os.environ, PYTHONIOENCODING="cp1252:strict", PYTHONUTF8="0", CARGO_TARGET_DIR="")
+        for scenario in ("success", "failure", "help"):
+            with self.subTest(scenario=scenario):
+                result = subprocess.run([sys.executable, "-c", harness, str(script), scenario],
+                                        env=env, capture_output=True)
+                self.assertEqual(result.returncode, 1 if scenario == "failure" else 0, result.stderr)
+                output = (result.stderr if scenario == "failure" else result.stdout).decode("utf-8")
+                expected = {"success": "已准备 GUI 内 CLI：", "failure": "准备桌面 CLI 失败：", "help": "准备与 Tauri"}
+                self.assertIn(expected[scenario], output)
+                self.assertNotIn("Traceback", output)
+                if scenario == "success":
+                    self.assertIn("中文 项目", output)
 
     def test_现有构建入口均使用生成配置且不修改默认Tauri配置(self):
         config = json.loads((ROOT / "apps/shield-gui/src-tauri/tauri.conf.json").read_text())

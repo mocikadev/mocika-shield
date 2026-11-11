@@ -68,6 +68,9 @@ def prepare(root, target, debug=False):
 
 
 def main():
+    # Windows 重定向管道可能使用非 UTF-8 编码；只调整本脚本的提示输出。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--debug", action="store_true", help="准备与 Tauri --debug 配套的 CLI")
     args = parser.parse_args()
