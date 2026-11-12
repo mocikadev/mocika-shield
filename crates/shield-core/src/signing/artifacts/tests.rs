@@ -78,6 +78,33 @@ fn 每个提交步骤失败均恢复旧产物且不留残件() {
 }
 
 #[test]
+#[cfg(windows)]
+fn 旧输出或附件被占用时恢复原产物且不留残件() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    for name in ["输出.apk", "输出.apk.idsig"] {
+        let root = tempfile::tempdir().unwrap();
+        original(root.path());
+        let artifacts = prepared(root.path(), true);
+        let occupied = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(root.path().join(name))
+            .unwrap();
+        let result = artifacts.publish();
+        drop(occupied);
+
+        assert!(result.is_err(), "文件独占期间不能替换旧产物");
+        assert_eq!(fs::read(root.path().join("输出.apk")).unwrap(), b"old-apk");
+        assert_eq!(
+            fs::read(root.path().join("输出.apk.idsig")).unwrap(),
+            b"old-idsig"
+        );
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 2);
+    }
+}
+
+#[test]
 fn 回滚也失败时保留恢复材料不销毁原文件() {
     let root = tempfile::tempdir().unwrap();
     original(root.path());
