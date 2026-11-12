@@ -1,6 +1,6 @@
 # 本地 Agent 接入与 Skill 安装
 
-> **新增 Agent 入口面向 `1.5.0-beta.1` 及后续预览版，稳定版 `1.4.3` 尚不包含。** 使用对应预览版或开发共包产物，核对命令帮助和工具发现，不只看版本号。macOS 本机与 Linux／Windows CI 的实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
+> **适用于 `1.5.0` 及后续版本，早期预览从 `1.5.0-beta.1` 起提供；`1.4.x` 不包含新增 Agent 入口。** 使用对应版本的完整桌面包，核对命令帮助和工具发现，不只看版本号。macOS 本机与 Linux／Windows CI 的实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
 
 ## 选择入口与共享资料
 
@@ -12,7 +12,7 @@
 
 三者可独立使用，不强制同时安装 Skill 和 MCP。GUI、CLI 和共享 MCP 复用本地 `config.toml`、`shield.db` 与证书；查询和保存通过[共享服务](../design/shared-application.md)，不让模型直接读取数据库或解密密码。GUI 无需常驻；切页、恢复焦点或下次查询时可见新偏好，活动任务仍使用固定快照。
 
-桌面共包显式启用 `mcp-server`，普通源码 CLI 默认不启用。安装官方预览包即可使用，不要求克隆源码或自行编译，也不需要另外下载 CLI。宿主与 CLI 应运行在同一系统、同一用户环境中；Windows 的 WSL、容器或远程 Agent 不自动共享原生 GUI 的路径和资料。
+桌面共包显式启用 `mcp-server`，普通源码 CLI 默认不启用。安装对应版本的官方桌面包即可使用，不要求克隆源码或自行编译，也不需要另外下载 CLI。宿主与 CLI 应运行在同一系统、同一用户环境中；Windows 的 WSL、容器或远程 Agent 不自动共享原生 GUI 的路径和资料。
 
 ## 三平台命令路径
 
@@ -38,7 +38,7 @@ SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
 
 ### Windows（PowerShell）
 
-先安装预览版，在实际安装目录确认 `mocika-shield-cli.exe`；不假定是系统级或当前用户安装。使用 PowerShell 的调用运算符 `&`，不需要 Bash：
+先安装 `1.5.0` 系列或更新版本，在实际安装目录确认 `mocika-shield-cli.exe`；不假定是系统级或当前用户安装。使用 PowerShell 的调用运算符 `&`，不需要 Bash：
 
 ```powershell
 $ShieldCli = 'C:\你的实际安装目录\MocikaShield\mocika-shield-cli.exe'
@@ -61,7 +61,7 @@ SHIELD_CLI='/usr/bin/mocika-shield-cli'
 AppImage 不使用临时挂载中的命令路径。确认可信安装包已具有可执行权限，先在自选、可写且没有 `squashfs-root` 的目录中解包，再保留完整解包目录：
 
 ```bash
-'/你的下载目录/MocikaShield_1.5.0-beta.1_linux_amd64.AppImage' --appimage-extract
+'/你的下载目录/MocikaShield_1.5.0_linux_amd64.AppImage' --appimage-extract
 SHIELD_CLI="$PWD/squashfs-root/usr/bin/mocika-shield-cli"
 "$SHIELD_CLI" --version
 "$SHIELD_CLI" agent --help

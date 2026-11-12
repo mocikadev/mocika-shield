@@ -8,7 +8,7 @@
 
 Protect and sign Android APKs and manage certificates locally. DEX encryption, certificate binding, and baseline runtime protection raise the cost of static analysis, tampering, and unauthorized re-signing—not a guarantee against unpacking or reverse engineering.
 
-The desktop GUI supports Windows, macOS, Linux, and Chinese/English interfaces. The 1.5.0 previews also bundle a CLI and local MCP server for automation.
+The desktop GUI supports Windows, macOS, Linux, and Chinese/English interfaces. Starting with 1.5.0, desktop packages also bundle a CLI and local MCP server for automation.
 
 > Use only with applications you own or are authorized to protect. Do not bypass third-party protections or use this tool for unauthorized purposes.
 
@@ -92,7 +92,7 @@ APKs, certificates, keystores, and signing passwords are processed locally and n
 
 | Channel | Data and controls |
 |---|---|
-| Anonymous usage statistics | Enabled by default; random installation identifier, tool version, launch/task counts, and fixed failure categories. Can be disabled in Settings; no package names or raw logs |
+| Anonymous usage statistics | Enabled by default; random installation identifier, tool version and build identity, launch/task counts, and fixed failure categories. Can be disabled in Settings; no package names or raw logs |
 | Safe error reports | Preview and confirm each report; no raw logs, APKs, paths, package names, certificates, or passwords. Independent of the statistics switch |
 | Per-app usage sharing | Controlled on protection/signing pages, selected by default for new package names. Opt-outs persist across pages and restarts. Successful operations send app name, package name, version code, tool version, operation, flow, success date, and protocol/deduplication metadata; no device identifier |
 
@@ -108,11 +108,11 @@ App sharing is independent of anonymous statistics. Reports are maintainer-only 
 | Architecture and internals | [Documentation index](docs/README.md) |
 | Future work | [Roadmap](docs/process/roadmap.md) |
 
-Detailed guides are currently primarily in Chinese. Releases do not provide a separate CLI archive; the `1.5.0` preview bundles the CLI with the desktop GUI. Build `make build-stub` first, then `make build-cli` or `make build-gui`. Refer to the build guide for dependencies and platform-specific steps.
+Detailed guides are currently primarily in Chinese. Releases do not provide a separate CLI archive; starting with `1.5.0`, desktop GUI packages bundle the CLI. Build `make build-stub` first, then `make build-cli` or `make build-gui`. Refer to the build guide for dependencies and platform-specific steps.
 
-## AI Agent Integration (Preview)
+## AI Agent Integration
 
-Starting with `1.5.0-beta.1`, the Windows, macOS, and Linux previews bundle a CLI and local stdio MCP server for controlled protection, standalone signing, and certificate management. They share the GUI's local configuration and certificates without requiring the GUI to remain open. Stable `1.4.3` does not include these new interfaces.
+Starting with `1.5.0`, Windows, macOS, and Linux desktop packages bundle a CLI and local stdio MCP server for controlled protection, standalone signing, and certificate management; early previews provide them from `1.5.0-beta.1`. They share the GUI's local configuration and certificates without requiring the GUI to remain open. Versions `1.4.x` do not include these new interfaces.
 
 The optional Skill lives in [skills/mocika-shield/](skills/mocika-shield/SKILL.md) and is installed and updated independently, not bundled with the app. See [Agent setup](docs/ops/agent-setup.md) for command paths, MCP configuration, and tested boundaries; client-specific registration and interaction still require validation.
 
