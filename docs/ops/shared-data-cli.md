@@ -1,6 +1,8 @@
 # CLI 共享配置与证书管理
 
-当前已合入主干，未进入公开 1.4.3 安装包。先以已验证的 macOS 开发应用包使用，GUI 可保持关闭；完整构建见[编译说明](build.md)，最简配置和能力差异见[接入说明](agent-setup.md)，交付边界见[审查记录](../process/agent-delivery-review.md)。
+以下能力已随三平台 `1.5.0-beta.1` 预览包交付，稳定版 `1.4.3` 尚不包含。GUI 可保持关闭；三平台路径、PowerShell 调用与 MCP 配置见[接入说明](agent-setup.md)，实际覆盖见[平台验收](../process/agent-desktop-platforms-plan.md)。
+
+下文 `shield` 表示已确认的包内 CLI，不要求它位于 PATH。macOS／Linux 用 `"$SHIELD_CLI"` 替换命令名；Windows 用 `& $ShieldCli`，每个参数独立传递，不照搬 Bash 的反斜杠续行。使用共享资料须与 GUI 保持同一系统和用户身份。
 
 ## 数据位置与边界
 
@@ -61,7 +63,7 @@ shield cert create --name '新发布证书' --file-name release.p12 \
 
 ## 使用已保存证书独立签名
 
-开发版 macOS 共包 CLI 优先使用单次受控入口：
+三平台预览包内 CLI 优先使用单次受控入口：
 
 ```bash
 shield agent sign -i input.apk -o signed.apk --certificate-id <证书编号>
@@ -127,7 +129,7 @@ v4 = false
 
 ## 受控共享加固
 
-macOS `agent-executor` 开发特性和当前本机构建共包 CLI 已接入共享来源；公开安装包尚未更新。先用 `agent plan --use-shared-settings` 规划，也可明确指定 `--certificate-id`／`--use-default-certificate`，输入与最终输出仍须提供。执行时使用该终态的 `plan.shared_binding` 作为 `--shared-binding`，同时提供原 `plan.sha256` 作为 `--expect-plan-sha256`；不要再次指定证书、模式或策略。隔离 `--app-home` 与本次 ABI 排除如有，须在两次调用中保持一致。
+三平台预览包内 CLI 已接入共享来源；普通源码构建须显式启用 `agent-executor`，需要 MCP 时启用 `mcp-server`。先用 `agent plan --use-shared-settings` 规划，也可明确指定 `--certificate-id`／`--use-default-certificate`，输入与最终输出仍须提供。执行时使用该终态的 `plan.shared_binding` 作为 `--shared-binding`，同时提供原 `plan.sha256` 作为 `--expect-plan-sha256`；不要再次指定证书、模式或策略。隔离 `--app-home` 与本次 ABI 排除如有，须在两次调用中保持一致。
 
 共享计划版本为 3，原文件来源版本仍为 2；信封版本不变。绑定固定证书、模式、策略及签名版本，不含密码、路径或 Alias。切换 GUI 默认项或修改无关备注不使任务换证书；选中材料或实际文件变化则停止，不回退其他来源。没有项目配置文件时也能执行，不生成明文密码配置；如显式提供项目文件，其身份、工具和有效版本仍绑定。详见[共享绑定契约](../design/shared-agent-binding.md)。
 
@@ -137,4 +139,4 @@ macOS `agent-executor` 开发特性和当前本机构建共包 CLI 已接入共�
 
 写操作报错可能发生在保存后的回读阶段。`change_state: unconfirmed` 表示不能确认修改结果，不表示回滚；没有收到完整响应时同样须先查询本机状态，不自动重试导入、创建或删除。查询失败不换库、不输出工具原始日志。
 
-独立 Skill 0.3.0 已有单次受控独立签名指引。MCP 的[共享模式](../design/shared-mcp.md)、[管理首批](../design/shared-mcp-management.md)及[生命周期](../design/mcp-certificate-lifecycle.md)均已合入主干，复用原执行许可、共享服务及本机凭据机制；未开放的纯加固不签名、清空全局默认和输出目录持久化在接入说明中明确列出。原外置配置模式保留，公开安装包和宿主原生注册不据此推定已更新。
+独立 Skill 0.3.1 包含三平台路径与调用指引，须独立安装或升级。MCP 的[共享模式](../design/shared-mcp.md)、[管理首批](../design/shared-mcp-management.md)及[生命周期](../design/mcp-certificate-lifecycle.md)已随预览包交付，复用原执行许可、共享服务及本机凭据机制；未开放的纯加固不签名、清空全局默认和输出目录持久化在接入说明中明确列出。原外置配置模式保留；宿主注册仍由用户配置，不因安装 App 自动完成。

@@ -10,7 +10,7 @@
 
 | 验证 | 实际结果 |
 |---|---|
-| GUI 后端最终全量 | 105 项通过、2 项环境用例默认忽略；主代理复跑确认 |
+| GUI 后端最终全量 | 105 项通过、2 项环境用例默认忽略；已复跑确认 |
 | 新增真实 APK 身份与本地 HTTP 环境用例 | 显式设置两份自建 APK 路径后单独执行，1 项通过；不是未经执行的忽略项 |
 | GUI 前端 | 11 项行为测试通过（分享 7 项），构建及 lint 通过 |
 | 共享核心与 CLI | 153 项通过、5 项既有环境用例忽略 |
@@ -30,7 +30,7 @@
 - 普通冒烟包：`dev.mocika.shield.smoke`，版本码 `1`，资源名称 `Mocika Shield Smoke`，最低 API 19，无 Native 库。
 - 工控 Native 探针：`dev.mocika.shield.api19probe`，版本码 `1`，直写名称 `Mocika API 19 Native 探针`，最低 API 19，`armeabi-v7a`。
 
-探针的 `aapt dump badging` 显示空 label，不能据此推断未设置名称；实际 APK 的 `aapt dump xmltree ... AndroidManifest.xml` 已由主代理与验收代理独立确认上述直写名称，生产解析结果一致。
+探针的 `aapt dump badging` 显示空 label，不能据此推断未设置名称；实际 APK 的 `aapt dump xmltree ... AndroidManifest.xml` 已独立核对上述直写名称，生产解析结果一致。
 
 生产身份入口读取两份真实 APK，经生产协议与 HTTP 发送函数提交到 localhost 接收器，核对只有十个协议字段、工具版本来自编译版本、不含路径或敏感字段。没有连接线上接收接口。该用例不等同于实际 Tauri 任务完成回调端到端测试。
 
@@ -40,7 +40,7 @@ Native 探针用作加固输入时触发现有规范库名冲突检查，被安�
 
 ## macOS 应用包
 
-主代理执行 `cargo tauri build --bundles app` 成功，交付：
+执行 `cargo tauri build --bundles app` 成功，交付：
 
 `target/release/bundle/macos/MocikaShield.app`
 

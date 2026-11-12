@@ -4,7 +4,7 @@
 
 ## Linux 空白窗口
 
-开发分支已加入 WebKitGTK 的 DMA-BUF 启动兼容设置；公开 `1.5.0-beta.1` 及更早安装包尚未包含。仅在 Linux GUI 创建窗口之前、且用户未设置 `WEBKIT_DISABLE_DMABUF_RENDERER` 时，默认设置为 `1`。用户显式值（包括 `0` 和空串）原样保留，不写系统环境，也不强制 X11 或关闭全部 GPU 功能。
+主干已加入 WebKitGTK 的 DMA-BUF 启动兼容设置；公开 `1.5.0-beta.1` 及更早安装包尚未包含。仅在 Linux GUI 创建窗口之前、且用户未设置 `WEBKIT_DISABLE_DMABUF_RENDERER` 时，默认设置为 `1`。用户显式值（包括 `0` 和空串）原样保留，不写系统环境，也不强制 X11 或关闭全部 GPU 功能。
 
 旧安装包可在完全退出后临时对照启动，替换为实际文件名：
 
@@ -16,7 +16,7 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 ./MocikaShield_x.y.z_linux_amd64.AppImage
 
 ## 普通签名的输出保护
 
-开发分支的普通 GUI／CLI 签名先在输出目录同卷暂存，再提交最终 APK；`1.5.0-beta.1` 及更早公开包尚未包含。指定输出仍允许覆盖，原地签名仍允许更新原文件，但签名失败、缺少 V4 附件或提交前取消不会破坏旧产物。
+主干的普通 GUI／CLI 签名先在输出目录同卷暂存，再提交最终 APK；`1.5.0-beta.1` 及更早公开包尚未包含。指定输出仍允许覆盖，原地签名仍允许更新原文件，但签名失败、缺少 V4 附件或提交前取消不会破坏旧产物。
 
 开启 V4 时一起保存对应 `.idsig`；关闭 V4 后成功替换 APK 会移除不匹配的旧附件。普通签名的 V4 能力与 Agent 受控入口仅支持 V1–V3 的边界不变。常规提交错误尝试恢复旧 APK 和附件；若恢复也失败，错误提示给出保留的暂存目录，排查前不要删除它。多文件提交不提供断电／进程崩溃下的原子事务保证，不承诺防御同权限进程并发修改目录。
 
@@ -96,13 +96,13 @@ unzip -lv app.apk | grep -E "lib/.+\\.so$"
 检查加固后是否注入壳 DEX 和 native 库：
 
 ```bash
-unzip -l protected.apk | grep -E "classes|libmocikashield"
+unzip -l protected.apk | grep -E "classes.*\\.dex|lib/.+\\.so"
 ```
 
 常见期望：
 
 - `classes.dex` 存在
-- `lib/<abi>/libmocikashield.so` 存在
+- `lib/<abi>/*.so` 包含对应壳库，名称是任务别名，不按固定库名匹配
 - 不应出现旧方案的 `assets/app.bin`
 
 检查 APK 包含哪些 ABI：

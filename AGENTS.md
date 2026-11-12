@@ -173,12 +173,12 @@ GUI、CLI、Skill、MCP 与未来 TUI 是同一工具的不同入口。加固、
 | [docs/ops/project-statistics.md](docs/ops/project-statistics.md) | 维护统计口径、自动化流程与数据边界 |
 | [docs/usage.md](docs/usage.md) | CLI 与 GUI 使用指南 |
 | [docs/ops/agent-setup.md](docs/ops/agent-setup.md) | Agent 本地接入：共包目录、Skill 安装、配置与客户端验收 |
-| [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5 格式、加解密算法、已知 Bug 全记录 |
+| [docs/design/internals.md](docs/design/internals.md) | 技术内参：DEXB v5、签名绑定、加载与主要修复结论 |
 | [docs/design/native-library-packaging.md](docs/design/native-library-packaging.md) | Native 库打包：`extractNativeLibs`、ZIP 压缩/对齐与 ELF 页大小兼容方案 |
 | [docs/design/native-library-alias.md](docs/design/native-library-alias.md) | Native 库名去品牌化：任务别名、DEX 联动改写、冲突规避与兼容回归方案 |
 | [docs/design/stub-dex-minimization.md](docs/design/stub-dex-minimization.md) | Stub DEX 最小化：能力变体、职责下沉、二阶段加载实验与停止条件 |
 | [docs/design/runtime-security.md](docs/design/runtime-security.md) | Android 运行时安全：每次启动检查、DEX 缓存认证、Root 策略与内存 DEX 规划 |
-| [docs/design/memory-dex-production.md](docs/design/memory-dex-production.md) | API 29 以上内存 DEX 正式接入：资源隔离、状态协议、迁移与回滚边界 |
+| [docs/design/memory-dex-production.md](docs/design/memory-dex-production.md) | API 31 以上内存 DEX 候选：已暂停，保留资源、状态、成本及回退依据 |
 | [docs/design/dex-code-separation.md](docs/design/dex-code-separation.md) | DEX 代码保护研究：结构/方法代码分离、内存重建、分片恢复与停止条件 |
 | [docs/design/toolchain-modernization.md](docs/design/toolchain-modernization.md) | 工具链轻量化与自动化：CLI 契约、CI/Gradle 集成、局部原生重写与回退边界 |
 | [docs/design/agent-integration.md](docs/design/agent-integration.md) | Agent 本地接入：CLI、Skill、MCP 分工、凭据与执行安全边界 |

@@ -1,311 +1,115 @@
 # 发布与版本管理
 
-## 版本号语义
+## 版本与预发布
 
-稳定版本号格式：`major.minor.patch`（如 `1.2.3`）。预发布版本允许 SemVer 后缀，例如 `1.2.0-rc.1`。
+| 类型 | 用途 |
+|---|---|
+| Major | 对用户接口造成破坏性变化，或明确的重大里程碑 |
+| Minor | 一组完整、面向用户的新能力，不按每个小功能机械升级 |
+| Patch | 缺陷与兼容修复 |
+| Alpha | 能力探索，允许调整方案和接口 |
+| Beta | 主要功能完成，冻结新增范围，重点验证和修复 |
+| RC | 发布候选，只修发布阻塞问题 |
+| 正式版 | 已批准范围和必要门禁通过，剩余限制在说明中明确 |
 
-| 版本位 | 触发条件 | 示例 |
-|--------|----------|------|
-| **Major** | 功能积累到一定程度的里程碑版本，或 CLI/GUI 接口有破坏性变更 | 多个 Minor 功能积累后升为 2.0；CLI 子命令结构重构等 |
-| **Minor** | 新增一个完整功能 | 版本更新提示、反调试检测、CLI 子命令等，每个对应一次 minor 升级 |
-| **Patch** | Bug 修复，不新增功能 | 签名检测修复、异常路径 fail-closed 修复等 |
+不要求每次都走完所有预发布阶段，也不为仅改版本号连续发包。标签统一为小写 `v` 加 SemVer，如 `v1.5.0-beta.1`。
 
-> DEXB 格式变化属于内部算法优化，**不触发 major 升级**。由于加固后的 APK 自包含壳模块，格式升级对用户完全无感。
+DEXB 或壳协议变化不自动等于 Major：已生成 APK 自包含运行时，但工具／资源配对及重新加固要求仍须说明，不能宣称格式变化对用户完全无感。
 
-### Git Tag 命名规范
+## 分支与 PR
 
-发布时统一使用 `v{version}` 格式，如 `v1.0.0`、`v1.2.3`、`v1.2.0-rc.1`。
+采用 `main` 加临时 `feat/*`、`fix/*`、`docs/*` 分支，合并后清理。不默认增加长期 `develop`；确需并行维护稳定线时，从对应稳定标签建立维护分支。
 
-- 前缀固定小写 `v`
-- 不使用 `V`（大写）、不省略前缀
-- 只允许标准 SemVer 预发布后缀（如 `-rc.1`），不使用非标准后缀（如 `-stable`）
-- GUI 版本检查解析时兼容大小写（`v`/`V` 均可 strip），但发布时只用小写
+### main 分支保护规则
 
-### 分支管理策略
+当前仓库要求 PR、分支与最新主干同步、解决全部对话及 `基础快速检查` 通过；必需人工审批为 0。禁止强推或删除 main，暂不要求签名提交。管理员强制执行目前未启用，但不作为日常绕过规则的许可。
 
-当前阶段采用 **单主干 `main` + tag 发布**：
+日常流程：从最新主干建临时分支，完成整个阶段及对应验证，集中提交和提审，正常合并后删除任务分支。不要直接推送 main，也不要为小步调试积累大量 PR。
 
-- `main`：长期稳定主干，保持可构建、可发布
-- `vX.Y.Z` / `vX.Y.Z-rc.N`：唯一正式发布标记
-- `feat/*`：复杂功能的临时开发分支，合并回 `main` 后删除
-- `fix/*`：缺陷修复的临时分支，合并回 `main` 后删除
+## CI 分工
 
-暂不维护长期 `develop` 分支，也不默认创建 `release/*` / `hotfix/*` 分支，避免刚开源阶段增加流程成本。
+| 工作流 | 范围 |
+|---|---|
+| `ci.yml` | 普通 PR／主干提交按变更范围运行快速检查；纯文档可跳过代码检查 |
+| `ci.yml` 手动 | 默认 `all` 完整验证，也可选择 Windows 资源、Agent 原生／实际安装包、进程或 Java 等专项 |
+| `release.yml` | 标签或手动触发，完整构建 Linux、macOS Universal、Windows 及发布汇总 |
+| `project-stats.yml` | 每日或手动更新维护统计，不是发布前门禁 |
 
-只有出现以下情况时，才新增长期维护分支：
-
-- 多个正式版本线需要并行维护，例如 `1.2.x` 与 `1.3.x`
-- 某个大功能周期较长，不能持续保持 `main` 可发布
-- 多人协作规模扩大，需要隔离稳定分支和开发分支
-
-如需维护旧版补丁，优先从对应稳定 tag 拉出 `release/x.y`，修复后打 `vX.Y.Z` patch tag。
-
-#### `main` 分支保护规则
-
-GitHub 的 `main` 分支必须保持保护状态，正式代码统一通过临时分支和 Pull Request 合入。当前规则按单维护者仓库配置，不要求作者无法自行完成的人工审批。
-
-| 规则 | 配置 |
-|------|------|
-| 合并前必须创建 Pull Request | 启用 |
-| 必需审批数 | `0` |
-| 合并前必须更新到最新 `main` | 启用 |
-| 必须解决全部对话 | 启用 |
-| 允许强制推送 | 禁止 |
-| 允许删除 `main` | 禁止 |
-| 要求签名提交 | 暂不启用 |
-| 管理员强制执行 | 暂不启用，保留紧急绕过能力 |
-
-Pull Request 合并前必须通过以下 CI 检查：
-
-- `基础快速检查`
-
-普通 PR 只执行 Rust 格式和脚本契约测试，避免每次提交重复等待完整编译与跨平台打包。完整代码质量检查、Android 壳构建、Linux Tauri 打包冒烟检查、Windows Android 4.4 资源构建和发布前检查仅在手动触发 CI 时执行；版本发布仍由 Release 工作流完整构建三个平台。
-
-手动 CI 的 `validation_scope` 默认 `all`，保留原完整验证；需要补测 Windows 标准／工控资源时选择 `windows_resources`，只运行 Windows 资源任务及基础快速检查，不同时启动 Linux 打包或其他重型任务。此选项不影响普通提交、PR 或 Release 工作流，未知范围直接拒绝。
+快速检查含 Rust 格式、轻量 Linux 启动策略及脚本测试，不编译整套 GUI／Android 壳。重型任务按影响手动运行或随发布执行，不给每次提交增加等待。
 
 ```bash
 gh workflow run ci.yml --ref <待验证分支> -f validation_scope=windows_resources
 ```
 
-日常开发流程：
+其他专项值及证据见[平台验收表](agent-desktop-platforms-plan.md)，不把一次完整 CI 当作全部设备业务已经通过。
 
-1. 从最新 `main` 创建 `feat/*`、`fix/*`、`docs/*` 等临时分支。
-2. 完成修改和本地验证后推送远端并创建 Pull Request。
-3. 等待全部必需 CI 通过，并解决未完成的评审对话。
-4. 合并到 `main`，随后删除临时分支。
-5. 只有发布版本时才从已验证的 `main` 创建并推送 `vX.Y.Z` tag。
+## 同步版本
 
-管理员绕过只用于保护规则配置错误、CI 基础设施不可用或紧急安全修复。绕过后必须补建对应 Pull Request 或维护记录，不作为日常直接推送 `main` 的方式。
-
-### GUI 版本更新提示策略
-
-| 检测到版本差异 | 提示方式 |
-|----------------|----------|
-| **Patch** | 顶部小提示条，可一键关闭 |
-| **Minor** | 顶部提示条，持续显示直到用户手动关闭 |
-| **Major** | 启动时弹窗，突出"重大版本更新"，引导用户前往 Release 页查看变更说明 |
-
----
-
-## 版本号同步
-
-升级版本时，需同步修改以下文件：
-
-| 文件 | 字段 |
-|------|------|
-| `crates/shield-core/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `apps/shield-cli/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `shield-stub/src/main/rust/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `shield-stub/compat/api19-rust/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `shield-stub/compat/api19-rust/Cargo.lock` | 独立兼容 crate 的根包版本；发布构建使用 `--locked` |
-| `apps/shield-gui/src-tauri/Cargo.toml` | `version = "x.y.z[-pre]"` |
-| `apps/shield-gui/src-tauri/tauri.conf.json` | `"version": "x.y.z[-pre]"` |
-| `apps/shield-gui/package.json` | `"version": "x.y.z[-pre]"` |
-| `apps/shield-gui/package-lock.json` | `"version": "x.y.z[-pre]"` |
-
-优先使用：
+优先执行：
 
 ```bash
 bash scripts/bump-version.sh x.y.z
-bash scripts/bump-version.sh x.y.z-rc.1
+# 或 x.y.z-beta.1、x.y.z-rc.1
 ```
 
-脚本会使用 Rust 1.77.2 离线同步 API 19 兼容 crate 的独立锁文件；修改后仍需运行 `cargo build` 或 `make build-all`，使根 `Cargo.lock` 同步更新。
+脚本同步核心、共享服务、CLI、GUI 后端／Tauri／前端及标准／API 19 Stub 的版本。API 19 独立 Cargo.lock 使用 Rust 1.77.2 离线更新；根 Cargo.lock 也须核对。禁止只改安装包名或遗漏 `shield-services`／兼容锁文件。
 
----
+## 发布步骤
 
-## 发布命令
-
-### Linux / macOS
+1. 在临时分支同步版本、版本系列说明和受影响文档，完成对应本地／专项验证。
+2. 合并 PR，确认主干检查完成、工作区干净，并运行 `bash scripts/check-release-ready.sh`。
+3. 经维护者确认发布后，从已验证主干创建新标签；只推标签，不借发布命令直接推 main。
+4. 等待三个平台和汇总任务成功，核对产物、校验和、内置资源及说明。
+5. 正式版保持草稿供验收，确认后公开；预发布工作流直接公开为 Pre-release，打标签前须明确该可见性。
 
 ```bash
-# CLI-only 发布包（维护者本地使用）
-make release VERSION=x.y.z
-
-# 仅 CLI 发布包（tar.gz，本地生成，不由 GitHub Release 上传）
-bash scripts/release-cli.sh x.y.z
-
-# Linux 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
-VERSION=x.y.z make release-linux
-
-# macOS 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
-VERSION=x.y.z make release-macos
-
-```
-
-### Windows（必须在 Windows 原生环境执行）
-
-```powershell
-# Windows 本地发布（默认 GUI + CLI；CI 设置 SKIP_CLI_RELEASE=1 只上传 GUI）
-.\scripts\release-windows.ps1 -Version x.y.z
-```
-
-脚本会自动检测并安装缺失的 cargo 工具（tauri-cli / cargo-ndk），并通过 npm 构建 React 前端，首次运行耗时较长。
-
----
-
-## 发布包结构
-
-本地发布脚本默认仍会生成 CLI 与 GUI 产物，便于维护者离线分发或调试；GitHub Actions 的 Release workflow 会设置 `SKIP_CLI_RELEASE=1`，只构建并上传 GUI 安装包。
-
-从 `1.5.0` 预览版起，三平台 GUI 安装包内含 CLI，与 GUI 共用 JAR 和标准／工控资源。macOS 通过 `scripts/build-macos-app.sh` 将 `Contents/MacOS/shield` 在最终签名前装入并核对架构及内容；Linux／Windows 分别共包 `mocika-shield-cli`／`mocika-shield-cli.exe`。`SKIP_CLI_RELEASE=1` 仅跳过独立 CLI 压缩包，不省略应用内 CLI；不新增 Release 资产。共包 CLI 显式启用 `mcp-server`，普通源码构建默认不启用。目录与使用方式见[接入说明](../ops/agent-setup.md)，原生和实际包验收见[平台验收表](agent-desktop-platforms-plan.md)；额外宿主、架构和设备仍须各自验证。
-
-Skill 独立从根目录 `skills/mocika-shield/` 分发，不进入 `.app`，也不是 App 打包的前置资源；构建入口拒绝开发期旧技能残留。技能有自己的版本及公共 CLI 协议兼容声明，更新由用户或现有技能管理工具触发，不要求与 App 同版本升级，不新增独立 Release 任务或安装/升级服务。安装与升级核对见[接入说明](../ops/agent-setup.md)，不得将目录或脚本检查通过写成真实客户端已经验收。
-
-### CLI 本地发布包
-
-```
-mocika-shield-x.y.z/
-├── bin/
-│   └── shield              # 可执行文件（Windows 为 shield.exe）
-├── lib/
-│   ├── apktool.jar
-│   └── apksigner.jar
-├── resources/
-│   └── resources.zip       # shield-stub 产物（Android 壳 DEX + .so）
-└── README.md
-```
-
-### GUI 发布包
-
-| 平台 | 产物 | 说明 |
-|------|------|------|
-| Linux（Tauri） | `MocikaShield_x.y.z_linux_amd64.AppImage` | 免安装，直接运行 |
-| Linux（Tauri） | `MocikaShield_x.y.z_linux_amd64.deb` | Debian/Ubuntu 安装包 |
-| macOS（Tauri） | `MocikaShield_x.y.z_macos_aarch64.dmg` / `MocikaShield_x.y.z_macos_universal.dmg` | Tauri 版 |
-| Windows | `MocikaShield_x.y.z_windows_x64_setup.exe` | NSIS 安装包 |
-
-GUI 发布包已内置 apktool.jar、apksigner.jar、resources.zip，用户无需额外配置工具路径。
-
-三平台发布入口必须在标准与工控资源构建完成后、桌面打包前检查两套资源的 `metadata.json.version` 与本次发布版本完全一致（含预发布后缀）。macOS/Linux 向资源构建子进程显式传递 `SHIELD_VERSION="$VERSION"`，Windows 使用 `-ShieldVersion $Version`；检查由 `scripts/check_resource_version.py` 共用，缺失或不一致立即停止，不能仅凭安装包文件名和应用版本判为通过。
-
-### Windows 本地发布产物（`dist/` 目录）
-
-```
-dist/windows/
-├── MocikaShield_x.y.z_windows_x64_setup.exe    # GUI NSIS 安装包
-├── mocika-shield-cli-x.y.z-windows-x86_64.zip  # CLI 本地发布包；CI 不上传
-└── checksums-sha256.txt
-```
-
----
-
-## 构建顺序约束
-
-`shield`（CLI）和 GUI 运行时均依赖 `resources.zip`，**必须先完成 shield-stub 构建**：
-
-```
-make build-stub  →  make build-cli / make build-gui / make release / make release-linux / make release-macos
-```
-
-`make release` 是 CLI-only 本地发布包；各平台 GUI 发布脚本均已内置必要构建顺序，无需手动保证。
-
----
-
-## GitHub Actions CI/CD
-
-仓库包含两个工作流：
-
-| 工作流 | 文件 | 触发 | 内容 |
-|--------|------|------|------|
-| CI | `.github/workflows/ci.yml` | push / pull request / 手动触发 | 普通提交与 PR 执行基础快速检查；手动默认完整验证，也可仅补测 Windows 标准／工控资源 |
-| Release | `.github/workflows/release.yml` | tag `v*.*.*` / 手动触发 | 并行构建 Linux Tauri、macOS Tauri、Windows GUI 产物，汇总上传到 GitHub Release |
-
-> GitHub Release 面向普通开源用户，只上传 GUI 安装包与校验和；CLI 包仍可通过本地发布脚本生成，但不会由 CI 上传到 Release。
-
-Release Notes 相关文件：
-
-| 文件 | 作用 |
-|------|------|
-| `.github/release.yml` | GitHub 自动生成变更列表的分类配置 |
-| `.github/release-notes/stable.md` | 稳定版本固定前言模板 |
-| `.github/release-notes/prerelease.md` | 预发布版本固定前言模板 |
-
-### 自动发布流程
-
-```bash
-# 1. 更新版本号并提交
-make bump-version V=x.y.z
-git add .
-git commit -m "chore: 发布 x.y.z"
-
-# 2. 打 tag 并推送
+git switch main
+git pull --ff-only
 git tag vx.y.z
-git push origin main vx.y.z
+git push origin vx.y.z
 ```
 
-推送 tag 后，`Release` workflow 会自动：
+示例中的版本必须替换为本次已批准值。手动运行 Release 工作流不会自动创建 Git 标签，必须核对所选分支、输入版本和目标提交一致。
 
-1. 从 tag 提取版本号
-2. 构建各平台 GUI 产物
-3. 上传 workflow artifacts
-4. 根据版本号创建或更新对应的 GitHub Release
-5. 上传 GUI 安装包和校验和文件
+公开标签不再移动。未公开、尚无对外产物的失败构建，只有取得维护者对具体标签的明确授权后才能更新并重建；不能将此当作默认重试方式。
 
-各平台发布脚本生成的校验和保留本地 `dist` 子目录，便于维护者直接校验本地产物。Release 汇总任务上传前会将记录规范化为扁平文件名，并拒绝无效记录或重复文件名，确保下载校验和文件后可在安装包所在目录直接执行校验。
+## 产物与打包约束
 
-发布可见性规则：
+| 平台 | Release 文件 |
+|---|---|
+| Linux x64 | `MocikaShield_X.Y.Z_linux_amd64.AppImage`、`.deb`、`linux-tauri-checksums-sha256.txt` |
+| macOS Universal | `MocikaShield_X.Y.Z_macos_universal.dmg`、`macos-tauri-checksums-sha256.txt` |
+| Windows x64 | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、`windows-checksums-sha256.txt` |
 
-- **稳定版本**（如 `v1.2.0`）：自动创建为 **Draft**
-- **预发布版本**（如 `v1.2.0-rc.1`、`v1.2.0-beta.1`、`v1.2.0-alpha.1`）：自动创建为 **Pre-release**
+共四个安装包、三份校验和，均发布到 `mocikadev/mocika-shield`。校验和记录使用扁平文件名，拒绝重复或无效记录。
 
-稳定版本继续保留人工验收窗口；预发布版本直接公开为候选版本，避免每次手动从 Draft 改为 Pre-release。
+从 1.5.0 预览版起 CLI／MCP 随 GUI 共包；不新增独立 CLI Release 资产。Skill 独立安装升级，不进入 App，也不是 App 构建前置材料。路径见[接入说明](../ops/agent-setup.md)。
 
-Release Notes 生成规则：
+本地平台脚本和命令只在[构建指南](../ops/build.md#安装包构建)维护。`SKIP_CLI_RELEASE=1` 只跳过维护用独立 CLI 压缩包，不省略 GUI 包内 CLI。
 
-- workflow 先读取稳定版或预发布版的简洁中英文前言模板
-- 如果存在 `.github/release-notes/versions/x.y.z.md`，在固定“本次变更”章节下插入该版本系列的人工中英文能力汇总；同一系列的 Alpha、Beta、RC 和正式版复用该文件
-- 再查找当前标签之前最近一个已公开正式版本，作为 GitHub Release Notes API 的固定比较基线
-- Alpha、Beta、RC 和最终正式版均汇总相对上一正式版本的完整版本周期变更，不以相邻预发布标签作为比较基线
-- 合并自动变更列表前移除 GitHub 自带的 `What's Changed` 标题，避免与固定中英文章节重复；分类标题和 `Full Changelog` 保持不变
-- 最终将两部分合并后写入 Release
-- 如果重新运行同一个 tag 的发布任务，产物与 Release Notes 会一并更新
-
-所有稳定版和预发布版 Release Notes 固定保留以下章节，顺序保持一致：
-
-1. `下载 / Downloads`
-2. `使用须知 / Notes`
-3. `本次变更 / What's Changed`
-
-Release Notes 末尾同时保留 GitHub 生成的 `Full Changelog` 比较链接，但不要求它作为独立章节。Release Notes 只保留下载入口、必要运行条件、安全边界和本版本变更，不重复 README 中的完整功能介绍。人工精简发布说明时，可以把自动列表整理成 2～5 条中英文版本亮点，但必须放在 `本次变更 / What's Changed` 下，不得改名或删除固定章节。编辑完成后使用 `gh release view <tag> --json body --jq '.body'` 复核章节；若之后重新运行同一个 tag 的发布任务，自动生成内容会覆盖人工修改，需要再次检查固定章节和版本亮点。
-
-### 手动触发发布
-
-在 GitHub Actions 页面选择 `Release` workflow，输入版本号 `x.y.z` 后运行。手动触发不会自动创建 git tag；正式发布仍建议使用 tag 触发。
-如果输入的是稳定版本号，会创建或更新 `vx.y.z` Draft Release；如果输入的是带预发布后缀的版本号（如 `1.2.0-rc.1`），会直接创建或更新为 Pre-release。
-
----
-
-## 发布检查清单
-
-1. 更新版本号（见上方"版本号同步"）
-2. 运行发布前轻量检查：`bash scripts/check-release-ready.sh`
-3. 确认 CI 通过
-4. 打 tag 并推送：`git tag vx.y.z && git push origin main vx.y.z`
-5. 等待 Release workflow 完成
-6. 检查 GitHub Release 的产物、校验和，以及固定的中英文 Release Notes 章节
-7. 稳定版本确认无误后取消草稿正式发布；预发布版本确认可见性与产物即可
+打包必须在双壳生成后检查 `metadata.json.version` 与本次完整版本一致，含预发布后缀；共同检查入口为 `scripts/check_resource_version.py`。辅助 JAR 也须与当前构建匹配。macOS 先装入 CLI，再做内层和整包签名，不能事后复制文件冒充完整包。
 
 ### 正式版前产物检查
 
-正式版发布前需额外确认：
+- 核对安装包及 CLI／GUI 版本、架构、摘要和标准／工控资源契约。
+- 内置工具含 apktool、apksigner、java-adapter JAR；正式资源含标准和工控双 ZIP。
+- 不含测试 APK、证书、数据库、配置、环境文件、缓存或 `.DS_Store`。
+- 说明包含 Java 8+、平台要求、签名一致性、支持边界及 macOS 未公证提示。
+- 按变更范围抽查真实安装包；沿用未受影响的有效回归，不机械重复全系统／全业务矩阵。实际执行与沿用证据分别记录。
+- 验收结果至少写明版本／来源、平台／Java、样本类型、通过项及未验范围；不将条件忽略或静态检查算作实际运行。
 
-- Release 页面只包含 GUI 安装包与校验和文件，不上传 CLI 包
-- 安装包内包含 `apktool.jar`、`apksigner.jar`、`resources.zip`
-- 安装包内不包含测试 APK、测试证书、`shield.db`、`config.toml`、`.env` 或本地缓存
-- README、使用文档、Release Notes 已说明 Java 8+、证书管理、密码加密、16 KB 对齐和 macOS 未签名提示
-- 支持与问题反馈文档、issue 模板和关于页诊断信息入口保持一致
-- 下载 Release 产物后至少完成一次证书导入/创建、设为默认、签名、加固、自动签名回归
-- 解压内置 `resources.zip` 与 `resources-api19.zip`，确认只包含预期 DEX、元数据和 Native 库，不包含 `.DS_Store`、测试文件或其他本机临时产物
+完整测试范围见[清单](test-checklist.md)。官方包验收不等于所有用户设备、Agent 客户端或发行版均已验证。
 
-`1.2.7` 的候选版本、设备矩阵、未决事项和正式版判断记录在[测试清单的发布前收尾审计](test-checklist.md#2026-07-29127-发布前收尾审计)中。
+## Release Notes
 
-### 产物与命名规则
+| 文件 | 作用 |
+|---|---|
+| `.github/release.yml` | GitHub 自动变更分类 |
+| `.github/release-notes/stable.md`、`prerelease.md` | 简洁中英文前言 |
+| `.github/release-notes/versions/x.y.z.md` | 同一版本系列的能力汇总，Alpha／Beta／RC／正式版共用 |
 
-| 平台 | 产物文件 |
-|------|----------|
-| Linux（Tauri） | `MocikaShield_X.Y.Z_linux_amd64.AppImage`、`MocikaShield_X.Y.Z_linux_amd64.deb`、`linux-tauri-checksums-sha256.txt` |
-| macOS（Tauri） | `MocikaShield_X.Y.Z_macos_universal.dmg`、`macos-tauri-checksums-sha256.txt` |
-| Windows | `MocikaShield_X.Y.Z_windows_x64_setup.exe`、`windows-checksums-sha256.txt` |
+固定章节按顺序保留：`下载 / Downloads`、`使用须知 / Notes`、`本次变更 / What's Changed`，末尾保留 `Full Changelog` 比较链接。
 
-> 发布仓库：`mocikadev/mocika-shield`（源码与 Release 包同仓库维护）
+自动变更以上一个已公开正式版本为基线，覆盖整个开发周期，不只比较相邻预发布版。合并列表时移除 GitHub 重复标题。人工精简可整理成少量中英文亮点，但不能删除固定章节或重复整份 README。
+
+重新运行相同标签的构建会重写产物和说明；须重新验收，公开版本不得以此悄悄替换。可用 `gh release view <tag> --json body --jq '.body'` 复核正文。

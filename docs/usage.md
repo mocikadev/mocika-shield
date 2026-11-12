@@ -4,11 +4,11 @@
 
 从 [Releases](https://github.com/mocikadev/mocika-shield/releases/latest) 下载对应平台的安装包，安装后直接使用。
 
-> **macOS 首次打开（未签名版本）**
+> **macOS 首次打开（未公证版本）**
 >
-> macOS 会提示「无法验证开发者」，在终端执行以下命令去除隔离标记，执行后正常双击打开即可，只需操作一次：
+> 确认安装包来自官方 Release 并核对校验和后，若提示「无法验证开发者」，可对实际应用路径移除隔离标记：
 > ```bash
-> xattr -rd com.apple.quarantine /Applications/MocikaShield.app
+> xattr -rd com.apple.quarantine "/你的实际目录/MocikaShield.app"
 > ```
 
 正式 GUI 为 Tauri 版，Linux / macOS / Windows 使用同一套界面。当前界面以加固、签名、证书、设置、关于为主，签名证书已从设置页拆出，由证书页统一管理。
@@ -53,7 +53,7 @@
 
 ### 应用使用情况分享
 
-Beta.6 起，加固和签名页分别提供“分享加固使用情况”“分享签名使用情况”单行选择。新应用默认选中；取消只针对当前包名，两页共用并长期记住选择，同包名升级或更换 APK 路径不会重置。
+从 1.4.0-beta.6 起，加固和签名页分别提供“分享加固使用情况”“分享签名使用情况”单行选择。新应用默认选中；取消只针对当前包名，两页共用并长期记住选择，同包名升级或更换 APK 路径不会重置。
 
 成功操作可发送应用包名、名称、版本码、工具版本、操作类型、流程和成功日期，以及协议版本、说明版本和去重提交编号；不上传 APK、路径、证书、密码或原始日志，不关联匿名安装标识。仅维护者可查询，明细保留 180 天。取消停止同包名后续分享，不自动删除以前已收到的数据。关闭设置中的匿名统计不等于关闭这项分享。
 
@@ -83,7 +83,14 @@ shield protect -i input.apk -o output.apk --exclude-abis armeabi,mips,mips64
 
 启用自动签名时，GUI 会在预检时比对原 APK 与当前所选证书的指纹，并在后端开始加固前再次校验。指纹不一致或证书读取失败都会阻止加固，因为改用其他证书签名会导致运行时无法解密和启动。
 
-加固页提供“运行系统兼容性”选项。默认使用“Android 5.0 及以上”标准模式；目标设备包含 Android 4.4 工控板时，可选择“兼容 Android 4.4”。标准模式已覆盖 Android 5.0～6.0 的旧版 ART 注入路径，并包含 ARouter 运行期扫描和 Android 9 `org.apache.http.legacy` 兼容处理。兼容模式接受不含 Native 库的 APK，或含 `armeabi-v7a`、可混合其他主流 ABI 的 APK；旧 `armeabi` 等须先单次确认排除。4.4 设备使用 v7a／NEON 兼容壳，arm64、x86、x86_64 仅用于 5.0+。后端和核心再次校验保留架构与壳资源完整性，缺兼容资源时明确失败；前端不能传入任意资源路径。GUI 会将模式选择保存为常用设置，但不会记住排除授权，每个任务开始时冻结，旧版请求未携带此字段时仍按标准模式执行。此前 Android 4.4.2 v7a／NEON 工控真机已确认核心运行；本次混合包的同包跨设备、完整业务及覆盖安装仍需实际验收，不能沿用旧样本结论冒充通过。
+加固设置中的目标系统与环境保护是两件事：
+
+| 目标系统 | 使用范围 |
+|---|---|
+| Android 5.0 及以上（默认） | 标准 ART 路径，支持四种主流 ABI |
+| 兼容 Android 4.4（工控） | 4.4 设备使用 v7a／NEON；同包 arm64、x86、x86_64 供 5.0+，不表示 4.4 支持这些壳 |
+
+模式会记忆，ABI 排除只对当前任务有效。资源缺失或保留架构不完整会阻断，不自动换模式。用户已用 rc.3 验证过 Android 4.4／6.0／10.0／11.0；这不是所有厂商硬件、后续每份构建或全部业务的保证。细节见[工控兼容](design/android-4.4-compatibility.md)。
 
 加固页同时提供“运行环境保护”选项：
 
@@ -94,12 +101,11 @@ shield protect -i input.apk -o output.apk --exclude-abis armeabi,mips,mips64
 
 运行环境策略写入 `config.toml` 的常用加固设置，每个任务仍使用开始时固定的快照。任务开始后不能修改；如需切换策略，必须重新选择并加固 APK，运行时不会从严格模式静默降级。严格策略只能提高常见提取和分析成本，不能承诺抵御隐藏 Root、检测绕过、内核级控制或进程内提取。若目标设备出现误判，请改用标准保护重新加固，并提供设备系统及 Root 方案信息协助排查。
 
-GUI 会在应用启动时检测一次本机 Java 环境，并将结果缓存到全局状态中；若未检测到完整 JDK 8+，或缺少 `keytool`，加固、签名、Alias 识别会直接阻断并给出明确提示。运行流程不依赖 `javac`。
-如果应用启动后你又安装或切换了 JDK，可在关于页手动点击“重新检测环境”刷新状态。
+运行不依赖 javac。纯加固和使用已保存证书独立签名要求 Java 8+；证书管理与自动签名前指纹核对还需要 keytool，推荐完整 JDK。修改 PATH／JAVA_HOME 后须重启应用，“重新检测环境”只能检查当前进程已继承的环境。详见[环境要求](ops/environment.md)。
 
 ### 配置与证书数据位置
 
-GUI 启动时会一次性加载应用配置与证书数据库，运行期间使用同一份内存状态，不会在页面切换时反复从磁盘读取。应用级配置写入 `config.toml`；证书列表、默认证书、签名密码与校验状态写入本地 SQLite 数据库 `shield.db`。密码字段以 `enc:v1` 格式加密落盘；旧明文记录不再兼容，如遇到旧测试数据请重新导入或创建证书。
+GUI 启动时加载应用配置与证书数据库；支持共享入口的预览版会在切页、恢复焦点或下次查询时更新可见资料，已开始的任务仍使用固定快照。应用级配置写入 `config.toml`；证书列表、默认证书、签名密码与校验状态写入本地 SQLite 数据库 `shield.db`。密码字段以 `enc:v1` 格式加密落盘；旧明文记录不再兼容，如遇到旧测试数据请重新导入或创建证书。
 
 | 平台 | 应用配置 | 证书数据库 |
 |------|----------|------------|
@@ -116,9 +122,11 @@ GUI 启动时会一次性加载应用配置与证书数据库，运行期间使�
 
 ## CLI 用法
 
-### Agent 只读检查（开发分支，未发布）
+### Agent 接入与只读检查（预览）
 
-此入口尚未包含在当前公开的 `1.4.3` 安装包中，仅供从本开发分支构建的 CLI 验证；官方 Skill、MCP 和无头安装交付尚未完成。设计与后续任务见 [Agent 接入方案](design/agent-integration.md)及[阶段计划](process/agent-integration-plan.md)。
+三平台 `1.5.0-beta.1` 及后续预览包已共包 CLI／MCP，稳定版 `1.4.3` 尚不包含。先按 [Agent 接入说明](ops/agent-setup.md)确定安装路径、配置 Skill 或 MCP；本节只保留命令概览，不要求自行编译或打开 GUI。
+
+下文 `shield` 是命令占位：macOS／Linux 替换为 `"$SHIELD_CLI"`，Windows PowerShell 替换为 `& $ShieldCli`；变量使用接入说明中确认的绝对路径，不假定命令已加入 PATH。
 
 ```bash
 # 检查纯加固依赖；不要求 keytool，不代表自动签名已就绪
@@ -139,53 +147,34 @@ shield preflight -i input.apk --runtime-profile android-api19
 
 结果中的 `status` 为 `ready`、`warning` 或 `blocked`；前两者退出 `0`，阻断或检查执行错误退出 `1`。语法错误退出 `2`，提示写标准错误；帮助/版本不是 JSON 结果。依赖存在不等于 JAR/资源协议已验证，预检通过不等于能在全部设备运行；警告不构成自动排除 ABI 的授权。检查输出不含原始工具日志、输入路径或密码。
 
-本阶段不接受全局 `--config`，请显式传入检查参数；不会忽略配置后假装按配置检查。旧 `protect/sign --json` 等命令继续使用原协议，不能与新增检查响应混为一谈。现有 Java 子进程尚无统一超时/取消机制，不应在检查状态未知时无限重试；相关任务见阶段计划。
+这两条检查命令不接受全局 `--config`，请显式传入检查参数；不会忽略配置后假装按配置检查。旧 `protect/sign --json` 等命令继续使用原协议，不能与新增检查响应混为一谈，也不具备受控任务的全部取消保证。
 
-### Agent 执行前计划（开发分支，未发布）
+### 受控自动化任务（预览）
 
-在本地 `shield-cli.toml` 的 `[sign]` 中配置 keystore、Alias 和证书类型，由宿主在启动 CLI 前注入既有签名密码环境变量，再调用：
-
-```bash
-shield --config shield-cli.toml plan-protect -i input.apk -o protected-signed.apk
-```
-
-此命令不接受密码参数，也不读 GUI 数据库。它复用本地配置的工具、签名版本和环境策略，显式输入/输出覆盖配置中的默认值；核对原 APK 与计划证书、检查输出是否冲突，并对输入、配置、证书材料及选定工具/资源做摘要。旧 ABI 必须逐次显式指定 `--exclude-abis`，警告不构成排除授权。
-
-计划默认标准模式；需要规划工控兼容时显式指定 `--runtime-profile android-api19`。预检和资源必须匹配同一模式，无显式资源覆盖时会选择配套 `resources-api19.zip`，缺失不回退标准包；本地资源覆盖也须通过共享核心校验。工控 Native APK 仍须保留 v7a，其他主流架构只供 5.0+ 使用，不扩大原有支持边界。
-
-结果包含内部计划版本 `plan_schema_version: 2`、`plan_digest`、`input_sha256` 和资源实际校验状态，不包含真实路径、Alias、密码或原始日志；摘要不是授权凭证，也不是全部依赖的可信来源证明。资源只读准入检查协议/策略、规范壳条目、路径和 CRC，采用有界 ZIP32 资源布局；不是 ELF/DEX 全面验证或设备运行验收，具体范围见[接入设计](design/agent-integration.md)。
-
-即使 `status` 为 `ready` 或 `warning`，`execution_ready` 仍为 `false`：本命令只规划，不生成 APK、不创建输出目录、不覆盖已有文件。macOS 已通过默认关闭的开发特性验证内部加固/签名/无覆盖交付，维护者入口及限制见[受控执行器设计](design/agent-executor.md#macos-开发验证入口)；正式写命令、跨平台及 Agent 客户端验收尚未交付，不要将旧 `protect/sign` 拼接后宣称受此计划保护。开发分支的核心证书读取和签名已改用本次子进程环境引用传递密码；这避免密码出现在工具参数中，但不防止同权限或高权限进程读取环境。
-
-### 受控自动化任务（macOS 开发特性，未发布）
-
-官方 Skill 的独立安装、升级与命令定位见 [Agent 接入说明](ops/agent-setup.md)。源码位于根目录 `skills/mocika-shield/`，不随 App 打包；CLI 仍随 GUI 交付。用户按所用 Agent 选择安装位置，不会自动写入全局或项目技能目录，现有公开安装包未改变。
-
-须先按[源码编译说明](ops/build.md)准备壳资源与 JAR，再在当前开发分支显式构建 `cargo build -p shield-cli --features agent-executor`；裸二进制不是完整交付包。公开 `1.4.3` 安装包不包含该能力，Linux/Windows 尚未启用。不需要更改系统 Java、GUI 配置或证书库；宿主仍须预先注入签名密码环境变量，不要把密码放入对话或参数。
-
-当前开发分支也可通过 `make build-gui` 构建带独立 CLI 的 macOS `.app`。使用完整应用包内的 `Contents/MacOS/shield`，无需打开 GUI；不要只把该文件提取到其他目录。工具及标准/工控资源共享，应用内默认资源缺失会明确失败，不从开发目录补齐。CLI 配置仍放调用者选定的外部 `shield-cli.toml`，与 GUI 的配置和证书库分开；输入、配置及输出都应选在应用包之外，不把安装目录作为工作目录。工具不自动修改 PATH。示例（请将路径替换为实际放置位置，当前公开版尚不可用）：
+优先使用 GUI 已保存的证书与业务偏好，不用另建项目配置或再次提供密码。只签名时一次调用即可，不要求先规划：
 
 ```bash
-SHIELD_CLI='/你的实际路径/MocikaShield.app/Contents/MacOS/shield'
-"$SHIELD_CLI" doctor --operation protect
-"$SHIELD_CLI" --config /你的配置目录/shield-cli.toml agent plan \
-  -i /你的输入目录/input.apk -o /你的输出目录/protected-signed.apk
+shield agent sign -i input.apk -o signed.apk
 ```
 
-```bash
-shield --config shield-cli.toml agent plan -i input.apk -o protected-signed.apk
-# 读取最后一条 result 中 plan.sha256，取得本次明确授权后再执行
-shield --config shield-cli.toml agent protect -i input.apk -o protected-signed.apk \
-  --expect-plan-sha256 <刚才的完整计划摘要>
+省略编号时使用共享全局默认证书，也可显式传 `--certificate-id`。加固并签名先规划，在本次操作已授权且无未确认风险时执行：
+
+```text
+shield agent plan --use-shared-settings -i input.apk -o protected-signed.apk
+shield agent protect -i input.apk -o protected-signed.apk --shared-binding <本次plan.shared_binding> --expect-plan-sha256 <本次plan.sha256>
 ```
 
-默认逐行输出 JSON；必须读取完整终态，不能凭进度、文件存在或进程退出推断成功。规划、执行参数和材料必须一致，变化时重新规划并确认，不抓取失败结果中的摘要自动重试。输出已有则拒绝覆盖；资源模式和单次 ABI 排除需两次一致传入，仅 V1–V3，不自动降级 V4。
+尖括号内容是说明占位，不是可执行参数，由 Agent 原样回传同一完整计划终态的字段。共享计划继承保存的模式，本次可指定 `--runtime-profile standard`／`android-api19`；ABI 排除须逐次明确授权且规划／执行一致。只规划不生成最终 APK，警告不构成排除或执行授权。
 
-共同参数 `--timeout-seconds` 默认 1200 秒（1–3600）；Ctrl+C/SIGTERM 通过受控停止收尾。默认不读取标准输入；显式 `--control-stdin` 才接受一行 `{"type":"cancel"}`，EOF 也请求取消。已发布后才到达的取消不能撤回产物；没有终态或状态未知时不要自动重跑。字段、退出码、输出阻塞与取消边界见[命令契约](design/agent-cli-contract.md)。
+默认输出 UTF-8 逐行 JSON，须读取完整终态和退出码；输出已有则拒绝覆盖，仅 V1–V3，不自动降级 V4。成功不等于设备安装和启动通过；没有终态或结果未知时不自动重跑。
+
+共同参数 `--timeout-seconds` 默认 1200 秒（1–3600）；支持跨平台 `--control-stdin` 单行取消，宿主须持续保持输入开启，EOF 也请求取消。系统信号和收尾边界见[接入说明](ops/agent-setup.md)及 Skill 平台参考；不能用 Windows 强制结束冒充优雅取消。完整字段与退出码见[命令契约](design/agent-cli-contract.md)。
+
+旧 `plan-protect` 保留为外置项目配置的兼容规划入口，不读取共享证书，也不是受控执行凭据。外置配置模式、共享签名和管理命令统一见[共享资料说明](ops/shared-data-cli.md)，不将旧计划的摘要交给新的受控命令。
 
 ### 基础用法
 
-开发分支新增共享配置、证书管理，以及按 GUI 已保存资料独立签名／普通和受控加固，见[CLI 共享资料说明](ops/shared-data-cli.md)。Skill 0.2.0 已更新指引，MCP 已接入宿主白名单查询与共享受控加固，独立签名及管理写工具尚未开放。这些能力尚未进入公开安装包；旧普通加固不隐式读取 GUI 偏好，下列传统文件配置方式保持可用。
+预览版可通过共享 CLI／MCP 读写业务偏好、管理证书及加固签名，具体范围见[接入说明](ops/agent-setup.md)。下列传统命令仍保留；普通加固不隐式读取 GUI 偏好，除非明确启用共享来源。
 
 ```bash
 shield protect -i input.apk -o protected.apk
@@ -215,7 +204,7 @@ shield sign \
 
 ### CLI 配置文件
 
-CLI 人工配置建议固定命名为 `shield-cli.toml`，与 GUI 自动维护的 `config.toml` 完全独立。当前格式版本为 `1`：
+可选项目覆盖固定命名为 `shield-cli.toml`，不是第二套全局状态，不替代 GUI／CLI 共用的 `config.toml` 和 `shield.db`，也不保存密码。使用外部临时签名材料时可按下例配置；共享证书与外部材料不能混用。当前格式版本为 `1`：
 
 ```toml
 schema_version = 1

@@ -8,7 +8,7 @@
 
 在本机完成 Android APK 加固、签名和证书管理。通过 DEX 加密、签名绑定与基础运行时保护，提高静态分析、篡改和非法重签成本，不承诺无法脱壳或逆向。
 
-推荐使用 Windows、macOS、Linux 桌面 GUI，支持中英文界面；CLI 可从源码构建，用于自动化和本地开发。
+推荐使用 Windows、macOS、Linux 桌面 GUI，支持中英文界面；1.5.0 预览包同时提供 CLI／MCP，方便自动化接入。
 
 > 仅用于保护你拥有合法权利的 Android 应用，请勿用于绕过第三方保护或其他未授权场景。
 
@@ -108,7 +108,7 @@ APK、证书、密钥库和签名密码只在本机处理，不上传业务文�
 | 模块结构、原理与设计 | [文档导航](docs/README.md) |
 | 后续规划 | [路线图](docs/process/roadmap.md) |
 
-Release 不单独提供 CLI 包；`1.5.0` 预览版将 CLI 随 GUI 安装包交付。源码构建顺序为先 `make build-stub`，再 `make build-cli` 或 `make build-gui`；完整依赖与平台步骤以构建指南为准。
+Release 不单独提供 CLI 包；`1.5.0` 预览版已将 CLI 随 GUI 安装包交付。源码构建顺序为先 `make build-stub`，再 `make build-cli` 或 `make build-gui`；完整依赖与平台步骤以构建指南为准。
 
 ## AI Agent 接入（预览）
 

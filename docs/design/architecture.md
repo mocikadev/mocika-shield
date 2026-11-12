@@ -1,243 +1,70 @@
-# 架构详解
+# 工程架构
 
-> 完整技术内参见 [internals.md](internals.md)，本文聚焦目录结构和工具路径逻辑。
+本文维护模块职责、工具定位和产物路径。运行时格式见[技术内参](internals.md)，用户操作见[使用指南](../usage.md)。
 
-## 目录结构
+## 模块与依赖
 
-```
-mocika-shield/
-├── Cargo.toml                        # Rust workspace 根（shield-core + shield-services + CLI + GUI + Android Native）
-├── Cargo.lock
-├── Makefile                          # 统一构建入口
-│
-├── crates/
-│   ├── shield-services/                   # 证书、目录、配置和签名身份；GUI／CLI 共用，受控来源已接
-│   │   ├── Cargo.toml
-│   │   └── src/                     # 不依赖 Tauri/clap/rmcp
-│   │       ├── certificates/        # 用例、无秘密摘要、SQLite、密文及托管文件
-│   │       ├── config/              # 业务偏好、字段补丁及跨进程文件更新
-│   │       ├── paths.rs             # 保留既有应用身份和路径上下文
-│   │       └── protect.rs           # 加固业务参数的纯合并，不管理任务进程
-│   └── shield-core/                  # Rust 共享核心库
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs                # 公共 API：protect_apk / sign_apk / ProgressEvent 等
-│           ├── error.rs              # 错误类型（ShieldError）
-│           ├── utils.rs              # 工具函数：exe_dir、strip_unc_prefix（dunce）、find_apktool 等
-│           ├── apk_inspect.rs         # APK 预检、有效签名验证与当前证书指纹提取
-│           ├── protect_api.rs        # 加固流程编排、进度事件、取消
-│           ├── signing.rs            # APK 签名（apksigner）
-│           ├── protect/
-│           │   ├── mod.rs
-│           │   ├── manifest.rs       # AndroidManifest 修改与 Application 注入
-│           │   ├── dex.rs            # DEX 收集、打包、header 修复
-│           │   └── runtime.rs        # runtime 资源注入、ABI 收集、metadata 读取
-│           └── dex_packer/           # DEX 打包模块（Zstd 压缩 + ChaCha20-Poly1305 + HKDF）
-│               ├── crypto.rs         # 加解密：derive_key / encrypt / decrypt
-│               ├── packer.rs         # 打包入口：DexPacker，输出 DEXB v5 格式
-│               └── mod.rs
-│
-├── apps/
-│   ├── shield-cli/                   # Rust 命令行工具（单一二进制 shield）
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs                # 兼容层：对外 re-export shield-core
-│   │       └── main.rs               # CLI 入口（clap 参数解析，-i/-o/-v）
-│   └── shield-gui/                   # 桌面 GUI（Tauri v2 + React，三平台）
-│       ├── package.json              # React 前端依赖与 npm 脚本
-│       ├── vite.config.ts            # Vite 构建配置
-│       ├── tailwind.config.ts        # Tailwind 主题 token
-│       ├── index.html                # React 入口 HTML
-│       ├── src-tauri/                # Tauri 后端（Rust）
-│       │   ├── Cargo.toml
-│       │   ├── build.rs
-│       │   ├── tauri.conf.json       # Tauri 配置（窗口、bundle、资源嵌入）
-│       │   └── src/
-│       │       ├── main.rs           # Tauri 启动入口、state 注入、command 注册
-│       │       ├── app_config.rs     # GUI 配置模型与共享字段更新适配；缓存不作写入基线
-│       │       ├── app_paths.rs      # apktool/resources/apksigner 路径查找
-│       │       ├── apk_check.rs      # APK 预检、签名检测、证书指纹比对
-│       │       ├── cert_store.rs     # Tauri 数据目录定位与共享证书库适配
-│       │       ├── cert_service.rs   # 共享证书用例的 GUI 接入，不复制存储和管理规则
-│       │       ├── signing.rs        # APK 签名窗口适配与共享 Alias 服务调用
-│       │       ├── protect_runner.rs # 加固任务桥接、取消、进度事件
-│       │       ├── task_manager.rs   # 任务生命周期、快照、日志与统一事件
-│       │       ├── updates.rs        # GitHub Releases 更新检查与缓存
-│       │       ├── file_ops.rs       # 打开目录、删除文件、URL 打开
-│       │       └── build_info.rs     # 版本与构建工具信息
-│       └── src/                      # React + TypeScript 前端
-│           ├── main.tsx              # React 入口
-│           ├── App.tsx               # 应用壳：侧边栏、页面切换、全局配置状态
-│           ├── pages/
-│           │   ├── protect-page.tsx      # 加固页
-│           │   ├── sign-page.tsx         # 签名页
-│           │   ├── certificates-page.tsx # 证书管理页
-│           │   ├── settings-page.tsx     # 设置页
-│           │   └── about-page.tsx        # 关于页
-│           ├── components/app/
-│           │   ├── branding.ts           # Logo、步骤文案
-│           │   ├── common.tsx            # 应用级共享控件
-│           │   ├── about-info-card.tsx   # 关于页信息卡
-│           │   └── protect-progress-panel.tsx # 加固页进度侧栏
-│           ├── styles.css                # Tailwind 与主题变量
-│           ├── components/ui/            # Sidebar、Switch、Input 等基础组件
-│           ├── hooks/
-│           │   ├── use-app-config.ts     # 配置加载、更新检查
-│           │   ├── use-applied-theme-mode.ts # 主题应用
-│           │   ├── use-about-page.ts     # 关于页数据加载与更新检查
-│           │   ├── use-clipboard.ts      # 复制反馈
-│           │   ├── use-protect-workflow.ts # 加固页工作流状态与事件监听
-│           │   ├── use-sign-workflow.ts  # 签名页工作流状态与拖拽处理
-│           │   ├── use-certificates.ts   # 证书列表、保存、校验、默认项
-│           │   └── use-mobile.tsx        # 响应式辅助 hook
-│           └── lib/
-│               ├── i18n.ts               # 中英双语
-│               ├── path.ts               # 跨平台输出路径生成
-│               ├── tauri.ts              # Tauri invoke 与事件封装
-│               └── utils.ts              # className 合并工具
-│
-├── shield-stub/                      # Android 壳模块（独立 Gradle 项目）
-│   ├── settings.gradle.kts
-│   ├── build.gradle.kts              # AGP 8.x，NDK 硬编码 29.0.14206865
-│   ├── gradle/                       # Gradle Wrapper + Version Catalog
-│   ├── gradlew / gradlew.bat
-│   ├── gradle.properties
-│   └── src/main/
-│       ├── java/dev/mocika/shield/loader/
-│       │   ├── StubApp.java          # 壳 Application（attachBaseContext / onCreate）
-│       │   ├── Ld.java               # DEX 提取、落地、缓存管理、JNI 接口声明
-│       │   └── ARouterCompat.java    # ARouter 路由表补注册
-│       └── rust/                     # Rust Native 层（libmocikashield.so）
-│           ├── Cargo.toml
-│           ├── .cargo/config.toml    # target-dir 指向 ../../../../build/rust-target
-│           ├── build.sh              # cargo-ndk 交叉编译脚本（Gradle buildRustLibs 调用）
-│           └── src/
-│               ├── lib.rs            # JNI 入口：extractAndDecryptFromDex / nativeInjectDex
-│               ├── bin_loader.rs     # MSHD 扫描、DEXB v5 解析、Zstd 解压
-│               └── crypto.rs        # derive_key（HKDF-SHA256）/ decrypt（ChaCha20-Poly1305）
-│
-├── tools/                            # 外部工具 JAR（开发环境）
-│   ├── apktool_3.0.1.jar
-│   └── apksigner.jar
-│
-├── skills/                           # 面向使用者 Agent 的技能源码，独立安装升级，不随 App 打包
-│   └── mocika-shield/                # SKILL.md、包内参考、客户端元数据与只定位路径的小脚本
-│
-└── scripts/                          # 构建与发布脚本
-    ├── build-stub.sh                 # Linux/macOS：shield-stub 构建脚本
-    ├── build-stub.ps1                # Windows：shield-stub 构建脚本
-    ├── build-macos-app.sh            # macOS：GUI 与独立 CLI 共包、资源/架构检查和最终签名
-    ├── setup-windows-dev.ps1         # Windows 开发环境一键配置（Scoop）
-    ├── release-cli.sh                # CLI 发布打包（Linux/macOS）
-    ├── release-linux.sh              # Linux 本地发布（默认 GUI + CLI；CI 只上传 GUI）
-    ├── release-macos.sh              # macOS 本地发布（默认 GUI + CLI；CI 只上传 GUI）
-    ├── release-windows.ps1           # Windows 本地发布（默认 GUI + CLI；CI 只上传 GUI）
-    └── tools/                        # 下载的构建工具（不进版本库，见 .gitignore）
-        └── appimagetool-x86_64.AppImage
-```
+| 目录 | 职责 | 依赖边界 |
+|---|---|---|
+| `crates/shield-core/` | APK 预检、加固、DEX 打包、签名、ZIP 对齐与 Java 工具 | 不依赖 GUI、CLI、MCP 或本地数据库 |
+| `crates/shield-services/` | 配置、证书、目录、签名身份及业务偏好合并 | 依赖核心，不依赖入口框架，不是后台服务 |
+| `apps/shield-cli/` | 参数、结构化输出、受控父子进程与 MCP 适配 | 复用共享服务和核心 |
+| `apps/shield-gui/` | Tauri 后端与 React 桌面界面 | 直接链接共享库，不通过 CLI 子进程包装业务 |
+| `shield-stub/` | Android Java 壳、Rust Native、工控兼容构建 | 不引入桌面数据库、GUI 或上报逻辑 |
+| `skills/mocika-shield/` | 用户 Agent 的独立技能 | 只调用可信本地 CLI，不复制执行实现 |
+| `tools/`、`scripts/` | JAR、契约生成、构建、发布和验收脚本 | 生成物不作为用户运行时下载源 |
 
----
+`apps` 放可执行入口，`crates` 放共享库；不是重复工程。完整目录以源码为准，本文不复制易过时的逐文件树。
 
-## 工具路径自动检测逻辑
+## 业务归属
 
-`shield-core` 的 `find_apktool()` / `find_apksigner()` / `find_runtime_resources()` 按以下优先级查找：
+- `shield-core/src/protect_api.rs` 编排加固；Manifest、DEX、资源规则分别归 `protect/`。
+- `shield-core/src/signing/` 管理签名过程和普通输出暂存；`java_adapter/` 维护 Java 无损参数协议与工具执行。
+- `shield-services/src/certificates/` 拥有证书用例、SQLite、密文和托管文件；`config/` 拥有偏好更新与并发。
+- GUI `main.rs` 只启动、注入状态和注册命令；`protect_runner`、`signing`、`cert_service`、`updates` 等负责适配。
+- GUI `task_manager` 是任务快照唯一修改者；前端按任务编号消费 `task-state`，不拼接第二段自动签名任务。
+- CLI `automation/` 分离计划、材料、进程、协议和提交；MCP 通过当前 CLI 子进程复用，不拥有最终 APK 提交权。
 
-macOS 新应用内入口先识别 `.app/Contents/MacOS`，只定位同包 `Contents/Resources/tools/` 和 `Contents/Resources/resources/`，目录名大小写明确；缺失则报错，不借用户、系统或开发目录回退。该规则不改变普通 CLI 包布局；显式工具覆盖仍由调用者配置并参与任务摘要，不等于自动回退。GUI 的独立定位策略不变。
+## 工具和资源定位
 
-非应用内 CLI 保留以下查找顺序：
+桌面共包 CLI 识别安装布局后固定使用同包资源，缺失即失败，不借源码、用户目录、PATH 或网络补资源：
 
-1. **发布包路径**：`bin/../lib/apktool.jar`、`bin/../resources/resources.zip`
-2. **用户数据目录**（`directories::ProjectDirs`）：`~/.local/share/mocika-shield/`（Linux）等
-3. **系统数据目录**：`/usr/local/share/mocika-shield/`（Linux）、`/Library/Application Support/mocika-shield/`（macOS）等
-4. **开发环境路径**：`tools/apktool_3.0.1.jar`、`shield-stub/build/outputs/resources/resources.zip`
+| 平台 | CLI | 资源根 |
+|---|---|---|
+| macOS | `.app/Contents/MacOS/shield` | `Contents/Resources/` |
+| Linux deb | `/usr/bin/mocika-shield-cli` | `/usr/lib/MocikaShield/` |
+| Linux AppImage | 完整 AppDir 的 `usr/bin/mocika-shield-cli` | 同一 AppDir 的 `usr/lib/MocikaShield/` |
+| Windows | 安装目录的 `mocika-shield-cli.exe` | 安装目录 |
 
-`shield-gui`（Tauri 版）的查找优先级：
+各资源根包含 `tools/` 和 `resources/`。具体调用和 AppImage 解包见[接入说明](../ops/agent-setup.md)。
 
-1. **AppImage 运行时**：`$APPDIR/usr/lib/MocikaShield/tools/`
-2. **Tauri `resource_dir()`**：由 Tauri 打包时嵌入的资源目录
-3. **开发环境路径**：同 CLI
+普通未改名的开发／维护 CLI 保留发布包、用户／系统数据目录、开发目录的既有查找规则。显式工具覆盖按调用契约验证，受控任务将其纳入身份绑定，不等于自动回退。
 
-所有路径在 Windows 下通过 `dunce::simplified()` 自动去除 UNC 前缀（`\\?\C:\...` → `C:\...`）。
+GUI 优先使用 AppImage 的 `APPDIR` 或 Tauri `resource_dir()`，开发构建再定位源码。Windows 传给 Java 的扩展路径统一由 `dunce::simplified()` 规范化；子进程使用 `no_window_command()`，不手写 UNC 替换或散落窗口标志。
 
-项目根通过 `exe_dir()` / `dev_project_root()` 从 CWD 或可执行文件所在目录向上逐层查找，直到找到同时含有 `shield-stub/` 和 `apps/` 的目录。
+## 共享本地资料
 
----
+GUI、显式共享 CLI 及 MCP 使用同一应用目录：
 
-## 共享应用本地数据目录
+| 文件 | 内容 |
+|---|---|
+| `config.toml` | 界面配置、业务偏好和桌面数据通道选择 |
+| `shield.db` | 证书、默认项、签名偏好、加密密码和校验状态 |
+| `keystores/` | 应用内创建／托管的证书 |
 
-GUI 与开发分支 CLI 的资料管理、共享签名及受控加固使用同一应用上下文；MCP 按宿主白名单通过 CLI 使用，不复制数据库或解密实现。公开安装包尚未包含这些新入口，本地数据分三类：
+保留应用标识、路径和 `enc:v1` 密文兼容。查询摘要没有密码；实际签名只传证书 ID，由本机服务读取。项目 `shield-cli.toml` 是可选覆盖，不是第二份全局状态。
 
-| 文件/目录 | 作用 |
-|-----------|------|
-| `config.toml` | 主题、语言、更新检查等应用级配置 |
-| `shield.db` | 证书列表、默认证书、加密后的签名密码、校验状态 |
-| `keystores/` | 应用内新建并托管的 keystore 文件 |
+配置使用锁内重读和字段补丁，SQLite 使用事务及有限忙等待；不持锁运行 Java。活动任务固定材料和有效参数，后续偏好变化不改写任务。详细约束见[共享应用设计](shared-application.md)。
 
-证书存储约束：
-
-- `managed`：应用内创建或用户选择“导入并托管”的 keystore，文件落在 `keystores/`
-- `external`：仅记录用户原始路径，不复制文件
-- 创建证书时 Keystore 密码至少 6 位；Key 密码可留空，填写时同样至少 6 位
-- PKCS12 Alias 可能被 `keytool` 规范为小写，后端校验按大小写不敏感匹配，并保存 keystore 实际返回的 Alias
-- 密码字段使用本机派生密钥加密落盘，格式为 `enc:v1:<nonce>:<ciphertext>`；不兼容旧明文记录
-- Tauri 前端只持有证书元数据，签名、自动签名、证书指纹比对通过证书 ID 交给后端完成
-
-## 构建产物路径
+## 构建与产物
 
 | 产物 | 路径 |
-|------|------|
-| `shield` 二进制（Linux/macOS） | `target/release/shield` |
-| `shield.exe`（Windows） | `target\release\shield.exe` |
-| 版本化壳资源包 | `shield-stub/build/outputs/resources/mocika-runtime-resources-x.y.z.zip` |
-| `resources.zip` 兼容入口 | `shield-stub/build/outputs/resources/resources.zip` |
-| Tauri GUI AppImage | `target/release/bundle/appimage/` |
-| Tauri GUI deb | `target/release/bundle/deb/` |
-| Tauri GUI dmg | `target/release/bundle/dmg/` |
-| Tauri GUI NSIS 安装包 | `target/release/bundle/nsis/` |
-| CLI 本地发布压缩包 | `dist/*/cli/mocika-shield-cli-x.y.z-*` |
+|---|---|
+| 普通 CLI | `target/release/shield`（Windows 带 `.exe`） |
+| 标准／工控资源 | `shield-stub/build/outputs/resources/resources.zip`、`resources-api19.zip` |
+| 内部内存候选 | 同目录 `resources-memory.zip`，不进入正式产品 |
+| macOS 完整开发应用 | `target/release/bundle/macos/MocikaShield.app` |
+| GUI 安装包中间产物 | `target/release/bundle/{appimage,deb,dmg,nsis}/` |
+| 发布安装包／校验和 | `dist/<平台>/` |
 
----
-
-## release profile 配置
-
-根 `Cargo.toml` 对整个 Rust workspace 使用统一的 release 优化配置（体积优先）：
-
-```toml
-[profile.release]
-opt-level = "z"
-lto = true
-strip = "symbols"
-panic = "abort"
-codegen-units = 1
-```
-
----
-
-## shield-gui（Tauri 版）与 shield-core 的集成方式
-
-Tauri GUI **不**通过子进程调用 `shield` 二进制，直接链接 `shield-core` 库：
-
-```
-shield-core 暴露：
-  protect_apk(opts, on_progress: impl Fn(ProgressEvent), cancel: Arc<AtomicBool>)
-  sign_apk(opts) -> Result<(), ShieldError>
-
-Tauri 后端（main.rs + 模块）：
-  #[tauri::command] protect_apk
-    → tokio::task::spawn_blocking
-    → protect_runner::execute_protect_apk()
-    → task_manager 更新同一任务内的加固、可选签名和清理状态
-    → window.emit("task-state", snapshot) 推送不可变任务快照
-
-  #[tauri::command] sign_apk / check_apk / check_update
-    → main.rs 只做参数接线
-    → 具体实现分别委托给 signing.rs / apk_check.rs / updates.rs
-
-React 前端：
-  listen("task-state") → 按任务编号和任务类型过滤
-  → 更新步骤、耗时、日志、错误和侧边栏运行状态
-```
-
-任务状态只由 `task_manager.rs` 修改；`shield-core` 不引用 Tauri 类型，仍通过原有 `ProgressEvent` 回调报告核心步骤。证书密码只在后端解析证书编号后进入签名调用，不写入任务快照或前端事件。
-
-子进程调用（`java`、`keytool` 等）在 Windows 上统一复用 `shield_core::utils::no_window_command()`，设置 `CREATE_NO_WINDOW` flag 避免弹出控制台窗口。
+先构建壳，再构建桌面；运行使用完整资源目录。构建细节见[指南](../ops/build.md)，发布规则见[流程](../process/release.md)，不在本文重复依赖版本和脚本步骤。

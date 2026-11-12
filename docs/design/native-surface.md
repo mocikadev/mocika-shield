@@ -8,7 +8,7 @@
 
 动态注册加最小导出符合 [Android JNI 建议](https://developer.android.com/ndk/guides/jni-tips#native-libraries)；符号隐藏的适用范围见 [NDK 符号可见性说明](https://developer.android.com/ndk/guides/symbol-visibility)。隐藏符号不等于隐藏指令，也不阻止已控制进程的分析者观察注册地址，不能宣传为防反编译或防脱壳。
 
-已公开 rc.3 不变；交付版本另由维护者确认，不为本项移动标签或增加新的日常重型 CI。
+已随 1.4.2 交付；以下任务与结果属于当时的治理范围，不作为当前待发布安排。公开标签不移动，检查只在相关专项／发布时执行，不增加日常重型 CI。
 
 ## 基线盘点
 
