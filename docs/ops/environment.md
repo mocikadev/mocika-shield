@@ -1,204 +1,73 @@
 # 环境要求
 
-## 基础要求
+## 使用桌面安装包
 
-| 工具 | 版本要求 | 说明 |
-|------|----------|------|
-| Rust | 当前稳定版；桌面共享库声明至少 1.89 | 含 `rustup`；完整依赖图以锁定构建为准 |
-| Java / JDK | 17+ | 必须为完整 JDK，且 `java`、`javac`、`keytool` 均在 PATH |
-| Android SDK | Platform 35 | 需要 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 环境变量 |
-| Android NDK | 29.0.14206865 + 25.2.9519653 | 标准模式使用 r29；Android 4.4 兼容模式的 ARMv7 使用 r25c |
-| cargo-ndk | 最新 | `cargo install cargo-ndk` |
-| Python | 3.9+ | 仅源码构建：壳 JNI 映射与资源契约校验 |
-| Android build-tools | 35.0.0 | 用于 JAR→DEX 转换及发布构建 |
-| Tauri CLI | 最新 | 桌面 GUI 构建驱动 |
-| Node.js / npm | Node.js 22+ | React 前端构建 |
+安装完整 JDK 8 或以上版本，确保应用及 Agent 宿主能找到 `java`、`keytool`；不需要 Rust、Android SDK、NDK、Node.js 或 Python。
 
-上述 Rust 要求针对源码桌面构建，不影响用户使用安装包。Android 4.4 壳兼容构建仍使用独立 Rust 1.77.2／NDK r25c，不随桌面配置文件锁的编译下限变更。
+Windows 要求 Windows 10 及以上 64 位系统。macOS 安装未公证提示和 Linux 运行问题见[README](../../README.md#下载与快速开始)与[排障](troubleshooting.md)。
 
-## 已发布桌面工具的 Java 环境
+Java 优先从 PATH 查找，再查 `JAVA_HOME/bin`；keytool 优先使用所选 Java 对应的 JDK，兼容 Java 8 的 `jre/` 布局，再按环境回退。缺 keytool 时确认安装的是完整 JDK，`JAVA_HOME` 应指向 JDK 根目录而不是 `bin`。
 
-以上表格是源码构建要求；使用已发布桌面工具只需完整 JDK 8 或以上版本。
+修改环境变量后重启应用及相关 Agent 宿主；“刷新环境”只能检查当前进程已继承的环境，不会重新继承系统 PATH。先在相同环境验证：
 
-Java 优先从 PATH 查找，再查 JAVA_HOME/bin。keytool 优先使用该 Java 的真实安装目录中的工具；遇到系统启动器时查询 `java.home`，同时兼容 Java 8 的 JDK/jre 布局；仍未找到时回退 JAVA_HOME/bin、PATH。
+```bash
+java -version
+keytool -help
+```
 
-如果只能找到 Java 而找不到 keytool，请确认安装的是完整 JDK 而非仅 JRE，将 `JAVA_HOME` 指向 JDK 根目录（不要包含 `bin`），或将 JDK 的 `bin` 目录加入用户/系统 PATH，然后重新启动桌面工具以继承新环境。无需为本次修复降低或升级操作系统版本。探测方案与验证边界见 [Java 工具探测](../design/java-tool-discovery.md)。
+纯加固和使用已保存证书独立签名不额外要求 keytool；导入／创建／校验证书及加固后自动签名前的指纹核对仍需要它，因此推荐完整 JDK。该依赖校准已随 1.4.3 发布，不保证任意 JRE 与证书组合都可用。
 
-维护中的任务依赖校准：纯加固及使用已保存证书的独立签名只要求可用的 Java 8+，不因缺少 keytool 被前端额外拦截；导入、创建、校验证书，以及加固后自动签名前的证书指纹核对仍需要 keytool，完整 JDK 继续作为推荐环境。此变更未随 1.4.2 发布，实施与验收见[工具链就绪检查](../superpowers/plans/2026-10-27-toolchain-readiness.md)。不取消签名一致性检查，不保证所有 JRE 发行版与用户证书组合均已验证。
+## 源码构建
 
-关于页可“刷新环境”重新检查当前进程可见的工具；它不会修改系统环境，也不能让已运行的桌面进程重新继承外部改动的 PATH。修改环境变量后请先重启本工具。已找到 Java 但版本命令失败或无法解析时，不应当作版本过低；请先在对应环境确认 `java -version` 能成功执行。
+| 工具 | 要求 |
+|---|---|
+| Rust | 当前稳定工具链；共享桌面库至少 1.89，完整依赖以锁定构建为准 |
+| 构建 JDK | 完整 JDK 17，`java`、`javac`、`keytool` 可用 |
+| Android SDK | Platform 35、build-tools 35.0.0，设置 `ANDROID_HOME` |
+| 标准 NDK | r29：`29.0.14206865` |
+| 工控兼容工具链 | r25c：`25.2.9519653`、Rust 1.77.2、API 19 |
+| Python | 3.9+，用于构建期映射、契约生成和审计 |
+| Node.js／npm | Node.js 22+ |
+| Cargo 工具 | `cargo-ndk`、Tauri CLI 2.x |
+
+构建 JDK 17 与用户运行 Java 8 是两套要求；API 19 独立工具链不随桌面 Rust 下限升级。
+
+```bash
+cargo install cargo-ndk --locked
+cargo install tauri-cli --version '^2' --locked
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi
+```
+
+安装双 NDK，不用降低标准构建的 NDK 来兼容 4.4：
+
+```bash
+sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865" "ndk;25.2.9519653"
+```
+
+`shield-stub/build.gradle.kts` 优先使用存在的 `ANDROID_HOME/ndk/29.0.14206865`，再看 `ANDROID_NDK_ROOT`、`NDK_HOME`。不要误以为环境变量一定能覆盖已安装的固定版本，也不要为本机方便随意换 NDK；工具链升级须另行验证。详细构建见[指南](build.md)。
 
 ## Linux 构建依赖
 
-Linux 下构建 Tauri 桌面包时，除 Rust / Node.js / Java / Android SDK 外，还需要系统包：
+正式 Linux 发布使用 Ubuntu 22.04。Debian／Ubuntu 系统包示例：
 
 ```bash
 sudo apt update
-sudo apt install -y \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libwebkit2gtk-4.1-dev \
-  libgtk-3-dev \
-  libxdo-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libssl-dev \
-  pkg-config \
-  patchelf \
-  libfuse2
+sudo apt install -y build-essential curl wget file libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config patchelf libfuse2
 ```
 
-- `file`、`wget`：Tauri / linuxdeploy 在 AppImage 打包流程中会用到
-- `libxdo-dev`、`librsvg2-dev`：属于 Tauri 官方 Linux 前置依赖
-- `libfuse2`：用于 AppImage 运行时兼容，CI 也保持安装
-- 发布构建建议使用 Ubuntu 22.04 或 Debian 12 作为基线，避免把 glibc 要求抬高
+WebKitGTK／GTK 用于 GUI；`file`、`wget`、`patchelf` 等参与打包，`libfuse2` 用于 AppImage 兼容。其他发行版包名不同，不把 Ubuntu 构建结果当作 Fedora 渲染实测。
 
 ## Windows 构建环境
 
-> Windows 发布包（GUI NSIS 安装包 + CLI exe）必须在 Windows 原生环境构建，不支持交叉编译。
-
-### 一键配置（推荐）
-
-已安装 [Scoop](https://scoop.sh) 的情况下，在项目根目录运行：
+GUI／NSIS 必须在 Windows 原生环境构建，不从 macOS／Linux 交叉打包。已安装 Scoop 时可在仓库根目录运行：
 
 ```powershell
 .\scripts\setup-windows-dev.ps1
 ```
 
-脚本自动完成：Rust 工具链、Java 17、Android SDK/NDK、NSIS、cargo 工具（tauri-cli/cargo-ndk）、全部 Rust target。
+该脚本会安装开发依赖并配置环境；请先检查脚本，勿将其作为普通用户运行 App 的前置步骤。Visual Studio Build Tools 2022 须另行安装并选择“使用 C++ 的桌面开发”（含 MSVC 和 Windows SDK）。
 
-> **唯一需要手动安装的**：Visual Studio Build Tools 2022（Scoop 无法静默安装）
-> 脚本运行完会给出下载链接和提示。
+手动配置需准备 Git、Make、7-Zip、Python、Node.js、Rust MSVC、JDK 17、Android 命令行工具、双 NDK、NSIS 和上述 Cargo 工具。4.4 壳的现有构建入口还使用 Git Bash；这不表示 Windows 用户运行 CLI／Skill／MCP 需要 Bash。
 
----
-
-### 手动安装（逐步）
-
-#### 第一步：安装 Scoop
-
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-irm get.scoop.sh | iex
-```
-
-#### 第二步：通过 Scoop 安装工具
-
-```powershell
-# 添加 bucket
-scoop bucket add java
-scoop bucket add extras
-
-# 安装基础工具
-scoop install git make 7zip rustup nsis python
-
-# Java（shield-stub 构建需要）
-scoop install temurin17-jdk
-
-# Android 命令行工具（含 sdkmanager，用于安装 SDK / NDK）
-scoop install android-clt
-```
-
-#### 第三步：配置 Rust 工具链
-
-```powershell
-# 设置为 MSVC toolchain（Tauri 要求）
-rustup default stable-msvc
-
-# Rust targets
-rustup target add x86_64-pc-windows-msvc   # Windows CLI/GUI
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android  # Android 壳
-rustup toolchain install 1.77.2 --profile minimal --target armv7-linux-androideabi  # Android 4.4 兼容壳
-```
-
-#### 第四步：安装 cargo 工具
-
-```powershell
-cargo install cargo-ndk    # Android 交叉编译
-cargo install tauri-cli    # GUI 构建驱动
-```
-
-#### 第五步：安装 Android NDK
-
-```powershell
-# 设置 ANDROID_HOME（android-clt 的 scoop 安装路径）
-$env:ANDROID_HOME = "$env:USERPROFILE\scoop\apps\android-clt\current"
-[System.Environment]::SetEnvironmentVariable("ANDROID_HOME", $env:ANDROID_HOME, "User")
-
-# 通过 sdkmanager 安装指定版本 NDK
-"y" | sdkmanager "ndk;29.0.14206865" "ndk;25.2.9519653"
-```
-
-#### 第六步：安装 Visual Studio Build Tools 2022（必须手动）
-
-下载：<https://visualstudio.microsoft.com/visual-cpp-build-tools/>
-
-安装时勾选「**使用 C++ 的桌面开发**」（含 MSVC 编译器和 Windows SDK）。
-
----
-
-### 工具可用性一览
-
-| 工具 | Scoop 安装 | 备注 |
-|------|-----------|------|
-| Rust / rustup | `scoop install rustup` | main bucket |
-| Java 17 | `scoop install temurin17-jdk` | java bucket |
-| Android SDK | `scoop install android-clt` | main bucket，含 sdkmanager |
-| Android NDK | `sdkmanager "ndk;29.0.14206865"` | 通过 android-clt 的 sdkmanager |
-| NSIS | `scoop install nsis` | extras bucket |
-| make | `scoop install make` | main bucket |
-| cargo-ndk | `cargo install cargo-ndk` | Scoop 无此包 |
-| tauri-cli | `cargo install tauri-cli` | Scoop 无此包 |
-| Node.js / npm | `scoop install nodejs-lts` | React 前端构建 |
-| MSVC Build Tools | 手动安装 | Scoop 无法静默安装 |
-
-### 运行发布脚本
-
-```powershell
-# 在项目根目录执行（环境配置完成后）
-.\scripts\release-windows.ps1
-
-# 指定版本号
-.\scripts\release-windows.ps1 -Version 1.2.3
-```
-
-发布脚本会再次检测所有依赖，缺失的 cargo 工具（tauri-cli/cargo-ndk）会自动安装。
-
----
-
-## NDK 版本配置
-
-`shield-stub/build.gradle.kts` 中 `buildRustLibs` 任务**硬编码**了 NDK 路径：
-
-```kotlin
-// 优先级：ANDROID_HOME/ndk/29.0.14206865 > ANDROID_NDK_ROOT > NDK_HOME
-val ndkRoot = System.getenv("ANDROID_HOME")
-    ?.let { "$it/ndk/29.0.14206865" }
-    ?.takeIf { file(it).isDirectory }
-    ?: System.getenv("ANDROID_NDK_ROOT")
-    ?: System.getenv("NDK_HOME")
-    ?: error("未设置 ANDROID_NDK_ROOT、NDK_HOME 或 ANDROID_HOME，无法定位 NDK")
-environment("ANDROID_NDK_ROOT", ndkRoot)
-```
-
-若本地 NDK 版本不同，有两种解决方式：
-
-1. **修改 build.gradle**：将版本号改为本地已安装的 NDK 版本
-2. **设置环境变量**：`export ANDROID_NDK_ROOT=/path/to/your/ndk`（`build.sh` 优先读取此变量）
-
-## Android 目标架构安装
-
-首次交叉编译 `shield-stub` 前，必须通过 `rustup` 添加 Android 目标架构：
-
-```bash
-rustup target add aarch64-linux-android armv7-linux-androideabi \
-                  i686-linux-android x86_64-linux-android
-```
-
-## 仅使用发布包
-
-如果只是使用发布包（不从源码编译），仅需：
-
-- Linux / macOS / Windows 系统
-- Java 8+（需完整 JDK，`java` / `keytool` 在 PATH）
+环境就绪后按[构建指南](build.md)执行，发布规则见[发布流程](../process/release.md)。不在多个文档重复维护整套安装步骤。

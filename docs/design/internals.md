@@ -1,615 +1,150 @@
-# INTERNALS.md — Mocika Shield 技术内参
+# 技术内参
 
-> 本文档记录工程的业务细节、算法实现、数据格式与已知问题。
-> 最后更新：2026-07-07
+更新：2026-11-12。本文记录当前标准／工控文件加载路径与 DEXB v5 格式；源码类名只用于定位，不代表 APK 中的最终混淆名。模块分工见[架构](architecture.md)，操作步骤见[使用指南](../usage.md)。
 
----
+## 整体流程
 
-## 目录
-
-1. [整体架构与数据流](#一整体架构与数据流)
-2. [shield-cli 详解](#二shield-cli-详解)
-3. [加密数据格式（DEXB v5）](#三加密数据格式dexb-v5)
-4. [加解密算法](#四加解密算法)
-5. [shield-stub 详解](#五shield-stub-详解)
-6. [与 360 加固的差异](#六与-360-加固的差异)
-7. [加固前后 APK 结构对比](#七加固前后-apk-结构对比)
-8. [已知 Bug 与设计隐患](#八已知-bug-与设计隐患)
-9. [统一 APK 预检模型](#九统一-apk-预检模型)
-10. [后续迭代方向](#十后续迭代方向)
-
----
-
-## 一、整体架构与数据流
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      shield-cli（Rust）                          │
-│                                                                 │
-│  shield protect -i app.apk -o protected.apk                     │
-│                                                                 │
-│  ① apktool d          解包 APK（不反编译 Smali）                │
-│  ② modify_manifest    注入 StubApp / meta-data                  │
-│  ③ extract_signature  提取原始 APK 证书 SHA-256 指纹（3级降级） │
-│  ④ process_dex        DEX → Zstd 压缩 → ChaCha20-Poly1305 加密 │
-│                        → DEXB v5 payload（含签名指纹与随机 IKM）│
-│  ⑤ inject_runtime     解压 resources.zip 注入 stub + .so；      │
-│                        DEXB payload 以 MSHD 块追加到            │
-│                        classes.dex 末尾（DEX file_size 之外）   │
-│  ⑥ apktool b + 内置对齐  重打包并执行 4 KB / 16 KB ZIP 对齐      │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ protected.apk（未签名，需签名后安装）
-                               ▼
-              apksigner sign → 可安装 APK
-
-
-┌─────────────────────────────────────────────────────────────────┐
-│                 shield-stub（Android 设备上）                    │
-│                                                                 │
-│  App 启动                                                       │
-│  ① StubApp.attachBaseContext()                                  │
-│     ├─ exemptHiddenApi()                                        │
-│     ├─ Ld.extractDexFiles(ctx) ──JNI──► Rust                   │
-│     │      扫描 classes.dex 末尾 MSHD magic                     │
-│     │      → 提取 DEXB v5 payload                              │
-│     │      → 当前签名参与 HKDF 派生密钥 → ChaCha20-Poly1305 解密│
-│     │      → timing-safe 签名指纹比对（v5）                    │
-│     │      → Zstd 解压 → 落地到 app_dex/v{versionCode}/        │
-│     ├─ Ld.p() ──JNI──► Rust                                    │
-│     │      JNI 层调用 DexPathList.addDexPath()                  │
-│     │      （不受 hidden API 限制，Java 反射作为降级路径）       │
-│     └─ makeRealApp() → 真实 Application.attach()               │
-│  ② StubApp.onCreate()                                          │
-│     ├─ replaceAppReferences()                                   │
-│     ├─ ARouterCompat.prepareARouterRouteMap()（按需）           │
-│     └─ realApp.onCreate()                                       │
-└─────────────────────────────────────────────────────────────────┘
+```text
+输入 APK 验签与预检
+  → apktool 解包（不反编译 Smali）
+  → 修改 Manifest、收集业务 DEX 与 ARouter 路由入口
+  → DEX 自然序排列、Zstd 压缩、认证加密
+  → 注入匹配的壳 DEX 和 Native 库
+  → 在 classes.dex 尾部追加 MSHD／DEXB 载荷
+  → 重打包、ZIP 对齐
+  → 使用输入 APK 的同一证书签名
 ```
 
----
+普通纯加固输出尚未签名；加固后自动签名和受控任务按各自契约交付。GUI、CLI 共用核心，受控父进程额外管理期限、停止确认及最终无覆盖提交。
 
-## 二、shield-cli 详解
+## 输入、签名与预检
 
-### 2.1 命令行参数
+- 只接受实际验签成功的单内容签名 APK；不能只看 `META-INF` 判断 V2／V3 签名是否存在。
+- 提取当前 X.509 内容签名证书 DER 的 SHA-256，规范为大写 64 位十六进制。不使用 public key digest、Source Stamp 或失效的 V1 残留。
+- 输入已经有本项目载荷时拒绝二次加固；多内容签名、无法读取指纹或自动签名证书不一致时阻断，不猜测证书。
+- `preflight` 是有限结构／签名检查，不证明所有业务库、Manifest 语义、ELF 页大小或设备运行均兼容。
+- `doctor` 检查依赖就绪，不能代替真实私钥签名；完整 Agent 协议见[命令契约](agent-cli-contract.md)。
 
-```
-shield protect [OPTIONS] --input <APK> --output <APK>
+## APK 修改与资源
 
-  -i, --input <APK>   输入 APK 路径
-  -o, --output <APK>  输出 APK 路径
-  -v, --verbose       输出详细日志
-```
+### Manifest
 
-工具路径无需配置，按以下优先级自动检测：
+核心根据资源 `runtime_protocol` 选择字段集合，写入实际壳 Application、原 Application、环境策略和缓存身份。当前标准／工控协议 4 使用中性字段 `rt.*`；旧协议 2 保留旧字段。新壳必要字段缺失、类型错误或策略非法时明确失败，不默认降级。
 
-1. 发布包路径：`bin/../lib/apktool.jar`、`bin/../resources/resources.zip`
-2. 用户数据目录（`ProjectDirs`）
-3. 系统数据目录（`/usr/local/share/mocika-shield/` 等）
-4. 开发环境路径：`tools/apktool_3.0.1.jar`、`shield-stub/build/outputs/resources/resources.zip`
+原包占用当前协议的 Application 直属保留字段时，在写入前拒绝；其他组件元数据和业务字符串不作全文替换。原组件工厂是否移除或由候选代理保存委托，取决于资源声明；不能将内部候选行为当作正式路径。字段定义及兼容矩阵见[Manifest 契约](manifest-runtime-contract.md)。
 
-### 2.2 protect 命令核心流程
+### DEX 与 Native
 
-#### 步骤 ① 解包 APK
+业务 DEX 按 `classes.dex`、`classes2.dex`、…、`classes10.dex` 的自然序处理，不按字典序。每份以 Zstd level 19 压缩，元数据和压缩内容整体认证加密。
 
-```bash
-java -jar apktool.jar d <input.apk> -o <tmp/apk> -f --no-src
-```
+资源 ZIP 包含 `metadata.json`、`stub-classes.dex` 及四种主流 ABI 的规范 Native 库。规范名 `libmocikashield.so` 是资源内部契约；注入 APK 时按任务选择不冲突的别名，并联动改写壳 DEX。因此不能按固定库名识别输出。
 
-- `--no-src`：不反编译 Smali，只解压资源和 Manifest
-- `-f`：强制覆盖目标目录
+构建从同批 R8 映射生成 JNI 类名、方法名、签名和回调绑定。业务类与壳完整类名冲突时停止；不通过保留所有原始类名规避冲突。详见[库名别名](native-library-alias.md)、[壳身份](stub-identity.md)和[Native 暴露面](native-surface.md)。
 
-解包完成后会在修改 Manifest 前做一次受限的资源格式规范化：只扫描 `res/` 内扩展名为 `.png` 的文件；若文件头确认是 JPEG，则无损改名为同名 `.jpg`，使后续 aapt2 按真实格式编译。正常 PNG 和其他资源不会改动。对于 `.9.png` 九宫格资源或同名 `.jpg` 已存在的情况，流程会明确失败，绝不覆盖文件、转码图片或猜测资源语义。
+### 资源与重打包
 
-#### 步骤 ② Manifest 修改
+`extractNativeLibs=false` 必须保留，全部 `lib/**/*.so` 使用 ZIP Stored 且按 16 KB 对齐；其他普通 Stored 条目按 4 字节对齐。ZIP 偏移、压缩方式和 ELF LOAD 段页大小是三项不同检查，不能互相替代。
 
-使用 `xmltree 0.10` 进行结构化修改（非正则字符串操作）：
+解包后只对文件头确认是 JPEG、扩展名却为 `.png` 的资源无损改名；九宫格或同名 `.jpg` 冲突明确失败，不转码、不覆盖。详细规则见[Native 打包](native-library-packaging.md)与[处理基线](apk-processing-baseline.md)。
 
-```xml
-<!-- 修改前 -->
-<application android:name="com.example.MyApp" ...>
+## 加密数据格式（DEXB v5）
 
-<!-- 修改后 -->
-<application android:name="dev.mocika.shield.loader.StubApp" ...>
-    <meta-data android:name="ORIGINAL_APPLICATION"
-               android:value="com.example.MyApp" />
+载荷位于壳 `classes.dex` 的 DEX `file_size` 之后：
+
+```text
+[标准 DEX 内容]
+MSHD          4 字节 magic
+payload_len   u32 小端，仅计算后续 DEXB 数据
+DEXB 数据     payload_len 字节
 ```
 
-- 删除 `android:appComponentFactory`（与壳 Application 冲突）
-- 检查是否已存在 `ORIGINAL_APPLICATION`，避免重复插入（幂等）
-- 签名指纹不写入 Manifest，改为写入 DEXB v5 明文头部并参与密钥派生
+MSHD 位置须同时满足 magic、长度及文件末尾一致；预检流式扫描，不依赖固定尾部窗口。追加前按原 DEX header 边界裁剪，避免重复追加。常规反编译工具可能不展示尾部，但它仍可被发现和提取。
 
-#### 步骤 ③ 签名提取
+DEXB 头部均为明文：
 
-```
-java -jar apksigner.jar verify --print-certs <apk>
-    ↓ 验证 APK 的实际有效签名
-解析当前 APK 内容签名证书的 "certificate SHA-256 digest"
-    ↓
-规范化为大写 64 位十六进制
-```
+| 顺序 | 长度 | 字段 |
+|---|---|---|
+| 1 | 4 | magic：`DEXB` |
+| 2 | 4 | version：u32 小端 5 |
+| 3 | 4 | dex_count：u32 小端 |
+| 4 | 1 | sig_len |
+| 5 | sig_len | 证书 SHA-256 的十六进制 ASCII，正式流程为 64 字节 |
+| 6 | 1 | ikm_len |
+| 7 | ikm_len | 每次加固随机 IKM，当前 32 字节 |
+| 8 | 12 | 随机 nonce |
+| 9 | 剩余 | ChaCha20-Poly1305 密文，尾部含 16 字节认证标签 |
 
-> 取 **当前 X.509 内容签名证书 DER 的 SHA-256**。`apksigner` 的 `certificate SHA-256 digest` 与 Runtime 侧对 `PackageManager` 返回的 `Signature.toByteArray()` 计算 SHA-256 口径一致。
+密文解开后先为 N 份元数据，再为 N 份对应压缩数据：
 
-安全约束：
-
-- 不使用 `keytool -jarfile` 提取 APK 证书，避免严格 V2/V3-only APK 无法读取，也避免命中已经失效的 V1 残留证书
-- 只接受 `apksigner` 验证成功的 APK
-- 忽略 public key digest 和 Source Stamp 证书，只读取 APK 内容签名证书摘要
-- DEXB v5 只支持一个签名指纹；检测到多签名 APK 时直接拒绝加固
-- 加固输出重新签名时必须继续使用该当前证书对应的 keystore，否则设备运行时取得的实际指纹不同，AEAD 解密和指纹比较都会失败
-- GUI 配置自动签名时，所选证书指纹必须在解包前与输入 APK 指纹一致；不一致或读取失败直接终止，不生成加固产物
-- 核心加固入口会独立检查 MSHD 追加块并拒绝已加固 APK，不能依赖 GUI 预检作为唯一防线
-
-#### 步骤 ④ DEX 打包
-
-```
-原始 DEX 文件（classes.dex、classes2.dex ...）
-    ↓ 逐个 Zstd 压缩（level 19）
-    ↓ 构建 DEXB v5 buffer（含签名指纹与随机 IKM）
-    ↓ 随机 nonce + HKDF-SHA256 派生密钥
-    ↓ ChaCha20-Poly1305 加密
-→ DEXB v5 格式完整内容
+```text
+每份元数据：
+name_len(u8) + name + compressed_size(u32小端) + original_size(u32小端)
+随后：
+compressed_data[1] + ... + compressed_data[N]
 ```
 
-DEX 排序规则：`classes.dex` 永远最前，其余按文件名字典序。
+Stub 只接受 v5，并对数量、长度、格式和认证结果检查；v4 不兼容，旧 APK 须重新加固。DEXB 版本与资源协议、缓存 schema、CLI 配置及事件版本相互独立。
 
-#### 步骤 ⑤ Runtime 注入
+## 密钥派生与安全边界
 
-`resources.zip` 内部结构：
-
-```
-stub-classes.dex               ← 壳 Java 层编译产物
-lib/
-├─ arm64-v8a/libmocikashield.so
-├─ armeabi-v7a/libmocikashield.so
-├─ x86/libmocikashield.so
-└─ x86_64/libmocikashield.so
-metadata.json
+```text
+key = HKDF-SHA256(
+  IKM = 头部随机 IKM,
+  salt = 12 字节 nonce,
+  info = 当前签名证书 SHA-256 的 ASCII
+) → 32 字节
+ciphertext = ChaCha20-Poly1305(key, nonce, 元数据与压缩数据)
 ```
 
-注入逻辑：
-1. 解压 `resources.zip` 到 APK 目录
-2. `stub-classes.dex` → 重命名为 `classes.dex`（占据主 dex 位置）
-3. **将 DEXB v5 加密数据以 MSHD 块格式追加到 `classes.dex` 末尾**（DEX `file_size` 之外，工具不可见）
-4. 跳过所有含 `libzstd-jni` 的文件（Rust 静态链接了 zstd）
+运行时读取自身实际签名指纹参与派生，并执行常数时间比较；重签名会改变派生结果，普通修改也会被认证校验发现。指纹读取需要显式传入 attachBaseContext 的 Context，不能依赖尚未建立的全局 Application。
 
-#### 步骤 ⑥ 重打包
+IKM、nonce 和证书指纹不是设备独有秘密，签名绑定也不等于攻击者无法分析、重建或转储明文。该设计提高静态提取和未授权重打包成本，不构成 Root／已控进程上的可信执行环境，不承诺“无法脱壳”。
 
-```bash
-java -jar apktool.jar b <tmp/apk> -o <output.apk> -f
+## Android 启动与加载
+
+标准／工控路径：
+
+```text
+StubApp.attachBaseContext
+  → 每次启动读取并检查环境策略
+  → 验证缓存，失效则重新解密和原子重建
+  → 向原应用 ClassLoader 注入业务 DEX
+  → 创建并 attach 真实 Application
+StubApp.onCreate
+  → 替换必要的框架 Application 引用
+  → 准备当前 ARouter 路由快照
+  → 调用真实 Application.onCreate
 ```
 
-完成后打印输入/输出文件大小与压缩比。
+缓存命中也先检查环境，解密入口保留纵深检测。缓存目录身份包含应用版本与 DEX 根摘要；只读、数量、名称、路径、内容和完成标志全部符合后才加载，允许系统真实 `oat/` 目录。认证不阻止有权限者读取明文，详见[运行时安全](runtime-security.md)。
 
----
-
-## 三、加密数据格式（DEXB v5）
-
-加密 DEX 数据以 **MSHD 追加块**格式写在 `classes.dex` 文件末尾（DEX `file_size` 边界之外）：
-
-```
-[classes.dex 标准内容，工具解析至 file_size 边界后停止]
-...
-MSHD            (4 bytes ASCII magic，用于 runtime 侧定位追加块起点)
-payload_len     (4 bytes u32 LE，不含 magic 和 payload_len 字段自身)
-<DEXB 加密数据> (payload_len bytes，DEXB v5 格式完整内容)
-```
-
-追加块内的 **DEXB payload** 采用 **Version 5** 格式：
-
-```
-Offset     Size      字段             说明
-──────────────────────────────────────────────────────────────
-0          4         magic            固定 ASCII "DEXB"
-4          4         version          u32 LE = 5
-8          4         dex_count        u32 LE，DEX 文件数量 N（上限 256）
-12         1         sig_len          签名指纹字节长度（0 表示无签名）
-13         sig_len   signature        原始 APK 证书 SHA-256 指纹
-                                      （大写 hex ASCII，64 字节；或空）
-13+sig_len 1         ikm_len          IKM 字节长度，当前为 32
-14+sig_len ikm_len   ikm              每次加固随机生成的密钥材料（明文）
-14+sig_len+ikm_len
-           12        nonce            每次加固随机生成（明文）
-26+sig_len+ikm_len
-           *         ciphertext       ChaCha20-Poly1305 密文
-                                      （含 16 字节 Poly1305 AEAD tag）
-                                      解密后明文格式见下表
-```
-
-> **magic / version / dex_count / sig_len / signature / ikm_len / ikm / nonce 为明文头部**，runtime 侧无需密钥即可读取。
-> 当前 stub 仅支持 v5；v5 与 v4 不兼容，旧加固 APK 需重新加固。
-
-解密后的明文（payload）格式：
-
-```
-            ─── 循环 N 次（元数据区）───
-字段             Size      说明
-name_len         1         文件名字节长度
-name             name_len  原始文件名（如 "classes.dex"）
-compressed_size  4         u32 LE，Zstd 压缩后大小
-original_size    4         u32 LE，原始 DEX 大小
-            ─── 循环 N 次（数据区）───
-compressed_data  comp_sz   Zstd 压缩块（level 19）
-```
-
-**格式要点：**
-- `MSHD` magic：runtime 侧全文反向扫描，每个候选位置均做严格一致性校验（magic + payload_len + 文件末尾三者完全吻合），消除误命中风险
-- 桌面端与 CLI 的加固状态预检会流式扫描完整 `classes.dex`，同样要求 `magic + payload_len` 恰好指向文件末尾；不依赖固定大小的尾部窗口，也不把完整 DEX 载入内存
-- AEAD tag 校验失败立即报错，不返回任何明文
-- 每次加固追加前，先读取 DEX header 的 `file_size` 并裁剪文件至原始边界，确保不会产生多份 MSHD
-- Zstd 参数：`level = 19`（最高压缩比）
-
----
-
-## 四、加解密算法
-
-### 4.1 密钥派生（HKDF-SHA256）
-
-```rust
-pub fn derive_key(ikm: &[u8], nonce: &[u8; 12], cert_fingerprint: &[u8]) -> [u8; 32] {
-    let hk = Hkdf::<Sha256>::new(Some(nonce), ikm);
-    let mut okm = [0u8; 32];
-    hk.expand(cert_fingerprint, &mut okm).unwrap();
-    okm
-}
-```
-
-- **IKM**：CLI 每次加固随机生成 32 字节，写入 DEXB v5 明文头部
-- **Salt**：nonce（12 字节，每次加固随机生成，写入 DEXB 头部明文区）
-- **Info**：原始 APK 证书 SHA-256 指纹字节，使派生密钥绑定签名证书
-- **OKM**：32 字节，直接作为 ChaCha20-Poly1305 密钥
-
-### 4.2 ChaCha20-Poly1305 加密（CLI 侧）
-
-```rust
-pub fn encrypt(plaintext: &[u8], key: &[u8; 32], nonce: &[u8; 12]) -> Vec<u8> {
-    let cipher = ChaCha20Poly1305::new(key.into());
-    let nonce = Nonce::<ChaCha20Poly1305>::from_slice(nonce);
-    cipher.encrypt(nonce, plaintext).expect("加密不应失败")
-}
-```
-
-- 加密范围：`meta[] + data[]` 整体加密
-- 输出：密文字节（末尾自带 16 字节 Poly1305 AEAD tag）
-- nonce 由 `rand::thread_rng()` 每次加固随机生成，一次性使用
-
-### 4.3 ChaCha20-Poly1305 解密（stub 侧）
-
-```rust
-pub fn decrypt(ciphertext: &[u8], key: &[u8; 32], nonce: &[u8; 12]) -> Result<Vec<u8>> {
-    let cipher = ChaCha20Poly1305::new(key.into());
-    let nonce = Nonce::<ChaCha20Poly1305>::from_slice(nonce);
-    cipher.decrypt(nonce, ciphertext)
-        .map_err(|_| anyhow!("AEAD 解密失败：密文被篡改或密钥错误"))
-}
-```
-
-### 4.4 密钥材料与签名绑定
-
-v5 不再通过 Manifest 写入 `ENCRYPTION_KEY`。随机 IKM 明文存放在 DEXB 头部，实际 AEAD 密钥由 `HKDF(ikm, nonce, cert_fingerprint)` 派生。安全边界在于：
-- ChaCha20-Poly1305 AEAD 防密文篡改
-- HKDF + 随机 IKM + 随机 nonce 使每次加固产生不同密文
-- 证书指纹参与密钥派生，重签名后派生密钥不同，AEAD 解密直接失败
-- 运行时仍会读取设备实际签名指纹并执行常数时间校验
-
----
-
-## 五、shield-stub 详解
-
-### 5.1 Java 壳层启动时序
-
-```
-StubApp.attachBaseContext(base)
-    │
-    ├─[1] super.attachBaseContext(base)
-    │
-    ├─[2] exemptHiddenApi()
-    │         VMRuntime.setHiddenApiExemptions(["L"])
-    │         豁免所有 Android 9+ 隐藏 API 限制
-    │
-    ├─[3] Ld.extractDexFiles(ctx)
-│         每次启动先执行 Native 环境安全检查
-│         检查 app_dex/v{versionCode}/ 缓存目录
-│         ├─ 命中缓存：直接返回已落地的 DEX 列表
-│         └─ 未命中：
-│               ZipFile 读取 APK 中的 classes.dex → byte[]
-│               JNI → Rust: q(ctx, dexData)
-│                   ├─ 全文反向扫描 MSHD magic（严格一致性校验）
-│                   ├─ 读取 DEXB v5 头（明文区）
-│                   ├─ 当前签名指纹参与 HKDF-SHA256 派生 ChaCha20 密钥
-│                   ├─ ChaCha20-Poly1305 解密（含 AEAD 校验）
-│                   ├─ v5：回调 Ld.getSignatureSha256(ctx)
-│                   │        → timing_safe_eq 比对签名指纹
-│                   │        → 不匹配抛出 SecurityException
-│                   └─ 逐个 Zstd 解压 → 落地到 app_dex/v{versionCode}/
-│
-    ├─[4] Ld.p(classLoader, dexPaths, optDirPath)
-    │         JNI 层调用 DexPathList.addDexPath()（不受 hidden API 限制）
-    │         返回 false 时降级到 Java 反射 addDexPath
-    │         新增 elements 移到数组前端（app 类优先）
-    │
-    └─[5] makeRealApp(base.getClassLoader(), base)
-              用 PathClassLoader（已含 app DEX）加载真实 Application
-              反射调用 Application.attach(base)
-
-StubApp.onCreate()
-    ├─[6] replaceAppReferences(realApp)
-    │         替换 ActivityThread.mInitialApplication
-    │         替换 ActivityThread.mAllApplications 列表中的引用
-    │         替换 LoadedApk.mApplication
-    │
-    ├─[7] ARouterCompat.prepareARouterRouteMap(this)（按需）
-    │
-    └─[8] realApp.onCreate()
-```
-
-### 5.2 JNI 接口
-
-native 方法通过 `JNI_OnLoad` 中的 `RegisterNatives` 动态绑定，Rust 函数符号不出现在 `.dynsym` 动态符号表，切断可读性。
-绑定的类名和方法名在编译期由环境变量常量注入，构建时由 `build.rs` 解析 R8 `mapping.txt` 后生成：
-
-| 编译期常量 | 说明 |
+| Android 范围 | 文件 DEX 注入 |
 |---|---|
-| `env!("STUB_BINLOADER_CLASS")` | R8 混淆后的壳类内部路径（如 `msk/b`） |
-| `env!("STUB_METHOD_INJECT_DEX")` | R8 混淆后的 DEX 注入方法名（对应 Java `p`） |
-| `env!("STUB_METHOD_EXTRACT_DECRYPT")` | R8 混淆后的 DEX 解密提取方法名（对应 Java `q`） |
-| `env!("STUB_METHOD_GET_SIG")` | R8 混淆后的签名获取方法名（对应 Java `getSignatureSha256`，此方法被 keep 故不变） |
+| API 19～20 | 工控资源的 Dalvik 路径，实际 4.4 限 v7a／NEON |
+| API 21～22 | `makeDexElements` 工厂 |
+| API 23 | `makePathElements` 工厂 |
+| API 24 及以上 | 优先 Native 调用 `addDexPath`，失败按既有 Java 回退 |
 
-绑定的两个函数：
+各路径保持业务类的加载器身份；Android 9 声明的系统共享库须优先于业务编译桩。JNI 和反射涉及内部实现，不能宣称天然不受非 SDK 限制或无需逐版本验证。兼容证据见[4.4 设计](android-4.4-compatibility.md)与[测试清单](../process/test-checklist.md)。
 
-```
-f1  ←→  Ld.p(ClassLoader classLoader, String[] dexPaths, String optDirPath) → boolean
-        DEX 注入：通过 JNI 将解密后的 DEX 插入 PathClassLoader。
-        成功返回 JNI_TRUE，失败返回 JNI_FALSE（Java 层降级到反射方案）。
+Native 通过 `JNI_OnLoad`／`RegisterNatives` 注册 DEX 注入、解密、环境检查及内部候选缓冲接口，最终名称／签名由构建映射决定。资源只导出允许入口，不等于接口无法被分析。
 
-f2  ←→  Ld.q(Context ctx, byte[] dexData) → byte[][]
-        DEX 解密：从 classes.dex 末尾提取 MSHD payload，解密解压后返回各 DEX 字节数组。
-        ctx 由调用方（attachBaseContext 阶段）显式传入，规避 ActivityThread.currentApplication()
-        在 Application 初始化阶段返回 null 的问题。
-```
+## ARouter 兼容
 
-**签名校验流程（v5 格式）：**
-1. 解析 DEXB v5 头，读取 `expected_signature`
-2. 调用 `Ld.getSignatureSha256(ctx)` 获取设备当前 APK 实际签名指纹
-   - 使用传入的 `ctx`，不依赖 `ActivityThread.currentApplication()`（该阶段返回 null）
-   - Android 9 及以上读取 `SigningInfo.getApkContentsSigners()`，旧系统读取 `PackageInfo.signatures`
-   - 两条路径都要求当前内容签名证书恰好一个，并对 `Signature.toByteArray()` 的证书 DER 计算 SHA-256
-3. `timing_safe_eq(expected, actual)` 常数时间比对，防时序攻击
-4. 不匹配时抛出 `java.lang.RuntimeException`，中断加载
+加固阶段从业务 DEX 收集 Root、Providers、Interceptors 注册入口，形成 `arouter_routes.txt`。不存在 ARouter 或没有路由清单时不做补偿。
 
-### 5.3 DEX 注入机制
+在真实 Application 启动前，用当前 APK 的路由集合和版本同步替换 `SP_AROUTER_CACHE`，由 ARouter 正常初始化流程消费，避免旧加固方案遗留缓存和运行期扫描不到加密 DEX。只对可调试包保留提前反射注册，因为这类包会忽略版本缓存并强制扫描；不能将它描述为所有正式 APK 都手动注册。
 
-**核心原则：不创建任何中间 ClassLoader，所有 app 类的 defining loader 始终是原始 PathClassLoader。**
+## 已修复问题与继续维护的风险
 
-API 24 及以上优先使用 JNI 路径（不受 hidden API 限制）：
+| 问题 | 当前处理 |
+|---|---|
+| V2／V3-only 签名无法提取、错误降级 | 统一有效内容签名来源，提取失败阻断 |
+| JNI 回调被裁剪或 Context 为空 | 完整保留回调成员、同批映射、显式传 Context |
+| 大载荷预检漏报、重复加固 | 流式扫描完整追加块，核心再次拒绝已加固 |
+| ARouter 首次扫描／覆盖安装旧缓存 | 当前路由快照、同步版本缓存及调试包特例 |
+| Android 9 共享库编译桩被优先加载 | 保持系统共享库解析优先 |
+| 缓存命中绕过检查、缓存篡改 | 每次启动检查、签名保护的根摘要、整体失效重建 |
+| `extractNativeLibs=false` 安装失败 | 保留字段、Stored Native、ZIP 16 KB 对齐 |
 
-```rust
-// f1（Ld.p JNI 实现）
-FindClass("dalvik/system/BaseDexClassLoader")
-→ GetFieldID → pathList 字段
-→ GetObjectField → pathList 对象
-→ FindClass("dalvik/system/DexPathList")
-→ GetMethodID → addDexPath(String, File)
-→ CallVoidMethod 调用
-```
-
-API 24 及以上的降级路径（Java 反射，`p` 返回 false 时）：
-
-```java
-Method addDexPath = pathList.getClass().getDeclaredMethod("addDexPath", String.class, File.class);
-addDexPath.setAccessible(true);
-addDexPath.invoke(pathList, dexFile.getAbsolutePath(), optDir);
-```
-
-`addDexPath` 内部将 DEX 直接注册到 PathClassLoader（`definingContext`），天然避免 `multiple class loaders` 问题。
-
-API 21～23 没有 `addDexPath(String, File)`，由 `DexInjector` 直接调用系统的 Element 工厂并前插到原 `PathClassLoader`：
-
-| 系统 | Element 工厂 | 参数签名 |
-|------|--------------|----------|
-| API 21～22 | `makeDexElements` | `ArrayList<File>, File, ArrayList<IOException>` |
-| API 23 | `makePathElements` | `List<File>, File, List<IOException>` |
-
-实现按系统版本确定首选方法名，并保留另一个名称作为厂商系统兼容回退。工厂返回的 Element 必须放在壳 Element 之前，确保业务类优先；构造过程中产生的 `dexElementsSuppressedExceptions` 会合并回系统字段并作为加载失败抛出，不允许静默丢失部分 DEX。
-
-**兼容性：**
-- Android 5.0～6.0（API 21～23）：Element 工厂注入，已通过 API 21/23 官方 ARM64 模拟器回归；Android 6.0 工控设备已验证首次安装、清除数据、覆盖安装、多 DEX、Native 库和主要业务功能
-- Android 7.0（API 24）及以上：`addDexPath(String, File)` 注入
-- API 26+ `optimizedDirectory` 参数被忽略（传 null）
-- Android 4.4（API 19～20）：通过独立的工控兼容资源提供；r25c、Rust 1.77.2 的 Native 构建、Dalvik 双 DEX 注入、自定义 Application、首次安装、清除数据和覆盖安装已在 API 19 模拟器通过，同一 APK 也已通过 API 21、23 跨版本回归，Android 4.4.2 `armeabi-v7a`/NEON 工控真机已确认正常运行，详见 [Android 4.4 工控兼容设计](android-4.4-compatibility.md)
-
-### 5.4 ARouter 路由表补注册
-
-| 方式 | 检测标志 | 处理 |
-|------|---------|------|
-| arouter-register Gradle plugin | `LogisticsCenter.registerByPlugin = true` | 已通过 plugin 静态注入，跳过补注册 |
-| 运行时扫描 | `registerByPlugin = false` | 加固阶段只收集 `Root`、`Providers`、`Interceptors` 注册入口；壳在真实 Application 启动前调用 `LogisticsCenter.register()` 并设置完成标志 |
-
-补注册必须发生在真实 `Application.onCreate()` 之前。ARouter 1.5.1 的 `ARouter.init()` 会在 `LogisticsCenter.init()` 后立即执行 `_ARouter.afterInit()`，此时就会查找并缓存 `InterceptorService`；如果等宿主初始化完成后再补路由表，缓存字段已经是 `null`，后续普通路由跳转会触发空指针。
-
----
-
-## 六、与 360 加固的差异
-
-> 分析样本：某公开可分析的第三方加固 APK。
-
-| 维度 | 当前方案（Mocika Shield） | 360 加固（参考） |
-|------|--------------------------|----------------|
-| **加密 DEX 存储** | `classes.dex` 末尾追加 MSHD 块（工具不可见） | `classes.dex` 末尾追加（magic `71 68 00 01`） |
-| **壳 SO 位置** | `lib/` 目录（系统自动加载） | `assets/`（手动 extract + dlopen） |
-| **DEX 注入方式** | JNI 优先 + Java 反射降级 | Native 层直接操作 `dexElements` |
-| **加密算法** | Zstd + ChaCha20-Poly1305 + HKDF-SHA256（AEAD） | 私有算法（native 混淆，不可见） |
-| **隐藏 API 绕过** | JNI（不受限）+ Java `VMRuntime.setHiddenApiExemptions` 降级 | Native 层（JNI 不受限制） |
-| **签名校验** | DEXB v5 头部记录指纹，参与密钥派生并 timing-safe 比对 | 有 |
-| **安全检测** | Rust Native 层每次启动执行反调试检查；可选严格策略额外检测高置信 Root、ADB Root 与注入信号，命中后拒绝启动 | 内置反调试、Root、模拟器检测 |
-
----
-
-## 七、加固前后 APK 结构对比
-
-```
-原始 APK：                          加固后 APK：
-├─ classes.dex                     ├─ classes.dex  ← 壳 DEX + 末尾追加 MSHD 加密块
-├─ classes2.dex                    │               （工具看不到追加数据，无 assets/app.bin）
-├─ classes3.dex                    ├─ lib/
-├─ assets/                         │   ├─ arm64-v8a/libmocikashield.so   ← 新增
-│   └─ ...（原有资源）              │   ├─ armeabi-v7a/libmocikashield.so ← 新增
-├─ lib/                            │   ├─ x86/libmocikashield.so         ← 新增
-│   └─ arm64-v8a/...              │   └─ x86_64/libmocikashield.so      ← 新增
-├─ AndroidManifest.xml             ├─ AndroidManifest.xml
-│   Application=原始类             │   ├─ Application=msk.b（R8 混淆后的 StubApp，由 metadata.json 读取）
-└─ res/                            │   └─ meta-data（ORIGINAL_APPLICATION）
-                                   └─ res/
-```
-
----
-
-## 八、已知 Bug 与设计隐患
-
-### Bug 1：Manifest 修改用字符串操作 ✅ 已修复
-
-- **问题**：使用正则 + 字符串操作 XML，部分混淆 Manifest 可能修改失败
-- **修复**：改用 `xmltree 0.10` 结构化修改
-
----
-
-### 隐患 2：DEX 注入依赖 Android 内部 API ✅ 已缓解
-
-- **位置**：`shield-stub/src/main/java/.../StubApp.java`
-- **问题**：反射调用 `DexPathList.addDexPath()`，属于 `@UnsupportedAppUsage`
-- **当前状态**：已通过 JNI 优先路径缓解（JNI 不受 hidden API 限制），Java 反射仅作为降级路径
-
----
-
-### 隐患 3：XOR 无 KDF ✅ 已修复
-
-- **问题**：XOR 直接使用原始 key，无派生、无随机性，存在已知明文攻击面
-- **修复**：升级为 ChaCha20-Poly1305 + HKDF-SHA256，DEXB 格式升级至 v5
-
----
-
-### 隐患 4：无签名校验 ✅ 已修复
-
-- **问题**：无任何运行时安全检测，可被重打包攻击
-- **修复**：DEXB v5 将签名指纹与随机 IKM 写入头部并绑定密钥派生，Rust Native 层执行 timing-safe 比对
-
----
-
-### 隐患 5：签名降级返回固定字符串不报错 ✅ 已修复
-
-- **问题**：所有提取路径失败后返回 `"UNSIGNED_OR_UNSUPPORTED"`，无任何警告
-- **修复**：降级路径打印醒目 WARNING，提示用户先签名再加固
-
----
-
-### Bug 6：ARouterCompat 缺少 ProGuard keep 规则 ✅ 已修复
-
-- **问题**：R8 将 `ARouterCompat` 混淆为短类名（如 `a.a`），与被加固 app 的混淆产物冲突，ART 抛出 `InstantiationError`
-- **修复**：`proguard-rules.pro` 中为 `dev.mocika.shield.loader` 包下所有类补充 `-keep class ... { *; }`
-- **教训**：壳 DEX 中所有类均不应被 R8 重命名
-
----
-
-### Bug 7：`ActivityThread.currentApplication()` 在 attachBaseContext 阶段返回 null ✅ 已修复
-
-- **位置**：`shield-stub/src/main/rust/src/lib.rs`
-- **问题**：签名校验 JNI 函数内部通过静态方法获取 Context，该阶段返回 null，导致 NPE 崩溃
-- **修复**：`extractAndDecryptFromDex` 改为接受 `Context ctx` 参数，由 Java 层 `attachBaseContext` 显式传入
-- **教训**：`attachBaseContext` 阶段凡需要 Context 的 JNI 函数，必须由 Java 层显式传入
-
----
-
-### Bug 8：ProGuard 逐条列举 JNI 回调方法导致 R8 删除方法 ✅ 已修复
-
-- **位置**：`shield-stub/proguard-rules.pro`
-- **问题**：`getSignatureSha256` 仅被 JNI Native 调用，R8 无法感知，判定为死代码删除
-- **修复**：`Ld` 改为 `-keep class ... { *; }` 全保留
-- **教训**：任何被 JNI 调用的类，必须用 `{ *; }` 全保留，不能逐条列举
-
----
-
-### Bug 9：ARouter 运行期扫描补注册过晚 ✅ 已修复
-
-- **位置**：`ARouterCompat.java`、`StubApp.java`、`route_scanner.rs`
-- **问题**：壳在真实 `Application.onCreate()` 返回后才补注册路由表。ARouter 1.5.1 已在 `ARouter.init()` 内缓存空的 `InterceptorService`，导致首次安装或清除数据后路由跳转空指针；覆盖安装可能因旧缓存暂时正常。
-- **修复**：在真实 Application 启动前准备 `Root`、`Providers`、`Interceptors` 三类入口；排除 `Group` 和内部类等无效扫描结果。
-- **验证**：用户多模块 Demo 的未加固基线、加固后首次安装、清除数据后重启均通过同一套真机端到端测试，覆盖两次跨模块跳转和四种参数注入。
-- **教训**：第三方框架若在初始化过程中缓存服务实例，兼容注入必须发生在其初始化入口之前，事后补齐注册表无法修复已缓存的空状态。
-
----
-
-### Bug 10：跨加固方案升级后 ARouter 读取旧缓存 ✅ 已修复
-
-- **位置**：`ARouterCompat.java`
-- **问题**：旧版本经其他工具加固，新版本改用 Mocika Shield 后覆盖安装，ARouter 会保留旧版本的 `SP_AROUTER_CACHE`。壳层提前反射注册当前路由后，`ARouter.init()` 仍会重置 `registerByPlugin` 并读取旧缓存，导致新旧路由状态混合；清除应用数据后暂时恢复。
-- **修复**：不再反射调用 ARouter 私有注册方法。真实 Application 启动前，将当前 APK 提取的路由快照同步替换到 ARouter 自有 `ROUTER_MAP`，并同步 `LAST_VERSION_NAME`、`LAST_VERSION_CODE`，由 ARouter 按原生初始化流程只加载一次。
-- **兼容**：可调试包因 ARouter 强制扫描而保留提前注册路径；未使用 ARouter、没有路由资产或使用编译期注册的应用不受影响；缓存写入失败只记录警告，不阻断应用启动。
-- **验证要求**：覆盖全新安装、清除数据后启动、Mocika Shield 版本间覆盖升级、其他加固方案迁移到 Mocika Shield 四条路径；迁移验证必须保持新旧 APK 签名一致。
-
----
-
-### Bug 11：Android 9 动态 DEX 覆盖系统共享库类 ✅ 已修复
-
-- **现象**：原 APK 声明 `org.apache.http.legacy` 且自身包含同名编译桩时可以正常运行，加固后在 Android 9 启动并调用 Apache HTTP 类会抛出 `RuntimeException: Stub!`；Android 16 不受影响。
-- **根因**：Android 9 依赖安装期特殊类加载上下文提供共享库优先级，动态注入的解密 DEX 不会自动继承相同解析语义，业务 DEX 中的同名类可能覆盖系统共享库实现。
-- **修复**：API 28 在注入业务 DEX 前，根据 `ApplicationInfo.sharedLibraryFiles` 确认应用声明 `org.apache.http.legacy`，扫描已解密但尚未注入的业务 DEX，并通过应用原类加载器预解析其中 `org.apache.http.*` 与 `android.net.http.*` 类；此时业务 DEX 尚不可见，只能命中系统共享库。随后保持原有业务 DEX 前插顺序，其他系统版本不改变现有路径。
-- **验证要求**：Issue #17 样本在 API 28 调用 Apache HTTP 不再加载编译桩，同时回归 API 23、API 36、ARouter 和业务类优先级。
-- **验证记录**：Issue #17 样本在官方 API 28 模拟器成功预解析 376 个共享库类，启动后未再出现 `RuntimeException: Stub!`；同一加固 APK 已在 API 23 模拟器和 API 36 真机正常启动。
-
----
-
-### 代码健壮性修复 ✅ 已修复
-
-- `payload.len() as u32` 改为 `u32::try_from()`，超 4GiB 时报错而非截断
-- MSHD 扫描改为严格一致性校验（magic + payload_len + 文件末尾三者吻合），消除误命中
-- 重复加固前裁剪 DEX 至 `file_size` 边界，确保只有一份 MSHD
-- `dex_count` 上限 256，`payload_len` 上限 512 MiB
-- DEX 文件数量 / 字节数组长度溢出防护（`i32::try_from()`）
-- 缓存写入后创建 `.done` 标记，校验时检查标记，写入成功后再删旧缓存
-
----
-
-## 九、统一 APK 预检模型
-
-`shield-core::preflight_apk` 是加固前 ZIP、DEX、签名和 ABI 规则的唯一入口。它不修改输入 APK，也不依赖 GUI 状态；Tauri 在此基础上只读解析 APK 内的二进制 Manifest，补充安装形态与 Android 兼容事实，再统一映射为 IPC 数据。前端只按稳定检查代码展示本地化文案。
-
-预检结果由三部分组成：
-
-- `verdict`：`ready`、`warning`、`blocked`，按最严重检查项汇总。
-- `checks`：稳定检查代码、严重级别与有限动态明细；检查代码不直接使用界面文案。
-- `facts`：APK 大小、DEX 数量和总体积、Native 库数量与压缩数量、ABI 集合等只读事实。
-
-当前稳定检查代码如下：
-
-| 检查代码 | 含义 | 阻断条件 |
-|----------|------|----------|
-| `apk_structure` | 必要 ZIP 结构 | 缺少 `AndroidManifest.xml` 或根目录标准 `classes*.dex` |
-| `already_protected` / `not_protected` | Mocika Shield 载荷状态 | 已存在有效 MSHD 载荷 |
-| `signature` / `unsigned` | APK 签名状态 | 未签名或签名验证失败 |
-| `certificate` / `certificate_mismatch` | 原 APK 与输出证书关系 | 自动签名证书不一致或无法读取 |
-| `dex_profile` | DEX 数量和总体积 | 仅记录事实，不单独阻断 |
-| `runtime_abi` | 所选目标系统与 ABI 的关系 | Android 4.4 出现非 `armeabi-v7a`；标准运行时仅有未支持架构 |
-| `native_packaging` | SO 数量和压缩情况 | 仅记录事实，最终打包仍服从 Manifest 策略 |
-| `manifest_sdk` | `minSdkVersion`、`targetSdkVersion` | 仅记录事实，不因未知数值误判 |
-| `split_apk` | 所选 APK 是否为 split | 检测到 `manifest split`，要求用户提供 base APK |
-| `native_manifest` | `extractNativeLibs` 三态 | 仅记录事实；`false` 时加固过程按未压缩库策略重打包 |
-| `http_legacy` | `org.apache.http.legacy` 声明 | 仅记录兼容信号，保留既有 Android 9 处理 |
-
-Manifest 解析器直接读取 APK 内的 Android 二进制 XML 字符串池和元素属性，不调用 apktool、不展开资源、不创建临时目录；解析失败仅给出 `manifest_unreadable` 风险提示，不覆盖核心预检结论。未知 ABI 与支持 ABI 并存时标记为 `warning`，用户确认后可继续；确定会生成不可运行产物的条件使用 `blocked`。签名方案明细、ELF 16 KB 条件和第三方壳信号只有在能够稳定解析且不会误判后才加入，禁止用文件名猜测或把占位检查伪装成已支持能力。
-
----
-
-## 十、后续迭代方向
-
-待实现功能及进度见 [docs/process/roadmap.md](../process/roadmap.md)。
-
-以下为纯 Android 端的低优先级技术方向，暂无计划：
-
-| 项目 | 说明 |
-|------|------|
-| SO 移到 assets + 手动 dlopen | 加载前做完整性校验，防 SO 替换攻击 |
-| 加入 baseline.prof | 加速 ART 首次编译 |
-
----
-
-*最后更新：2026-07-31*
+内部 API、厂商系统、Root 误判和真实业务兼容仍需回归。内存 DEX 候选因长期内存成本暂停；方法代码分离已停止产品接入，不能根据研究原型宣称正式支持。当前计划只以[路线图](../process/roadmap.md)为准。

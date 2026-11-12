@@ -12,13 +12,22 @@
 
 三者可独立使用，不强制同时安装 Skill 和 MCP。GUI、CLI 和共享 MCP 复用本地 `config.toml`、`shield.db` 与证书；查询和保存通过[共享服务](../design/shared-application.md)，不让模型直接读取数据库或解密密码。GUI 无需常驻；切页、恢复焦点或下次查询时可见新偏好，活动任务仍使用固定快照。
 
-桌面共包显式启用 `mcp-server`，普通源码 CLI 默认不启用。Linux 命令为 `/usr/bin/mocika-shield-cli`，Windows 为安装目录的 `mocika-shield-cli.exe`；宿主直接配置其完整路径，现有 `shield` 路径发现脚本不会自动识别安装别名。AppImage 须保留完整 AppDir 后使用其中 `usr/bin/mocika-shield-cli`，临时挂载路径会随卸载失效。
+桌面共包显式启用 `mcp-server`，普通源码 CLI 默认不启用。安装官方预览包即可使用，不要求克隆源码或自行编译，也不需要另外下载 CLI。宿主与 CLI 应运行在同一系统、同一用户环境中；Windows 的 WSL、容器或远程 Agent 不自动共享原生 GUI 的路径和资料。
 
-Skill 当前验证入口仍以 macOS 为准；额外宿主注册、Intel／通用架构及系统／JDK 组合不由其他平台测试外推。
+## 三平台命令路径
 
-## 准备完整应用
+| 安装方式 | CLI 路径 | 必须保留的资源 |
+|---|---|---|
+| macOS `.app` | 实际应用内 `Contents/MacOS/shield` | 同一应用的 `Contents/Resources/{tools,resources}` |
+| Linux deb | `/usr/bin/mocika-shield-cli` | `/usr/lib/MocikaShield/{tools,resources}` |
+| Linux AppImage | 完整解包目录内 `usr/bin/mocika-shield-cli` | 同一目录内 `usr/lib/MocikaShield/{tools,resources}` |
+| Windows 安装包 | 实际安装目录内 `mocika-shield-cli.exe` | 同目录的 `tools/`、`resources/` |
 
-按[构建指南](build.md)先准备壳资源，再运行 `make build-gui` 或 `bash scripts/build-macos-app.sh`。使用完整 `.app`，不要只提取裸二进制、事后替换包内文件或让 Agent 自行下载替代工具。应用不一定在 `/Applications`，以下路径都须替换为真实位置：
+三平台均需完整 JDK 8+，确保宿主能找到 `java`、`keytool`；不用另装 Android SDK。不要只提取裸 CLI、替换包内文件或让 Agent 下载替代工具。自行构建时另见[构建指南](build.md)。
+
+### macOS
+
+使用完整 `.app`，不假定它位于 `/Applications`。把下列路径换成实际位置：
 
 ```bash
 SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
@@ -27,19 +36,41 @@ SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
 "$SHIELD_CLI" mcp serve --help
 ```
 
-应用布局为：
+### Windows（PowerShell）
 
-```text
-MocikaShield.app/Contents/
-├── MacOS/
-│   ├── mocika-shield              # GUI
-│   └── shield                     # 独立 CLI，含本地 MCP 入口
-└── Resources/
-    ├── tools/                    # 共用 JAR
-    └── resources/                # 标准／工控资源
+先安装预览版，在实际安装目录确认 `mocika-shield-cli.exe`；不假定是系统级或当前用户安装。使用 PowerShell 的调用运算符 `&`，不需要 Bash：
+
+```powershell
+$ShieldCli = 'C:\你的实际安装目录\MocikaShield\mocika-shield-cli.exe'
+& $ShieldCli --version
+& $ShieldCli agent --help
+& $ShieldCli mcp serve --help
 ```
 
-Skill 不在应用包中。输入、输出、可选项目配置和技能安装目录留在包外；输出父目录须已存在，不能覆盖原包或已有目标。完整构建和签名只说明应用包就绪，不等于 Android 设备业务已验。
+### Linux（deb／AppImage）
+
+deb 安装后：
+
+```bash
+SHIELD_CLI='/usr/bin/mocika-shield-cli'
+"$SHIELD_CLI" --version
+"$SHIELD_CLI" agent --help
+"$SHIELD_CLI" mcp serve --help
+```
+
+AppImage 不使用临时挂载中的命令路径。确认可信安装包已具有可执行权限，先在自选、可写且没有 `squashfs-root` 的目录中解包，再保留完整解包目录：
+
+```bash
+'/你的下载目录/MocikaShield_1.5.0-beta.1_linux_amd64.AppImage' --appimage-extract
+SHIELD_CLI="$PWD/squashfs-root/usr/bin/mocika-shield-cli"
+"$SHIELD_CLI" --version
+"$SHIELD_CLI" agent --help
+"$SHIELD_CLI" mcp serve --help
+```
+
+示例文件名须按下载资产替换；升级时解包到新目录并更新宿主 CLI 路径，不在任务或 MCP 会话存活时覆盖旧目录。deb／AppImage 使用安装别名，不能假定在 PATH 中输入 `shield` 即可调用。
+
+Skill 不在应用包中。输入、输出、可选项目配置和技能安装目录留在包外；输出父目录须已存在，不能覆盖原包或已有目标。三平台 CLI／MCP 的包级验证不等于每种 Agent 客户端、GUI 渲染或 Android 业务已验；实测系统和 JDK 范围以[平台验收](../process/agent-desktop-platforms-plan.md)为准。
 
 ## 最简共享 MCP 配置
 
@@ -51,9 +82,13 @@ Skill 不在应用包中。输入、输出、可选项目配置和技能安装�
 "$SHIELD_CLI" cert list
 ```
 
+Windows 使用 `& $ShieldCli cert list`，其余命令参数相同；后续 Bash 示例中的 `"$SHIELD_CLI"` 在 PowerShell 下对应 `& $ShieldCli`，不能直接照搬反斜杠续行。
+
 列表不含密码，但有名称、路径和 Alias，只在本机查看，不把整份摘要贴到对话中。未指定 `--app-home` 时即使用 GUI 的原资料；该参数只供宿主显式隔离测试，不是共享 GUI 资料的必填项，也不能通过复制数据库代替迁移。
 
 将下面的路径和证书编号替换为本机实际值，再把服务定义放入宿主支持的 **stdio MCP** 配置位置。`command` 是程序绝对路径，`args` 是独立参数数组，不经过 shell；具体外层包装字段由客户端决定，不声称所有客户端格式相同：
+
+macOS：
 
 ```json
 {
@@ -62,6 +97,34 @@ Skill 不在应用包中。输入、输出、可选项目配置和技能安装�
     "mcp", "serve",
     "--use-shared-settings",
     "--allow-execution",
+    "--input-root", "/你的APK目录",
+    "--output-root", "/你的产物目录",
+    "--allow-certificate", "所选证书编号"
+  ]
+}
+```
+
+Windows（JSON 中反斜杠须写为 `\\`，不要在 `command` 字符串里额外嵌入引号或 `&`）：
+
+```json
+{
+  "command": "C:\\你的实际安装目录\\MocikaShield\\mocika-shield-cli.exe",
+  "args": [
+    "mcp", "serve", "--use-shared-settings", "--allow-execution",
+    "--input-root", "C:\\你的APK目录",
+    "--output-root", "C:\\你的产物目录",
+    "--allow-certificate", "所选证书编号"
+  ]
+}
+```
+
+Linux（AppImage 将 `command` 改为完整解包目录中的绝对路径）：
+
+```json
+{
+  "command": "/usr/bin/mocika-shield-cli",
+  "args": [
+    "mcp", "serve", "--use-shared-settings", "--allow-execution",
     "--input-root", "/你的APK目录",
     "--output-root", "/你的产物目录",
     "--allow-certificate", "所选证书编号"
@@ -155,13 +218,18 @@ Agent 先调用 `shield_plan`，提供相对 `input`、`output` 和明确的 `ce
 
 唯一源码为根目录 [skills/mocika-shield/](../../skills/mocika-shield/SKILL.md)。将整个目录安装到所用 Agent 支持的项目级或用户级技能位置，保留 `SKILL.md`、`references/`、`scripts/`、`agents/`；不从 App 提取，不放入本仓库的隐藏开发技能目录，不要求各客户端使用相同路径。已有目标先核对和备份，不直接覆盖。也可使用用户已有的技能管理工具，本项目不自研安装器。
 
-当前 Skill 为 `0.3.0`、公共 CLI 协议 `1`，识别加固计划 `2/3` 和独立签名计划 `4`；声明不等于 App 已具备所有接口。它按“本次明确绝对路径 → 宿主 `MOCIKA_SHIELD_CLI` → PATH 中 `shield` → 询问”定位，无效明确配置不回退，多文件歧义停止，不遍历用户目录。例如由用户给宿主设置：
+当前 Skill 为 `0.3.1`、公共 CLI 协议 `1`，识别加固计划 `2/3` 和独立签名计划 `4`；声明不等于 App 已具备所有接口。它按“本次明确绝对路径 → 宿主 `MOCIKA_SHIELD_CLI` → PATH 中 `shield` → 询问”定位，无效明确配置不回退，多文件歧义停止，不遍历用户目录。三平台优先给宿主配置安装包内 CLI 的完整路径。例如：
 
 ```bash
+# macOS；Linux 改为 /usr/bin/mocika-shield-cli 或 AppImage 解包后的绝对路径
 export MOCIKA_SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/shield'
 ```
 
-终端环境不代表桌面客户端会继承，也不是持久安装。定位脚本 `scripts/resolve-cli.sh` 只查找、不执行候选；成功后仍需核对可信来源、完整资源及所需帮助入口。共享资料／仅签名按包内参考处理，不由 Skill 注册或启动 MCP。
+```powershell
+$env:MOCIKA_SHIELD_CLI = 'C:\你的实际安装目录\MocikaShield\mocika-shield-cli.exe'
+```
+
+终端环境只作用于当前进程及其后续子进程，不代表已打开的桌面客户端会继承，也不是持久安装；可在所用宿主支持的本地环境配置中保存路径，不把它写进 Skill。macOS／Linux 可用技能中的 Bash 定位脚本；Windows 按技能内[平台指引](../../skills/mocika-shield/references/platforms.md)使用原生路径和进程参数数组，不依赖 Bash，也不把 PowerShell 的别名或函数当作 CLI。共享资料／仅签名按包内参考处理，不由 Skill 注册或启动 MCP。
 
 更新时按用户选择的仓库提交／版本或管理工具更新完整技能，保留外部路径、证书和项目配置。更新后重新加载并核对能力；不在业务任务中自更新、不跨升级复用执行计划，不要求 Skill 与 App 同版本升级。用户可明确说：
 
@@ -181,4 +249,4 @@ export MOCIKA_SHIELD_CLI='/你的实际目录/MocikaShield.app/Contents/MacOS/sh
 - MCP 取消使用本次请求的 `notifications/cancelled`。客户端可能不再收到被取消调用的结果；受控 APK 任务可用同连接的 `shield_execution_status` 查询。独立签名需要取消后查询引用时，在原请求提供进度标识并保存通知中的任务编号，无须前置计划；管理取消不伪造为 APK 状态记录。
 - 服务总期限、连接关闭和有限收尾沿用既有契约，晚取消不删除已发布产物。源码调试时勿在服务存活期间原地编译／替换 CLI 或固定配置。
 
-当前 Agent 已完成显式 Skill 使用、临时标准流工具调用及真实签名，见[会话记录](../process/agent-session-validation.md)和[交付审查](../process/agent-delivery-review.md)；完整包、旧证书复用与协议专项分别有实际证据。这不同于宿主原生注册、新会话自动发现、每个客户端审批／取消按钮或跨平台验收。未经确认不写任何客户端全局配置、安装技能或修改 Java；本批文档调整不要求重复已通过的完整测试。
+macOS 已完成显式 Skill 使用、临时标准流工具调用及真实签名，见[会话记录](../process/agent-session-validation.md)和[交付审查](../process/agent-delivery-review.md)；三平台完整包、共享资料及协议专项的范围见[平台验收](../process/agent-desktop-platforms-plan.md)。这些证据不等于全部宿主的原生注册、新会话自动发现或审批／取消按钮均已验证。未经确认不写任何客户端全局配置、安装技能或修改 Java；本批文档调整不要求重复已通过的完整测试。

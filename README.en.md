@@ -8,7 +8,7 @@
 
 Protect and sign Android APKs and manage certificates locally. DEX encryption, certificate binding, and baseline runtime protection raise the cost of static analysis, tampering, and unauthorized re-signing—not a guarantee against unpacking or reverse engineering.
 
-The recommended desktop GUI supports Windows, macOS, Linux, and Chinese/English interfaces. A source-built CLI is available for automation and development.
+The desktop GUI supports Windows, macOS, Linux, and Chinese/English interfaces. The 1.5.0 previews also bundle a CLI and local MCP server for automation.
 
 > Use only with applications you own or are authorized to protect. Do not bypass third-party protections or use this tool for unauthorized purposes.
 

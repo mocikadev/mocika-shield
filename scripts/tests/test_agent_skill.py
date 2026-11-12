@@ -38,7 +38,7 @@ class AgentSkillTests(unittest.TestCase):
             copied = Path(directory) / "Android 工程/.agents/skills/mocika-shield"
             shutil.copytree(SKILL, copied)
             files = {path.relative_to(copied) for path in copied.rglob("*") if path.is_file()}
-            self.assertEqual(files, {Path("SKILL.md"), Path("references/cli.md"), Path("references/shared-data.md"), Path("agents/openai.yaml"), Path("scripts/resolve-cli.sh")})
+            self.assertEqual(files, {Path("SKILL.md"), Path("references/cli.md"), Path("references/shared-data.md"), Path("references/platforms.md"), Path("agents/openai.yaml"), Path("scripts/resolve-cli.sh")})
             self.assertTrue(local_targets(copied))
             for name in files:
                 self.assertEqual((copied / name).read_bytes(), (SKILL / name).read_bytes())
