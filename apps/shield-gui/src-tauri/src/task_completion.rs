@@ -139,27 +139,6 @@ fn is_executed_failure(error: &ExecutionFailure) -> bool {
     error.executed && !error.cancelled
 }
 
-#[cfg(test)]
-mod tests {
-    use super::is_executed_failure;
-    use crate::failure_diagnostic::ExecutionFailure;
-    use shield_core::diagnostic::{Diagnostic, FailureCode};
-
-    #[test]
-    fn 只有实际执行失败才进入统计与报告通道() {
-        let preflight = ExecutionFailure::preflight(
-            "APK 预检未通过".to_string(),
-            Diagnostic::new(FailureCode::UnsupportedAbi),
-        );
-        let runtime = ExecutionFailure::from("发送进度事件失败".to_string());
-        let cancelled = ExecutionFailure::from_shield(shield_core::ShieldError::Cancelled);
-
-        assert!(!is_executed_failure(&preflight));
-        assert!(is_executed_failure(&runtime));
-        assert!(!is_executed_failure(&cancelled));
-    }
-}
-
 pub(crate) fn certificate_outcome<T>(
     app: &tauri::AppHandle,
     result: Result<CertificateOutcome<T>, ExecutionFailure>,
@@ -179,5 +158,26 @@ pub(crate) fn certificate_outcome<T>(
             Ok(outcome.value)
         }
         Err(error) => certificate_result(app, Err(error)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_executed_failure;
+    use crate::failure_diagnostic::ExecutionFailure;
+    use shield_core::diagnostic::{Diagnostic, FailureCode};
+
+    #[test]
+    fn 只有实际执行失败才进入统计与报告通道() {
+        let preflight = ExecutionFailure::preflight(
+            "APK 预检未通过".to_string(),
+            Diagnostic::new(FailureCode::UnsupportedAbi),
+        );
+        let runtime = ExecutionFailure::from("发送进度事件失败".to_string());
+        let cancelled = ExecutionFailure::from_shield(shield_core::ShieldError::Cancelled);
+
+        assert!(!is_executed_failure(&preflight));
+        assert!(is_executed_failure(&runtime));
+        assert!(!is_executed_failure(&cancelled));
     }
 }

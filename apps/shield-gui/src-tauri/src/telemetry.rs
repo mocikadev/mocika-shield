@@ -1,4 +1,5 @@
-use crate::app_config::{AppConfigState, DailyTelemetry};
+use crate::app_config::{AppConfigState, DailyTelemetry, TelemetryConfig};
+use crate::build_identity::BuildIdentity;
 use crate::failure_diagnostic::{FailureContext, FailureReasonCount};
 use chrono_like::today_utc;
 use serde::Serialize;
@@ -10,6 +11,8 @@ use tauri::Manager;
 
 const EVENT_SYNC_DELAY: Duration = Duration::from_secs(30);
 const TELEMETRY_URL: &str = "https://mocika-shield-stats-api.xuechao-suo.workers.dev/events/daily";
+const SOURCE_TELEMETRY_URL: &str =
+    "https://mocika-shield-stats-api.xuechao-suo.workers.dev/events/daily-v3";
 
 #[derive(Default)]
 pub(crate) struct TelemetryRuntime {
@@ -123,13 +126,20 @@ pub(crate) fn sign_failure_stage(step: &str) -> FailureStage {
 pub(crate) fn record_app_start(state: &AppConfigState) {
     let today = today_utc();
     let _ = state.mutate(|config| {
+        if !config.telemetry.enabled {
+            return;
+        }
         normalize_daily_entries(&mut config.telemetry.daily);
-        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
+        let entry = current_entry(state, &mut config.telemetry, &today);
         entry.app_start_count = entry.app_start_count.saturating_add(1);
         let cutoff = today_utc_days_ago(30);
         config
             .telemetry
             .daily
+            .retain(|_, item| item.usage_date >= cutoff && !item.uploaded);
+        config
+            .telemetry
+            .daily_sources
             .retain(|_, item| item.usage_date >= cutoff && !item.uploaded);
     });
 }
@@ -137,8 +147,11 @@ pub(crate) fn record_app_start(state: &AppConfigState) {
 pub(crate) fn record_event(state: &AppConfigState, event: TelemetryEvent) {
     let today = today_utc();
     let _ = state.mutate(|config| {
+        if !config.telemetry.enabled {
+            return;
+        }
         normalize_daily_entries(&mut config.telemetry.daily);
-        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
+        let entry = current_entry(state, &mut config.telemetry, &today);
         match event {
             TelemetryEvent::ProtectStarted => {
                 entry.protect_start_count = entry.protect_start_count.saturating_add(1)
@@ -156,8 +169,11 @@ pub(crate) fn record_event(state: &AppConfigState, event: TelemetryEvent) {
 pub(crate) fn record_failure(state: &AppConfigState, stage: FailureStage) {
     let today = today_utc();
     let _ = state.mutate(|config| {
+        if !config.telemetry.enabled {
+            return;
+        }
         normalize_daily_entries(&mut config.telemetry.daily);
-        let entry = daily_entry(&mut config.telemetry.daily, &today, app_version());
+        let entry = current_entry(state, &mut config.telemetry, &today);
         let count = entry
             .failure_counts
             .entry(stage.code().to_string())
@@ -181,7 +197,7 @@ pub(crate) fn record_reason(
         if !config.telemetry.enabled {
             return;
         }
-        let entry = daily_entry(&mut config.telemetry.daily, &today_utc(), app_version());
+        let entry = current_entry(state, &mut config.telemetry, &today_utc());
         merge_reason(
             &mut entry.failure_reason_counts,
             FailureReasonCount {
@@ -218,13 +234,32 @@ fn daily_entry<'a>(
     daily: &'a mut BTreeMap<String, DailyTelemetry>,
     usage_date: &str,
     version: &str,
+    identity: Option<&BuildIdentity>,
 ) -> &'a mut DailyTelemetry {
-    let key = daily_key(usage_date, version);
+    let key = match identity {
+        Some(identity) => format!("{}|{}", daily_key(usage_date, version), identity.key()),
+        None => daily_key(usage_date, version),
+    };
     let entry = daily.entry(key).or_default();
     entry.usage_date = usage_date.to_string();
     entry.app_version = version.to_string();
+    entry.build_identity = identity.cloned();
     entry.failure_classifier_version = Some(CLASSIFIER_VERSION);
     entry
+}
+
+fn current_entry<'a>(
+    state: &AppConfigState,
+    telemetry: &'a mut TelemetryConfig,
+    date: &str,
+) -> &'a mut DailyTelemetry {
+    let identity = state.telemetry_identity();
+    let daily = if identity.is_some() {
+        &mut telemetry.daily_sources
+    } else {
+        &mut telemetry.daily
+    };
+    daily_entry(daily, date, app_version(), identity)
 }
 
 fn normalize_daily_entries(daily: &mut BTreeMap<String, DailyTelemetry>) {
@@ -283,6 +318,10 @@ fn merge_daily_telemetry(target: &mut DailyTelemetry, source: DailyTelemetry) {
 
 #[derive(Serialize)]
 struct DailyPayload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    schema_version: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build_identity: Option<BuildIdentity>,
     anonymous_id: String,
     usage_date: String,
     app_version: String,
@@ -309,52 +348,94 @@ struct FailureCountPayload {
 }
 
 pub(crate) async fn sync_pending(state: &AppConfigState) {
+    sync_pending_to(state, TELEMETRY_URL, SOURCE_TELEMETRY_URL).await;
+}
+
+async fn sync_pending_to(state: &AppConfigState, legacy_url: &str, source_url: &str) {
     let Ok(snapshot) = state.read() else { return };
     if !snapshot.telemetry.enabled {
         return;
     }
     let today = today_utc();
-    let pending: Vec<_> = snapshot
-        .telemetry
-        .daily
-        .iter()
-        .filter(|(_, item)| item.usage_date.as_str() <= today.as_str() && !item.uploaded)
-        .map(|(key, item)| (key.clone(), item.clone()))
-        .collect();
+    let pending = pending_snapshots(&snapshot.telemetry, &today);
     if pending.is_empty() {
         return;
     }
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
     {
         Ok(v) => v,
         Err(_) => return,
     };
-    for (key, item) in pending {
+    for (source_aware, key, item) in pending {
+        if !state.read().is_ok_and(|current| current.telemetry.enabled) {
+            break;
+        }
         let payload = daily_payload(snapshot.telemetry.anonymous_id.clone(), item);
-        let Ok(response) = client.post(TELEMETRY_URL).json(&payload).send().await else {
+        let url = if source_aware { source_url } else { legacy_url };
+        let Ok(response) = client.post(url).json(&payload).send().await else {
             continue;
         };
-        if response.status().is_success() {
-            mark_uploaded(state, &key, &today);
+        if (source_aware && response.status() == reqwest::StatusCode::NO_CONTENT)
+            || (!source_aware && response.status().is_success())
+        {
+            mark_uploaded(state, &key, &today, source_aware);
         }
     }
 }
 
+fn pending_snapshots(
+    telemetry: &TelemetryConfig,
+    today: &str,
+) -> Vec<(bool, String, DailyTelemetry)> {
+    let mut result = Vec::new();
+    for (source_aware, daily) in [(false, &telemetry.daily), (true, &telemetry.daily_sources)] {
+        for (key, item) in daily {
+            if item.usage_date.as_str() > today || item.uploaded {
+                continue;
+            }
+            let mut snapshot = item.clone();
+            if source_aware {
+                if !snapshot
+                    .build_identity
+                    .as_ref()
+                    .is_some_and(BuildIdentity::is_valid)
+                {
+                    continue;
+                }
+            } else {
+                // 旧分区的身份永不从当前构建补齐，也不借额外字段升级协议。
+                snapshot.build_identity = None;
+            }
+            result.push((source_aware, key.clone(), snapshot));
+        }
+    }
+    result
+}
+
 fn daily_payload(anonymous_id: String, item: DailyTelemetry) -> DailyPayload {
+    // 新协议拒绝超限值；本地累计不归零，只限制单日上报上限。
+    let limit = if item.build_identity.is_some() {
+        10_000
+    } else {
+        u32::MAX
+    };
     DailyPayload {
+        schema_version: item.build_identity.as_ref().map(|_| 3),
+        build_identity: item.build_identity.clone(),
         anonymous_id,
         usage_date: item.usage_date.clone(),
         app_version: item.app_version.clone(),
         platform: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
-        app_start_count: item.app_start_count,
-        protect_start_count: item.protect_start_count,
-        protect_success_count: item.protect_success_count,
-        protect_failed_count: item.protect_failed_count,
-        sign_success_count: item.sign_success_count,
-        sign_failed_count: item.sign_failed_count,
+        app_start_count: item.app_start_count.min(limit),
+        protect_start_count: item.protect_start_count.min(limit),
+        protect_success_count: item.protect_success_count.min(limit),
+        protect_failed_count: item.protect_failed_count.min(limit),
+        sign_success_count: item.sign_success_count.min(limit),
+        sign_failed_count: item.sign_failed_count.min(limit),
         failure_classifier_version: item.failure_classifier_version,
         failure_reason_counts: item
             .failure_classifier_version
@@ -365,7 +446,7 @@ fn daily_payload(anonymous_id: String, item: DailyTelemetry) -> DailyPayload {
             .map(|(code, count)| FailureCountPayload {
                 operation: failure_code_parts(code).0.to_string(),
                 stage: failure_code_parts(code).1.to_string(),
-                count: *count,
+                count: (*count).min(limit),
             })
             .collect(),
     }
@@ -392,10 +473,18 @@ fn failure_code_parts(code: &str) -> (&str, &str) {
     }
 }
 
-fn mark_uploaded(state: &AppConfigState, date: &str, today: &str) {
+fn mark_uploaded(state: &AppConfigState, key: &str, today: &str, source_aware: bool) {
     let _ = state.mutate(|config| {
-        if date < today {
-            config.telemetry.daily.remove(date);
+        let daily = if source_aware {
+            &mut config.telemetry.daily_sources
+        } else {
+            &mut config.telemetry.daily
+        };
+        if daily
+            .get(key)
+            .is_some_and(|item| item.usage_date.as_str() < today)
+        {
+            daily.remove(key);
         }
     });
 }
@@ -466,8 +555,10 @@ mod tests {
         assert!(old_json.get("failure_classifier_version").is_none());
         assert!(old_json.get("failure_reason_counts").is_none());
 
-        let mut current = DailyTelemetry::default();
-        current.failure_classifier_version = Some(1);
+        let mut current = DailyTelemetry {
+            failure_classifier_version: Some(1),
+            ..Default::default()
+        };
         current
             .failure_reason_counts
             .push(crate::failure_diagnostic::FailureReasonCount {
@@ -646,11 +737,22 @@ mod tests {
             .insert("2026-07-23".to_string(), DailyTelemetry::default());
         let state = AppConfigState::new(dir.path().join("config.toml"), config);
 
-        mark_uploaded(&state, "2026-07-22", "2026-07-23");
-        mark_uploaded(&state, "2026-07-23", "2026-07-23");
+        state
+            .mutate(|config| {
+                for (key, item) in &mut config.telemetry.daily {
+                    item.usage_date = key.clone();
+                }
+            })
+            .unwrap();
+        mark_uploaded(&state, "2026-07-22", "2026-07-23", false);
+        mark_uploaded(&state, "2026-07-23", "2026-07-23", false);
 
         let daily = state.read().unwrap().telemetry.daily;
         assert!(!daily.contains_key("2026-07-22"));
         assert!(daily.contains_key("2026-07-23"));
     }
 }
+
+#[cfg(test)]
+#[path = "telemetry/source_tests.rs"]
+mod source_tests;

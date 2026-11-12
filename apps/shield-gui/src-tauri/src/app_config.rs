@@ -22,6 +22,9 @@ pub(crate) struct TelemetryConfig {
     pub enabled: bool,
     pub anonymous_id: String,
     pub daily: std::collections::BTreeMap<String, DailyTelemetry>,
+    /// 独立于旧分区；旧程序保存已知字段时不应归并这些来源快照。
+    #[serde(default)]
+    pub daily_sources: std::collections::BTreeMap<String, DailyTelemetry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -31,6 +34,9 @@ pub(crate) struct DailyTelemetry {
     pub usage_date: String,
     /// 仅来自桌面端编译版本，不接受前端或 APK 输入。
     pub app_version: String,
+    /// 事件记录时固定；旧记录为空，不在发送时套用当前身份。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub build_identity: Option<crate::build_identity::BuildIdentity>,
     pub app_start_count: u32,
     pub protect_start_count: u32,
     pub protect_success_count: u32,
@@ -50,6 +56,7 @@ impl Default for TelemetryConfig {
             enabled: true,
             anonymous_id: uuid::Uuid::new_v4().to_string(),
             daily: std::collections::BTreeMap::new(),
+            daily_sources: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -126,6 +133,7 @@ pub(crate) struct AppConfigState {
     config: Mutex<AppConfig>,
     persisted: AtomicBool,
     application_sharing_blocked: Mutex<std::collections::BTreeSet<String>>,
+    telemetry_identity: Option<crate::build_identity::BuildIdentity>,
 }
 
 impl AppConfigState {
@@ -136,7 +144,20 @@ impl AppConfigState {
             config: Mutex::new(config),
             persisted,
             application_sharing_blocked: Mutex::new(std::collections::BTreeSet::new()),
+            telemetry_identity: None,
         }
+    }
+
+    pub(crate) fn with_telemetry_identity(
+        mut self,
+        identity: Option<crate::build_identity::BuildIdentity>,
+    ) -> Self {
+        self.telemetry_identity = identity;
+        self
+    }
+
+    pub(crate) fn telemetry_identity(&self) -> Option<&crate::build_identity::BuildIdentity> {
+        self.telemetry_identity.as_ref()
     }
 
     fn store(&self) -> ConfigStore {

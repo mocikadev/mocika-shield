@@ -6,6 +6,34 @@ export const FAILURE_CODES = new Set([
   "TOOL_PROCESS_FAILED", "UNKNOWN",
 ]);
 
+const FAILURE_STAGES = new Map([
+  ["protect", new Set(["prepare", "unpack", "manifest", "dex_runtime", "align", "sign"])],
+  ["sign", new Set(["prepare", "align", "execute"])],
+  ["task", new Set(["cancelled", "unknown"])],
+]);
+
+export function normalizeFailureCounts(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("失败阶段无效");
+  const grouped = new Map();
+  for (const item of value) {
+    const operation = item?.operation;
+    const stage = item?.stage;
+    if (typeof operation !== "string" || !FAILURE_STAGES.get(operation)?.has(stage)) {
+      throw new Error("失败阶段无效");
+    }
+    if (!Number.isInteger(item.count) || item.count < 0 || item.count > 10000) {
+      throw new Error("失败计数无效");
+    }
+    const key = `${operation}:${stage}`;
+    grouped.set(key, Math.min(10000, (grouped.get(key) || 0) + item.count));
+  }
+  return [...grouped.entries()].map(([key, count]) => {
+    const [operation, stage] = key.split(":");
+    return { operation, stage, count };
+  });
+}
+
 const ALLOWED_FIELDS = new Set([
   "flow", "operation", "stage", "code", "classifier_version", "count",
 ]);

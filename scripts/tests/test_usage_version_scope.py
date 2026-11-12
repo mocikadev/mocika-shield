@@ -13,7 +13,7 @@ class UsageVersionScopeTests(unittest.TestCase):
         self.db = sqlite3.connect(":memory:")
         self.addCleanup(self.db.close)
         self.db.row_factory = sqlite3.Row
-        for table in ("daily_usage", "daily_usage_v2"):
+        for table in ("daily_usage", "daily_usage_v2", "daily_usage_v3"):
             self.db.execute(f"CREATE TABLE {table} (anonymous_id TEXT, usage_date TEXT, app_version TEXT, "
                             "app_start_count INTEGER, protect_success_count INTEGER, protect_failed_count INTEGER, "
                             "sign_success_count INTEGER, sign_failed_count INTEGER)")
