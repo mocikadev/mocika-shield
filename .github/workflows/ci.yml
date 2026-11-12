@@ -154,6 +154,9 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: 核心严格检查
         run: cargo clippy -p shield-core --all-targets --locked -- -D warnings
+      - name: 普通签名提交回滚与 Windows 文件占用
+        if: inputs.validation_scope == 'windows_defaults'
+        run: cargo test -p shield-core --locked --lib signing::artifacts::tests -- --test-threads=1 --show-output
       - name: Java 17 完整加固与取消写回边界
         if: inputs.validation_scope == 'windows_protection'
         run: cargo test -p shield-core --locked --lib protect_api::context_tests -- --include-ignored --test-threads=1 --show-output
