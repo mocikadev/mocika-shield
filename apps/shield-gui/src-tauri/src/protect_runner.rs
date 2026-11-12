@@ -199,7 +199,6 @@ pub(crate) async fn execute_protect_apk(
                     task_manager.progress(&progress_window, &progress_task_id, step, message)
                 },
             )?;
-            let _ = std::fs::remove_file(format!("{final_output}.idsig"));
             let _ = std::fs::remove_file(unsigned_output);
             task_manager.progress(
                 &progress_window,

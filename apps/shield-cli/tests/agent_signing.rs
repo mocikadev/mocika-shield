@@ -61,7 +61,16 @@ fn command_timeout(
     cmd
 }
 fn result(output: Output, success: bool) -> Value {
-    assert_eq!(output.status.success(), success, "单次签名退出状态错误");
+    let final_code = std::str::from_utf8(&output.stdout)
+        .ok()
+        .and_then(|text| text.lines().last())
+        .and_then(|line| serde_json::from_str::<Value>(line).ok())
+        .and_then(|value| value.get("code").cloned());
+    assert_eq!(
+        output.status.success(),
+        success,
+        "单次签名退出状态错误：{final_code:?}"
+    );
     assert!(output.stderr.is_empty());
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(!text.contains(SECRET));

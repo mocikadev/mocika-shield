@@ -11,6 +11,7 @@ mod cert_store;
 mod error_report;
 mod failure_diagnostic;
 mod file_ops;
+mod linux_webview;
 mod manifest_inspect;
 mod protect_runner;
 mod report_context;
@@ -475,6 +476,7 @@ fn get_diagnostic_info(app: tauri::AppHandle) -> String {
 }
 
 fn main() {
+    linux_webview::configure();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(CancelHandle(Arc::new(AtomicBool::new(false))))

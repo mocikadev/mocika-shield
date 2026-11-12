@@ -53,7 +53,8 @@ fn 普通签名中文材料覆盖原地签名验签和失败保留() {
         [
             SigningProgressStep::Prepare,
             SigningProgressStep::Align,
-            SigningProgressStep::Sign
+            SigningProgressStep::Sign,
+            SigningProgressStep::Commit,
         ]
     );
     assert_eq!(contents(&output), content);
@@ -73,7 +74,27 @@ fn 普通签名中文材料覆盖原地签名验签和失败保留() {
     sign(&opts, |_| Ok(())).unwrap();
     assert!(root.join("普通中文 输出😀.apk.idsig").is_file());
     independently_verify(root, &stores.java, &output, &stores.fingerprint);
+    let signed_output = fs::read(&output).unwrap();
+    let attachment = root.join("普通中文 输出😀.apk.idsig");
+    let old_attachment = fs::read(&attachment).unwrap();
+    assert!(sign(&opts, |stage| {
+        if stage == SigningProgressStep::Commit {
+            Err("提交前取消".into())
+        } else {
+            Ok(())
+        }
+    })
+    .is_err());
+    assert_eq!(fs::read(&output).unwrap(), signed_output);
+    assert_eq!(fs::read(&attachment).unwrap(), old_attachment);
+    opts.key_alias = "不存在的别名".into();
+    assert!(sign(&opts, |_| Ok(())).is_err());
+    assert_eq!(fs::read(&output).unwrap(), signed_output);
+    assert_eq!(fs::read(&attachment).unwrap(), old_attachment);
+    opts.key_alias = "含,引号\"😀".into();
     opts.signing_versions.v4 = false;
+    sign(&opts, |_| Ok(())).unwrap();
+    assert!(!attachment.exists(), "关闭 V4 后不保留不匹配的旧附件");
     opts.output_path = None;
     sign(&opts, |_| Ok(())).unwrap();
     independently_verify(root, &stores.java, &input, &stores.fingerprint);

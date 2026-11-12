@@ -127,6 +127,7 @@ fn signing_step_name(step: SigningProgressStep) -> &'static str {
         SigningProgressStep::Prepare => "prepare",
         SigningProgressStep::Align => "align",
         SigningProgressStep::Sign => "sign",
+        SigningProgressStep::Commit => "sign",
     }
 }
 
@@ -135,6 +136,7 @@ fn signing_step_message(step: SigningProgressStep) -> &'static str {
         SigningProgressStep::Prepare => "准备签名环境",
         SigningProgressStep::Align => "对齐 APK",
         SigningProgressStep::Sign => "写入 APK 签名",
+        SigningProgressStep::Commit => "保存签名产物",
     }
 }
 

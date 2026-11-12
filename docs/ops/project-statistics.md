@@ -20,6 +20,8 @@
 - 匿名数据只覆盖允许并成功完成上报的客户端
 - 版本号由客户端声明；匹配公开 Release 只说明版本号相同，不证明使用官方安装包。未匹配也可能是自行构建，不据此判定恶意请求。
 
+服务端可能同时收到其他构建的兼容协议请求。活跃、启动、加固、签名、地区、应用分享和错误报告的未筛选总量，均描述**全部成功接收的客户端记录**，不能直接写成本项目用户或官方产物使用量。维护快照的 `population_scope=all_received_installations` 与 `source_attribution=unverified_client_version` 明示该边界；历史未含标记的快照不回填。未匹配版本保留在原统计中，不能未经证据删除或指定来源。
+
 ## 当前维护查询与计数规则
 
 查看最新状态时分别查询两个来源，不使用历史快照冒充实时数：
@@ -34,6 +36,10 @@
 新旧表同标识、日期、版本重叠时优先第二代表；不同版本的事件次数保留相加，实例数去重。各版本日活之和、每日活跃之和均不能作为总日活或周／月活。一个实例可能使用多版本，不等于一个自然人或组织；不能精确剔除未登记的自测。
 
 维护快照每个 `version_trend` 行新增 `release_version_match`：`true` 匹配本次采集的已公开 Release，`false` 未匹配，Release 列表不可用时为 `null`。保留完整版本号，查看时将匹配与未匹配分开列出，不把二者解释为已鉴定的官方／非官方安装来源。
+
+相同匹配标记也适用于失败阶段、原因与分类覆盖行。需要按版本范围比较时，使用私有 [`usage-version-scope.sql`](../../tools/stats-worker/queries/usage-version-scope.sql)：四个参数依次是起止 UTC 日期、成功获取的公开 Release 版本 JSON 数组（去除标签的 `v` 前缀、排除草稿）、待排除自测标识或 `null`。版本列表查询失败时不执行筛选，也不传空数组冒充查询成功。返回全部接收、匹配版本、未匹配版本三组；每组跨日和跨版本独立去重，同一实例可跨组，组人数不可相加。查询不返回标识或改写历史。
+
+应用分享和错误报告使用私有 [`report-version-scope.sql`](../../tools/stats-worker/queries/report-version-scope.sql)，三个参数依次是起止 UTC 日期、公开版本 JSON 数组；分享按 `success_date/tool_version`、报告按服务端 `received_at/app_version` 统计。包名在每组内独立去重，跨组可能重叠，不能相加。查询只返回数量，不输出包名或报告正文，也不将这两类私有明细写入快照。国家／地区的未筛选结果仍是全部接收实例的网络出口分布，不据此推断本项目用户的实际所在地。当前协议不提供来源认证，不新增硬件标识、联网校验或客户端内置“认证密钥”来伪造可信来源。
 
 `active_devices_definition=distinct_installation_per_utc_period` 标识新口径。旧客户端仍可正常上报；旧接口缺少窗口时 `activity_windows_available=false`、`activity_windows=null`，不以日趋势加总补算。已有历史快照不回填，新旧口径须按该标识区分。可用字段缺失和没有使用记录不是同一件事。
 

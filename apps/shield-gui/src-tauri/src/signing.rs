@@ -53,6 +53,7 @@ pub(crate) fn execute_sign_apk(
             SigningProgressStep::Prepare => ("PrepareSign", "准备签名参数"),
             SigningProgressStep::Align => ("AlignApk", "对齐待签名 APK"),
             SigningProgressStep::Sign => ("SignApk", "调用 apksigner 执行签名"),
+            SigningProgressStep::Commit => ("SignApk", "保存签名产物"),
         };
         on_progress(step, message)
     })

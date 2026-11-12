@@ -53,6 +53,23 @@ class ProjectStatsTests(unittest.TestCase):
         unknown = build_snapshot(payload, datetime(2026, 10, 26, tzinfo=timezone.utc))
         self.assertEqual([r["release_version_match"] for r in unknown["usage"]["version_trend"]], [None, None, None])
 
+    def test_接收总量和失败分类不冒充官方来源(self):
+        usage = {"available": True, "active_devices": 9,
+                 "activity_windows": [{"window_days": 7, "active_devices": 11}]}
+        fields = ("version_trend", "failure_breakdown", "failure_reason_breakdown", "failure_classifier_coverage")
+        for field in fields:
+            usage[field] = [{"app_version": "1.4.3"}, {"app_version": "9.0.0"}]
+        payload = {"repository": {}, "views": {}, "clones": {}, "usage": usage,
+                   "releases": [{"tag_name": "v1.4.3", "published_at": "2026-10-29", "assets": []}]}
+        result = build_snapshot(payload, datetime(2026, 11, 12, tzinfo=timezone.utc))["usage"]
+        self.assertEqual(result["population_scope"], "all_received_installations")
+        self.assertEqual(result["source_attribution"], "unverified_client_version")
+        self.assertEqual(result["active_devices"], 9)
+        self.assertEqual(result["activity_windows"], usage["activity_windows"])
+        for field in fields:
+            self.assertEqual([r["release_version_match"] for r in result[field]], [True, False])
+            self.assertNotIn("release_version_match", usage[field][0])
+
     @patch("scripts.project_stats.urllib.request.urlopen")
     def test_非法窗口不影响已有日趋势且不写成零(self, urlopen):
         yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()

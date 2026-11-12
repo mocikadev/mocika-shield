@@ -209,12 +209,17 @@ def build_snapshot(payload: dict[str, Any], collected_at: datetime) -> dict[str,
         for release in payload["releases"]
         if not release.get("draft") and release.get("published_at")
     }
-    if isinstance(usage, dict) and "version_trend" in usage:
-        usage = {**usage, "version_trend": [
-            {**row, "release_version_match": row.get("app_version") in published_versions
-             if releases_available else None}
-            for row in usage["version_trend"]
-        ]}
+    if isinstance(usage, dict) and usage.get("available"):
+        usage = {**usage, "population_scope": "all_received_installations",
+                 "source_attribution": "unverified_client_version"}
+    for field in ("version_trend", "failure_breakdown", "failure_reason_breakdown",
+                  "failure_classifier_coverage"):
+        if isinstance(usage, dict) and field in usage:
+            usage = {**usage, field: [
+                {**row, "release_version_match": row.get("app_version") in published_versions
+                 if releases_available else None}
+                for row in usage[field]
+            ]}
     platform_downloads = {platform: 0 for platform in PLATFORMS}
     for asset in assets:
         platform_downloads[asset["platform"]] += asset["download_count"]
