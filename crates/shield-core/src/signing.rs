@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
+mod artifacts;
 mod diagnostic;
 mod runner;
 use diagnostic::classify_apksigner_error;
@@ -67,6 +68,7 @@ pub enum SigningProgressStep {
     Prepare,
     Align,
     Sign,
+    Commit,
 }
 
 pub fn sign_apk(opts: &SignOptions) -> Result<()> {

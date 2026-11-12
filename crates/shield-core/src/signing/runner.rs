@@ -97,6 +97,10 @@ fn run_prepared(
     adapter: Option<(&JavaToolContext, &Path)>,
     mut on_progress: impl FnMut(SigningProgressStep) -> std::result::Result<(), String>,
 ) -> Result<()> {
+    anyhow::ensure!(
+        !opts.signing_versions.v4 || opts.signing_versions.v2 || opts.signing_versions.v3,
+        "V4 签名需要同时启用 V2 或 V3"
+    );
     let adapted = adapter.is_some();
     let apksigner = match &opts.apksigner_path {
         Some(p) if p.exists() => path(p, adapted)?,
@@ -146,11 +150,8 @@ fn run_prepared(
                 .or_code(FailureCode::AlignmentFailed)
                 .attach(error)
         })?;
-    let sign_output = if final_output == input {
-        workspace.path().join("signed.apk")
-    } else {
-        final_output.clone()
-    };
+    let artifacts = super::artifacts::Artifacts::new(&final_output, opts.signing_versions.v4)?;
+    let sign_output = artifacts.staged_apk();
     let args = arguments(opts, &keystore, &aligned, &sign_output)?;
     let args: Vec<_> = args.iter().map(String::as_str).collect();
     on_progress(SigningProgressStep::Sign).map_err(anyhow::Error::msg)?;
@@ -203,16 +204,9 @@ fn run_prepared(
             ))
         });
     }
-    if sign_output != final_output {
-        // rename 保留原有替换语义；不能先删除目标，否则跨卷或其他失败会丢失原包。
-        std::fs::rename(&sign_output, &final_output).with_context(|| {
-            format!(
-                "写回最终签名 APK 失败: {} -> {}",
-                sign_output.display(),
-                final_output.display()
-            )
-        })?;
-    }
+    artifacts.validate()?;
+    on_progress(SigningProgressStep::Commit).map_err(anyhow::Error::msg)?;
+    artifacts.publish()?;
     Ok(())
 }
 

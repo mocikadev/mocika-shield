@@ -117,6 +117,7 @@ pub(crate) fn get_diagnostic_info(app: tauri::AppHandle) -> String {
             std::env::consts::OS,
             std::env::consts::ARCH
         ),
+        format!("Linux WebView: {}", crate::linux_webview::diagnostic()),
         format!("Java: {}", build_info.java_version),
         format!("Java 就绪: {}", yes_no(build_info.java_ready)),
         format!("keytool 就绪: {}", yes_no(build_info.keytool_ready)),

@@ -132,6 +132,8 @@ fn execute(
             shield_core::SigningProgressStep::Prepare => Stage::CheckTools,
             shield_core::SigningProgressStep::Align => Stage::Align,
             shield_core::SigningProgressStep::Sign => Stage::Sign,
+            // 提交前仍复核身份，但不向既有受控协议重复发送 Sign 阶段。
+            shield_core::SigningProgressStep::Commit => return Ok(()),
         };
         send(writer, Message::Progress { stage }).map_err(|_| "签名进度通道不可用".to_owned())
     })?;

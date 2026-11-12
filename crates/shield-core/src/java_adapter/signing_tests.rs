@@ -91,11 +91,12 @@ fn 上下文签名中文真实apk与原地覆盖经原工具独立验签() {
                 SigningProgressStep::Prepare => 0,
                 SigningProgressStep::Align => 1,
                 SigningProgressStep::Sign => 2,
+                SigningProgressStep::Commit => 3,
             });
             Ok(())
         })
         .unwrap();
-        assert_eq!(progress, [0, 1, 2]);
+        assert_eq!(progress, [0, 1, 2, 3]);
         let output = opts.output_path.as_ref().unwrap();
         assert_eq!(contents(output), content);
         assert_eq!(
@@ -243,6 +244,7 @@ fn 上下文签名错误与阶段取消不改原包且保留借用材料() {
                     SigningProgressStep::Prepare => 0,
                     SigningProgressStep::Align => 1,
                     SigningProgressStep::Sign => 2,
+                    SigningProgressStep::Commit => 3,
                 };
                 reached.push(index);
                 if index == reject {
@@ -312,6 +314,19 @@ fn 旧签名入口保持指定输出原地覆盖和v4参数行为() {
     independently_verify(root, &stores.java, &output, &stores.fingerprint);
     assert_eq!(contents(&output), content);
     assert_eq!(fs::read(&input).unwrap(), original);
+    let signed = fs::read(&output).unwrap();
+    let idsig = root.join("legacy-output.apk.idsig");
+    let attachment = fs::read(&idsig).unwrap();
+    assert!(crate::sign_apk_with_progress(&opts, |step| {
+        if step == SigningProgressStep::Commit {
+            Err("提交前取消".into())
+        } else {
+            Ok(())
+        }
+    })
+    .is_err());
+    assert_eq!(fs::read(&output).unwrap(), signed);
+    assert_eq!(fs::read(&idsig).unwrap(), attachment);
     opts.signing_versions.v4 = false;
     opts.output_path = None;
     sign_apk(&opts).unwrap();
@@ -381,7 +396,8 @@ fn 异卷原地签名在对齐和工具启动前拒绝且原包不变() {
         [
             SigningProgressStep::Prepare,
             SigningProgressStep::Align,
-            SigningProgressStep::Sign
+            SigningProgressStep::Sign,
+            SigningProgressStep::Commit,
         ]
     ));
     independently_verify(

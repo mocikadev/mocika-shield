@@ -103,6 +103,11 @@ jobs:
       - name: 检查 Rust 格式
         run: cargo fmt --all --check
 
+      - name: 检查 Linux WebView 启动策略
+        run: |
+          rustc --edition=2021 --test apps/shield-gui/src-tauri/src/linux_webview.rs -o "$RUNNER_TEMP/webview-policy-tests"
+          "$RUNNER_TEMP/webview-policy-tests"
+
       - name: 运行发布与统计脚本测试
         run: python3 -m unittest discover -s scripts/tests -v
 
