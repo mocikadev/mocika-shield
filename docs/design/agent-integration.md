@@ -1,6 +1,6 @@
 # Agent 本地自动化接入设计
 
-三平台 `1.5.0-beta.1` 预览已交付 CLI、独立 Skill 和本地 MCP；稳定版 1.4.3 不包含新增入口。本文说明职责与检查边界，安装和示例只在[接入说明](../ops/agent-setup.md)维护，实际结果见[阶段验收](../process/agent-integration-plan.md)及[平台验收](../process/agent-desktop-platforms-plan.md)。
+三平台 `1.5.0` 正式桌面包已交付 CLI 和本地 MCP，Skill 独立安装；`1.4.x` 不包含新增入口。本文说明职责与检查边界，安装和示例只在[接入说明](../ops/agent-setup.md)维护，实际结果见[阶段验收](../process/agent-integration-plan.md)及[平台验收](../process/agent-desktop-platforms-plan.md)。
 
 ## 入口分工
 

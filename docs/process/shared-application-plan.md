@@ -1,6 +1,6 @@
 # 多入口共享能力实施与验收
 
-更新：2026-11-12。共享能力已随三平台 `1.5.0-beta.1` 预览包交付；稳定版 1.4.3 不包含新增入口。架构见[共享应用设计](../design/shared-application.md)，用法见[共享资料 CLI](../ops/shared-data-cli.md)。
+更新：2026-11-12。共享能力已随三平台 `1.5.0` 正式桌面包交付；`1.4.x` 不包含新增入口。架构见[共享应用设计](../design/shared-application.md)，用法见[共享资料 CLI](../ops/shared-data-cli.md)。
 
 ## 完成情况
 
