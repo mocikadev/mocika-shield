@@ -610,7 +610,9 @@ fn decode_utf16_string(bytes: &[u8], offset: usize) -> Result<String, String> {
     let end = start.checked_add(byte_len).ok_or("Manifest 字符串过长")?;
     let value = bytes.get(start..end).ok_or("Manifest 字符串截断")?;
     let units = value
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|part| u16::from_le_bytes([part[0], part[1]]))
         .collect::<Vec<_>>();
     String::from_utf16(&units).map_err(|_| "Manifest UTF-16 字符串无效".to_string())

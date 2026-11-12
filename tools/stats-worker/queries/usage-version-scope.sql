@@ -10,6 +10,12 @@ WITH period AS (
   WHERE usage_date BETWEEN start_date AND end_date
     AND (excluded_id IS NULL OR anonymous_id <> excluded_id)
   UNION ALL
+  SELECT anonymous_id, usage_date, app_version, app_start_count,
+    protect_success_count, protect_failed_count, sign_success_count, sign_failed_count
+  FROM daily_usage_v3, period
+  WHERE usage_date BETWEEN start_date AND end_date
+    AND (excluded_id IS NULL OR anonymous_id <> excluded_id)
+  UNION ALL
   SELECT old.anonymous_id, old.usage_date, old.app_version, old.app_start_count,
     old.protect_success_count, old.protect_failed_count, old.sign_success_count, old.sign_failed_count
   FROM daily_usage old, period

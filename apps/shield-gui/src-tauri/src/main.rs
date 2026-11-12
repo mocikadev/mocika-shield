@@ -5,6 +5,7 @@ mod app_config;
 mod app_paths;
 mod application_identity;
 mod application_sharing;
+mod build_identity;
 mod build_info;
 mod cert_service;
 mod cert_store;
@@ -487,7 +488,13 @@ fn main() {
         .setup(|app| {
             let loaded = load_app_config(app.handle())?;
             let cert_store = initialize_certificate_store(app.handle())?;
-            let config_state = AppConfigState::new(loaded.path, loaded.config);
+            let identity = build_identity::BuildIdentity::from_build(
+                app.config().product_name.as_deref(),
+                &app.config().identifier,
+                option_env!("GIT_HASH"),
+            );
+            let config_state =
+                AppConfigState::new(loaded.path, loaded.config).with_telemetry_identity(identity);
             telemetry::record_app_start(&config_state);
             app.manage(config_state);
             app.manage(cert_store);

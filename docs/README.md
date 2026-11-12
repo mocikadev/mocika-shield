@@ -32,7 +32,7 @@
 - **桌面与工具链**：[GUI](design/gui.md)、[Java 探测](design/java-tool-discovery.md)、[中文兼容](design/chinese-toolchain-compatibility.md)、[Java 参数适配](design/java-tool-adapter.md)、[处理成本基线](design/apk-processing-baseline.md)、[轻量化边界](design/toolchain-modernization.md)。
 - **Agent 与共享服务**：[整体接入](design/agent-integration.md)、[共享应用](design/shared-application.md)、[受控执行器](design/agent-executor.md)、[CLI 契约](design/agent-cli-contract.md)、[共享绑定](design/shared-agent-binding.md)、[三平台适配](design/agent-desktop-platforms.md)。
 - **MCP**：[传输与会话](design/local-mcp.md)、[共享范围](design/shared-mcp.md)、[单次签名](design/controlled-signing.md)、[管理](design/shared-mcp-management.md)、[证书生命周期](design/mcp-certificate-lifecycle.md)。
-- **数据通道**：[失败诊断](design/failure-diagnostics.md)、[有限错误证据](design/error-report-evidence.md)、[应用分享](design/application-usage-sharing.md)。
+- **数据通道**：[统计构建身份](design/telemetry-build-identity.md)、[失败诊断](design/failure-diagnostics.md)、[有限错误证据](design/error-report-evidence.md)、[应用分享](design/application-usage-sharing.md)。
 
 ## 研究与历史记录
 

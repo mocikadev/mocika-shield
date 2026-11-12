@@ -1,5 +1,7 @@
 import { getCurrentSummary } from "./github-summary.js";
-import { normalizeFailureReasonCounts } from "./failure-reasons.js";
+import { normalizeFailureCounts, normalizeFailureReasonCounts } from "./failure-reasons.js";
+export { normalizeFailureCounts } from "./failure-reasons.js";
+import { saveSourceUsage } from "./usage-source.js";
 import { cleanupErrorReports, saveErrorReport } from "./error-reports.js";
 import { cleanupApplicationUsage, saveApplicationUsage } from "./application-usage.js";
 import { queryActivityWindows, queryUsage } from "./usage-queries.js";
@@ -15,11 +17,6 @@ const ALLOWED_EVENTS = new Set([
 ]);
 
 const PUBLIC_CACHE_SECONDS = 600;
-const FAILURE_STAGES = new Map([
-  ["protect", new Set(["prepare", "unpack", "manifest", "dex_runtime", "align", "sign"])],
-  ["sign", new Set(["prepare", "align", "execute"])],
-  ["task", new Set(["cancelled", "unknown"])],
-]);
 
 function corsHeaders(cacheControl = "no-store") {
   return {
@@ -49,28 +46,6 @@ function count(value) {
   return Number.isInteger(value) && value >= 0 && value <= 10000 ? value : 0;
 }
 
-export function normalizeFailureCounts(value) {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new Error("失败阶段无效");
-  const grouped = new Map();
-  for (const item of value) {
-    const operation = item?.operation;
-    const stage = item?.stage;
-    if (typeof operation !== "string" || !FAILURE_STAGES.get(operation)?.has(stage)) {
-      throw new Error("失败阶段无效");
-    }
-    if (!Number.isInteger(item.count) || item.count < 0 || item.count > 10000) {
-      throw new Error("失败计数无效");
-    }
-    const key = `${operation}:${stage}`;
-    grouped.set(key, Math.min(10000, (grouped.get(key) || 0) + item.count));
-  }
-  return [...grouped.entries()].map(([key, value]) => {
-    const [operation, stage] = key.split(":");
-    return { operation, stage, count: value };
-  });
-}
-
 export function formatTrendResponse(days, data, versions, failureBreakdown, failureReasonBreakdown = [], failureClassifierCoverage = [], activityWindows = []) {
   return {
     schema_version: 2,
@@ -91,6 +66,10 @@ async function saveDailyUsage(request, env) {
     body = await request.json();
   } catch {
     return json({ error: "请求数据格式无效" }, 400);
+  }
+
+  if (body?.schema_version === 3 || body?.build_identity !== undefined) {
+    return json({ error: "构建身份统计必须使用第三代入口" }, 400);
   }
 
   if (!validUuid(body.anonymous_id) || !validDate(body.usage_date)) {
@@ -190,8 +169,13 @@ async function saveDailyUsage(request, env) {
 
 async function queryFailureBreakdown(env, days) {
   const result = await env.DB.prepare(`
+    WITH failures AS (
+      SELECT usage_date,app_version,operation,stage,count FROM daily_usage_failure_v2
+      UNION ALL
+      SELECT usage_date,app_version,operation,stage,count FROM daily_usage_failure_v3
+    )
     SELECT usage_date, app_version, operation, stage, SUM(count) AS count
-    FROM daily_usage_failure_v2
+    FROM failures
     WHERE usage_date >= date('now', ?)
     GROUP BY usage_date, app_version, operation, stage
     ORDER BY usage_date ASC, app_version ASC, operation ASC, stage ASC
@@ -201,8 +185,13 @@ async function queryFailureBreakdown(env, days) {
 
 async function queryFailureReasonBreakdown(env, days) {
   const result = await env.DB.prepare(`
+    WITH reasons AS (
+      SELECT usage_date,app_version,flow,operation,stage,code,classifier_version,count FROM daily_usage_failure_reason
+      UNION ALL
+      SELECT usage_date,app_version,flow,operation,stage,code,classifier_version,count FROM daily_usage_failure_reason_v3
+    )
     SELECT usage_date, app_version, flow, operation, stage, code, classifier_version, SUM(count) AS count
-    FROM daily_usage_failure_reason
+    FROM reasons
     WHERE usage_date >= date('now', ?)
     GROUP BY usage_date, app_version, flow, operation, stage, code, classifier_version
     ORDER BY usage_date ASC, app_version ASC, flow ASC, operation ASC, stage ASC, code ASC
@@ -212,10 +201,15 @@ async function queryFailureReasonBreakdown(env, days) {
 
 async function queryFailureClassifierCoverage(env, days) {
   const result = await env.DB.prepare(`
+    WITH coverage AS (
+      SELECT anonymous_id,usage_date,app_version,failure_classifier_version,protect_failed_count,sign_failed_count FROM daily_usage_v2
+      UNION ALL
+      SELECT anonymous_id,usage_date,app_version,failure_classifier_version,protect_failed_count,sign_failed_count FROM daily_usage_v3
+    )
     SELECT usage_date, app_version, failure_classifier_version,
-      COUNT(*) AS reporting_devices,
+      COUNT(DISTINCT anonymous_id) AS reporting_devices,
       SUM(protect_failed_count + sign_failed_count) AS failure_count
-    FROM daily_usage_v2
+    FROM coverage
     WHERE usage_date >= date('now', ?)
     GROUP BY usage_date, app_version, failure_classifier_version
     ORDER BY usage_date ASC, app_version ASC, failure_classifier_version ASC
@@ -261,6 +255,7 @@ export default {
     try {
       const path = new URL(request.url).pathname;
       if (request.method === "POST" && path === "/events/daily") return await saveDailyUsage(request, env);
+      if (request.method === "POST" && path === "/events/daily-v3") return await saveSourceUsage(request, env);
       if (request.method === "POST" && path === "/reports/errors") return await saveErrorReport(request, env);
       if (request.method === "POST" && path === "/reports/application-usage") return await saveApplicationUsage(request, env);
       if (request.method === "GET" && path === "/stats/trend") {

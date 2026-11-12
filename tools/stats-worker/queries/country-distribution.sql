@@ -7,6 +7,10 @@ WITH period AS (
   WHERE usage_date BETWEEN start_date AND end_date
     AND (excluded_id IS NULL OR anonymous_id <> excluded_id)
   UNION
+  SELECT anonymous_id FROM daily_usage_v3, period
+  WHERE usage_date BETWEEN start_date AND end_date
+    AND (excluded_id IS NULL OR anonymous_id <> excluded_id)
+  UNION
   SELECT anonymous_id FROM daily_usage, period
   WHERE usage_date BETWEEN start_date AND end_date
     AND (excluded_id IS NULL OR anonymous_id <> excluded_id)
